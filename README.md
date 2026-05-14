@@ -50,3 +50,13 @@ A focused, mobile-first project and task management PWA. Rudo Quest is intention
 | PWA                | Serwist service worker + `next-pwa`-style manifest (`src/app/sw.ts`, `src/app/manifest.ts`) |
 | Testing            | Vitest (unit + coverage thresholds), Testing Library, Playwright (E2E)                      |
 | CI/CD              | GitHub Actions, Vercel                                                                      |
+
+## Architecture
+
+Rudo Quest uses the Next.js App Router with protected route groups under `src/app/(app)` and public auth routes under `src/app/(auth)`.
+
+**The browser never mutates application data directly.** Client Components use TanStack Query and a typed Fetch wrapper (`src/lib/api/client.ts`). Route Handlers validate Zod payloads, resolve the authenticated Supabase user, enforce permissions, call services, and serialize a standard API envelope:
+
+```json
+{ "error": { "code": "...", "message": "..." }, "requestId": "..." }
+```
