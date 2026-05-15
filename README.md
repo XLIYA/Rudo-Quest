@@ -60,3 +60,13 @@ Rudo Quest uses the Next.js App Router with protected route groups under `src/ap
 ```json
 { "error": { "code": "...", "message": "..." }, "requestId": "..." }
 ```
+
+The server is layered:
+
+- **Route Handlers** (`src/app/api/**`) — validation, authorization, envelope serialization. No business logic.
+- **Services** (`src/server/services`) — business rules, optimistic-concurrency checks, activity events.
+- **Repositories** (`src/server/repositories`) — all database reads and writes via Drizzle.
+- **Policies** (`src/server/policies`) — project authorization (the role matrix below).
+- **Schema** (`src/db/schema/index.ts`) — the Drizzle runtime schema, including CHECK constraints, partial indexes, and foreign keys that mirror application rules.
+
+Supabase is the identity and storage boundary. The server uses SSR cookies and a server-only admin client for private Storage signed URLs and profile bootstrap. Signed uploads are tracked until commit, and abandoned objects are removed by the scheduled job.
