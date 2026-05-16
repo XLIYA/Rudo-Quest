@@ -70,3 +70,20 @@ The server is layered:
 - **Schema** (`src/db/schema/index.ts`) — the Drizzle runtime schema, including CHECK constraints, partial indexes, and foreign keys that mirror application rules.
 
 Supabase is the identity and storage boundary. The server uses SSR cookies and a server-only admin client for private Storage signed URLs and profile bootstrap. Signed uploads are tracked until commit, and abandoned objects are removed by the scheduled job.
+
+### Permission matrix
+
+| Action                    | Owner |       Admin       | Member | Viewer |
+| ------------------------- | :---: | :---------------: | :----: | :----: |
+| View project              |  ✅   |        ✅         |   ✅   |   ✅   |
+| Update project            |  ✅   |        ✅         |   ❌   |   ❌   |
+| Archive project           |  ✅   |        ❌         |   ❌   |   ❌   |
+| Invite users              |  ✅   |        ✅         |   ❌   |   ❌   |
+| Remove member             |  ✅   | ✅ (except owner) |   ❌   |   ❌   |
+| Change member role        |  ✅   |      Limited      |   ❌   |   ❌   |
+| Create project task       |  ✅   |        ✅         |   ✅   |   ❌   |
+| Edit any task             |  ✅   |        ✅         |   ❌   |   ❌   |
+| Edit assigned task        |  ✅   |        ✅         |   ✅   |   ❌   |
+| Assign tasks              |  ✅   |        ✅         |   ✅   |   ❌   |
+| Complete assigned task    |  ✅   |        ✅         |   ✅   |   ❌   |
+| Connect GitHub repository |  ✅   |        ✅         |   ❌   |   ❌   |
