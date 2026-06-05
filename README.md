@@ -87,3 +87,39 @@ Supabase is the identity and storage boundary. The server uses SSR cookies and a
 | Assign tasks              |  ✅   |        ✅         |   ✅   |   ❌   |
 | Complete assigned task    |  ✅   |        ✅         |   ✅   |   ❌   |
 | Connect GitHub repository |  ✅   |        ✅         |   ❌   |   ❌   |
+
+## Project Structure
+
+```
+src/
+├── app/
+│   ├── (app)/            # Protected, authenticated routes (dashboard, weekly, projects, …)
+│   ├── (auth)/           # Public auth routes (sign in / sign up)
+│   ├── api/              # Route Handlers: activity, auth, cron, dashboard, github,
+│   │                     # me, notifications, projects, push, tasks, users, webhooks
+│   ├── offline/          # Neutral offline fallback route
+│   ├── globals.css       # Tailwind 4 entry + design tokens
+│   ├── layout.tsx        # Root layout (fonts, providers, nonce-based CSP)
+│   ├── manifest.ts       # PWA manifest
+│   └── sw.ts             # Serwist service worker source
+├── components/           # Shared UI: layout (AppShell), ui primitives, shared widgets
+├── db/
+│   ├── migrations/       # Hand-authored SQL migrations (deployment source of truth)
+│   ├── drizzle/          # Drizzle-generated snapshots (isolated, not deployed)
+│   ├── schema/           # Drizzle runtime schema
+│   └── seeds/            # Development seed script
+├── features/             # Feature screens: auth, dashboard, notifications, profile,
+│                         # projects, tasks, weekly
+├── hooks/                # Reusable React hooks
+├── lib/                  # Typed API client, env loading, validation schemas, utilities
+├── server/
+│   ├── policies/         # Project authorization policy
+│   ├── repositories/     # Drizzle data access
+│   ├── services/         # Business logic
+│   └── observability/    # Structured logging
+├── supabase/             # Supabase-specific helpers
+└── proxy.ts              # Middleware: CSP with per-request nonces, frame denial,
+                          # same-origin enforcement, security headers
+tests/
+└── e2e/                  # Playwright specs (public, local-auth, authenticated, collaboration)
+```
