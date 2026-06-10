@@ -123,3 +123,12 @@ src/
 tests/
 └── e2e/                  # Playwright specs (public, local-auth, authenticated, collaboration)
 ```
+
+## Getting Started
+
+### Prerequisites
+
+- **Node.js 20+** (CI pins 20; local development on 22/24 also works)
+- **npm 10+** (this repo uses npm — the `resolutions` field is not used)
+- A **Supabase project** (Auth + PostgreSQL + Storage)
+- Optional for full local fidelity: Upstash Redis, VAPID keys, a GitHub App, Sentry
