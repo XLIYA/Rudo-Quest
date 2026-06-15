@@ -132,3 +132,11 @@ tests/
 - **npm 10+** (this repo uses npm — the `resolutions` field is not used)
 - A **Supabase project** (Auth + PostgreSQL + Storage)
 - Optional for full local fidelity: Upstash Redis, VAPID keys, a GitHub App, Sentry
+
+### Install
+
+```bash
+git clone <your-repo-url> rudo-quest
+cd rudo-quest
+npm ci           # installs deps and runs patch-package via postinstall
+```
