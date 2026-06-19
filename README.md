@@ -140,3 +140,21 @@ git clone <your-repo-url> rudo-quest
 cd rudo-quest
 npm ci           # installs deps and runs patch-package via postinstall
 ```
+
+### Configure environment
+
+```bash
+cp .env.example .env.local
+```
+
+Fill in at minimum for local development:
+
+```bash
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable key>
+SUPABASE_SECRET_KEY=<secret key>
+DATABASE_URL=<postgres connection string>
+```
+
+All other variables (GitHub, VAPID, Upstash, cron, Sentry) are optional locally; the app degrades gracefully and returns `INTEGRATION_NOT_CONFIGURED` for unconfigured integrations instead of misbehaving. See [Environment Variables](#environment-variables) for the full reference.
