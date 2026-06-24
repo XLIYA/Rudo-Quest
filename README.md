@@ -158,3 +158,17 @@ DATABASE_URL=<postgres connection string>
 ```
 
 All other variables (GitHub, VAPID, Upstash, cron, Sentry) are optional locally; the app degrades gracefully and returns `INTEGRATION_NOT_CONFIGURED` for unconfigured integrations instead of misbehaving. See [Environment Variables](#environment-variables) for the full reference.
+
+### Set up the database
+
+```bash
+npm run dev:setup    # applies migrations, then seeds development data
+```
+
+The seed script creates a development admin account (configure via `SEED_ADMIN_*` variables) and can create the private `profile-assets` Storage bucket.
+
+### Run
+
+```bash
+npm run dev          # http://localhost:3000
+```
