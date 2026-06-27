@@ -172,3 +172,25 @@ The seed script creates a development admin account (configure via `SEED_ADMIN_*
 ```bash
 npm run dev          # http://localhost:3000
 ```
+
+## Environment Variables
+
+Variables with the `NEXT_PUBLIC_` prefix are public and bundled into client JavaScript. **Every other variable is server-only** and must never be exposed to the browser.
+
+| Variable                                                                                                                                  | Scope       |         Required         | Purpose                                                                                               |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | ----------- | :----------------------: | ----------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_APP_URL`                                                                                                                     | Public      |            ✅            | Canonical production URL (no trailing slash)                                                          |
+| `NEXT_PUBLIC_SUPABASE_URL`                                                                                                                | Public      |            ✅            | Supabase project URL                                                                                  |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`                                                                                                    | Public      |            ✅            | Supabase publishable key (`NEXT_PUBLIC_SUPABASE_ANON_KEY` is the legacy fallback)                     |
+| `SUPABASE_SECRET_KEY`                                                                                                                     | Server-only |            ✅            | Supabase secret key (`SUPABASE_SERVICE_ROLE_KEY` is the legacy fallback). Bypasses RLS — never expose |
+| `DATABASE_URL`                                                                                                                            | Server-only |            ✅            | PostgreSQL connection string (pooled/serverless string recommended, SSL enabled)                      |
+| `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET` | Server-only | GitHub integration only  | GitHub App credentials (see [docs/GITHUB_APP_SETUP.md](docs/GITHUB_APP_SETUP.md))                     |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`                                                                      | Mixed       |    Push notifications    | VAPID key pair + contact URI (`npx web-push generate-vapid-keys --json`)                              |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`                                                                                      | Server-only | Production rate limiting | Without them, rate-limited routes fail closed with `INTEGRATION_NOT_CONFIGURED`                       |
+| `CRON_SECRET`                                                                                                                             | Server-only | Scheduled notifications  | Bearer token for `/api/cron/notifications`, stored in Supabase Vault                                  |
+| `NEXT_PUBLIC_SENTRY_DSN`                                                                                                                  | Public      |         Optional         | Browser/server error reporting                                                                        |
+| `SENTRY_AUTH_TOKEN`                                                                                                                       | Server-only |         Optional         | Source-map upload during production builds                                                            |
+| `SEED_ADMIN_*`                                                                                                                            | Server-only |      Dev seed only       | Development admin account inputs — not used in production                                             |
+| `E2E_EMAIL`, `E2E_PASSWORD`, `PLAYWRIGHT_BASE_URL`                                                                                        | Test        |       Optional E2E       | Authenticated Playwright flows / remote targets                                                       |
+
+Full per-variable sourcing instructions, Vercel environment mapping, and safe secret-rotation procedures live in [docs/VERCEL_ENVIRONMENT.md](docs/VERCEL_ENVIRONMENT.md).
