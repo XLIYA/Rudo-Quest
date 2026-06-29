@@ -194,3 +194,25 @@ Variables with the `NEXT_PUBLIC_` prefix are public and bundled into client Java
 | `E2E_EMAIL`, `E2E_PASSWORD`, `PLAYWRIGHT_BASE_URL`                                                                                        | Test        |       Optional E2E       | Authenticated Playwright flows / remote targets                                                       |
 
 Full per-variable sourcing instructions, Vercel environment mapping, and safe secret-rotation procedures live in [docs/VERCEL_ENVIRONMENT.md](docs/VERCEL_ENVIRONMENT.md).
+
+## Available Scripts
+
+| Script                      | What it does                                          |
+| --------------------------- | ----------------------------------------------------- |
+| `npm run dev`               | Start the dev server (`next dev`)                     |
+| `npm run build`             | Production build (`next build --webpack`)             |
+| `npm start`                 | Serve the production build                            |
+| `npm run lint`              | ESLint across the repo                                |
+| `npm run typecheck`         | `tsc --noEmit`                                        |
+| `npm test`                  | Vitest unit suite                                     |
+| `npm run test:coverage`     | Vitest with coverage thresholds                       |
+| `npm run test:watch`        | Vitest in watch mode                                  |
+| `npm run format`            | Prettier check (CI gate)                              |
+| `npm run format:write`      | Prettier write                                        |
+| `npm run db:generate`       | Generate Drizzle migration snapshots (authoring aid)  |
+| `npm run db:migrate`        | Apply hand-authored migrations (`src/db/migrate.mjs`) |
+| `npm run db:seed`           | Seed development data                                 |
+| `npm run dev:setup`         | `db:migrate` + `db:seed`                              |
+| `npm run db:configure-cron` | Store the cron URL + `CRON_SECRET` in Supabase Vault  |
+| `npm run icons`             | Regenerate PWA icons                                  |
+| `npm run prepare`           | Install Husky git hooks (lint-staged on pre-commit)   |
