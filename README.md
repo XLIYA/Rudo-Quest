@@ -216,3 +216,17 @@ Full per-variable sourcing instructions, Vercel environment mapping, and safe se
 | `npm run db:configure-cron` | Store the cron URL + `CRON_SECRET` in Supabase Vault  |
 | `npm run icons`             | Regenerate PWA icons                                  |
 | `npm run prepare`           | Install Husky git hooks (lint-staged on pre-commit)   |
+
+## Database & Migrations
+
+- The **runtime schema** is `src/db/schema/index.ts` (Drizzle). It encodes application rules as database constraints: status/role/priority CHECKs, one-owner-per-project partial unique index, single pending invitation per user/project, task-completion consistency, personal-task ownership, and optimistic `version` increments.
+- Hand-authored SQL in `src/db/migrations/` is the **deployment source of truth**. Drizzle-generated snapshots live separately in `src/db/drizzle/`.
+- The migration runner (`src/db/migrate.mjs`) serializes deployments with a PostgreSQL **advisory lock** and **rejects checksum drift** — it will refuse to run if a previously applied migration was modified.
+- Apply migrations manually per environment:
+
+```bash
+npm run db:migrate                                   # local
+node --env-file=.env.production src/db/migrate.mjs   # against production
+```
+
+> Migrations are **not** applied automatically by CI or the hosting platform. Running them against the target database is an explicit deployment step.
