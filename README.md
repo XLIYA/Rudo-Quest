@@ -230,3 +230,24 @@ node --env-file=.env.production src/db/migrate.mjs   # against production
 ```
 
 > Migrations are **not** applied automatically by CI or the hosting platform. Running them against the target database is an explicit deployment step.
+
+## Testing
+
+**Unit tests** (Vitest + Testing Library, jsdom):
+
+```bash
+npm test                 # full suite
+npm run test:coverage    # with coverage thresholds enforced
+```
+
+**E2E tests** (Playwright). The config boots its own `next dev --webpack` server on port 3000 and reuses an existing one locally:
+
+```bash
+npx playwright test --project=chromium   # desktop Chromium (CI project)
+npx playwright test --project=mobile     # mobile viewport (Pixel 7)
+```
+
+Spec suites:
+
+- `app.spec.ts` — public pages smoke tests (runs on CI without any environment setup)
+- `local-auth.spec.ts`, `authenticated.spec.ts`, `collaboration.spec.ts` — require local Supabase/`DATABASE_URL` (and optionally `E2E_EMAIL`/`E2E_PASSWORD`); they **self-skip** when the environment is absent, so CI only runs the public smoke suite unless credentials are provided
