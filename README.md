@@ -251,3 +251,15 @@ Spec suites:
 
 - `app.spec.ts` — public pages smoke tests (runs on CI without any environment setup)
 - `local-auth.spec.ts`, `authenticated.spec.ts`, `collaboration.spec.ts` — require local Supabase/`DATABASE_URL` (and optionally `E2E_EMAIL`/`E2E_PASSWORD`); they **self-skip** when the environment is absent, so CI only runs the public smoke suite unless credentials are provided
+
+## Security Model
+
+- **Sessions** — Supabase Auth via HTTP-only SSR cookies. Client-supplied user IDs are ignored for authorization; the server resolves identity on every protected request.
+- **API hardening** — same-origin verification on state-changing routes, Zod validation, server-side permission checks, hard request-body byte limits, and **no raw database errors** in responses (the standard `{ error, requestId }` envelope only, with full detail preserved in server-side structured logs/Sentry).
+- **Headers & CSP** — per-request script/style nonces, frame denial, nosniff, strict referrer policy, restrictive permissions policy (`src/proxy.ts`). Scripts never allow `unsafe-inline`; production never allows `unsafe-eval`.
+- **Rate limiting** — Upstash Redis in production (fails closed with `INTEGRATION_NOT_CONFIGURED`); bounded local fallback in development.
+- **Secrets** — service-role key, GitHub private key, VAPID private key, cron secret, and Upstash token are server-only, never bundled or logged.
+- **Database defense in depth** — RLS on every public table, revoked `anon`/`authenticated` table grants (all browser data access goes through the server API), membership integrity triggers, project-owner integrity, member-only assignees, personal-task ownership, and optimistic version increments.
+- **GitHub flow** — signed, short-lived, single-use installation state bound to the current user; callback replay and installation takeover are rejected; installation tokens are never stored or sent to the browser.
+
+Details: [docs/SECURITY.md](docs/SECURITY.md).
