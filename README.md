@@ -263,3 +263,12 @@ Spec suites:
 - **GitHub flow** — signed, short-lived, single-use installation state bound to the current user; callback replay and installation takeover are rejected; installation tokens are never stored or sent to the browser.
 
 Details: [docs/SECURITY.md](docs/SECURITY.md).
+
+## PWA & Offline Behavior
+
+- Serwist service worker (`src/app/sw.ts`); the app shell and offline fallback route are precached.
+- Authenticated API responses are **not** broadly cached in Cache Storage. Selected TanStack Query read data (weekly, dashboard, project, notification, profile) is persisted to IndexedDB under a **user-scoped key** (profile ID + cache version + timestamp), expiring after seven days.
+- Persisted data is restored only after a successful `/api/me` bootstrap verifies the active session — a remembered user ID is never treated as authentication, including cold offline launches. Logout deletes the user-scoped cache.
+- Offline V1: an open app keeps in-memory data and shows a persistent offline warning; mutations are disabled until reconnection; a cold offline navigation gets the neutral offline route. **No fake mutation success, no background mutation queue.**
+
+Details: [docs/PWA_OFFLINE.md](docs/PWA_OFFLINE.md).
