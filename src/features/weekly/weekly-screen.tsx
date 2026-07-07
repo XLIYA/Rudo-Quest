@@ -17,7 +17,11 @@ import { OfflineStatusToast } from "@/components/shared/offline-status-toast";
 import { useOnline } from "@/hooks/use-online";
 import { getMondayWeekStart, getWeekDates } from "@/lib/utils/dates";
 import type { TaskDto } from "@/types/domain";
-import { useCreateTask, useTaskMutation, useWeekTasks } from "@/features/tasks/task-hooks";
+import {
+  useCreateTask,
+  useTaskMutation,
+  useWeekTasks,
+} from "@/features/tasks/task-hooks";
 
 /**
  * Purpose: Render the central Monday-Sunday accordion planner.
@@ -30,10 +34,14 @@ export function WeeklyScreen() {
   const router = useRouter();
   const today = format(new Date(), "yyyy-MM-dd");
   const weekStart = searchParams.get("weekStart") ?? getMondayWeekStart(new Date());
-  const selectedDate = searchParams.get("date") ?? (getWeekDates(weekStart).includes(today) ? today : weekStart);
+  const selectedDate =
+    searchParams.get("date") ??
+    (getWeekDates(weekStart).includes(today) ? today : weekStart);
   const [expandedDate, setExpandedDate] = useState(selectedDate);
   const [selectedTask, setSelectedTask] = useState<TaskDto | null>(null);
-  const [quickDate, setQuickDate] = useState<string | null>(searchParams.get("quickAdd") ? selectedDate : null);
+  const [quickDate, setQuickDate] = useState<string | null>(
+    searchParams.get("quickAdd") ? selectedDate : null,
+  );
   const [quickTitle, setQuickTitle] = useState("");
   const online = useOnline();
   const query = useWeekTasks(weekStart);
@@ -49,11 +57,15 @@ export function WeeklyScreen() {
   const submitQuick = async (date: string) => {
     if (!online) return toast.error("Offline. Task creation is disabled.");
     if (!quickTitle.trim()) return;
-    await createTask.mutateAsync({
-      title: quickTitle.trim(),
-      scheduledDate: date,
-      scheduledTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    });
+    try {
+      await createTask.mutateAsync({
+        title: quickTitle.trim(),
+        scheduledDate: date,
+        scheduledTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      });
+    } catch {
+      return;
+    }
     setQuickTitle("");
     setQuickDate(null);
   };
@@ -69,7 +81,14 @@ export function WeeklyScreen() {
             <AppIconButton label="Previous week" onClick={() => navigateWeek(-1)}>
               <ChevronLeft className="size-5" />
             </AppIconButton>
-            <AppButton variant="secondary" onClick={() => router.push(`/weekly?weekStart=${getMondayWeekStart(new Date())}&date=${today}`)}>
+            <AppButton
+              variant="secondary"
+              onClick={() =>
+                router.push(
+                  `/weekly?weekStart=${getMondayWeekStart(new Date())}&date=${today}`,
+                )
+              }
+            >
               Today
             </AppButton>
             <AppIconButton label="Next week" onClick={() => navigateWeek(1)}>
@@ -82,10 +101,14 @@ export function WeeklyScreen() {
       {query.data ? (
         <section className="grid gap-3">
           {dates.map((date) => {
-            const tasks = query.data.filter((task) => task.scheduledDate === date && !task.archivedAt);
+            const tasks = query.data.filter(
+              (task) => task.scheduledDate === date && !task.archivedAt,
+            );
             const done = tasks.filter((task) => task.status === "DONE").length;
             const open = expandedDate === date;
-            const ordered = [...tasks].sort((a, b) => Number(a.status === "DONE") - Number(b.status === "DONE"));
+            const ordered = [...tasks].sort(
+              (a, b) => Number(a.status === "DONE") - Number(b.status === "DONE"),
+            );
             return (
               <article key={date} className="rounded-lg border border-border bg-surface">
                 <button
@@ -94,10 +117,17 @@ export function WeeklyScreen() {
                   className="grid w-full grid-cols-[1fr_auto] items-center gap-3 p-4 text-left"
                 >
                   <span>
-                    <span className="font-display text-3xl uppercase leading-none">{format(parseISO(date), "EEEE")}</span>
-                    <span className="mt-1 block font-mono text-xs text-text-secondary">{format(parseISO(date), "MMMM d, yyyy")} - {done} / {tasks.length} completed</span>
+                    <span className="font-display text-3xl uppercase leading-none">
+                      {format(parseISO(date), "EEEE")}
+                    </span>
+                    <span className="mt-1 block font-mono text-xs text-text-secondary">
+                      {format(parseISO(date), "MMMM d, yyyy")} - {done} / {tasks.length}{" "}
+                      completed
+                    </span>
                   </span>
-                  <span className="font-mono text-sm text-text-secondary">{open ? "Close" : "Open"}</span>
+                  <span className="font-mono text-sm text-text-secondary">
+                    {open ? "Close" : "Open"}
+                  </span>
                 </button>
                 {open ? (
                   <div className="grid gap-2 border-t border-border p-3">
@@ -107,9 +137,14 @@ export function WeeklyScreen() {
                         task={task}
                         disabled={!online}
                         onOpen={(target) => setSelectedTask(target)}
-                        onStart={(target) => mutateTask.mutate({ task: target, action: "start" })}
+                        onStart={(target) =>
+                          mutateTask.mutate({ task: target, action: "start" })
+                        }
                         onCompleteToggle={(target) =>
-                          mutateTask.mutate({ task: target, action: target.status === "DONE" ? "reopen" : "complete" })
+                          mutateTask.mutate({
+                            task: target,
+                            action: target.status === "DONE" ? "reopen" : "complete",
+                          })
                         }
                       />
                     ))}
@@ -125,12 +160,21 @@ export function WeeklyScreen() {
                         }}
                       />
                     ) : (
-                      <AppButton variant="ghost" disabled={!online} onClick={() => setQuickDate(date)}>
+                      <AppButton
+                        variant="ghost"
+                        disabled={!online}
+                        onClick={() => setQuickDate(date)}
+                      >
                         <Plus className="size-4" />
                         Add a task...
                       </AppButton>
                     )}
-                    {!ordered.length && quickDate !== date ? <AppEmptyState title="Open day" description="No tasks scheduled here." /> : null}
+                    {!ordered.length && quickDate !== date ? (
+                      <AppEmptyState
+                        title="Open day"
+                        description="No tasks scheduled here."
+                      />
+                    ) : null}
                   </div>
                 ) : null}
               </article>
@@ -144,7 +188,9 @@ export function WeeklyScreen() {
         offline={!online}
         onOpenChange={(open) => !open && setSelectedTask(null)}
         onArchive={(task) => mutateTask.mutate({ task, action: "archive" })}
-        onSave={(task, values) => mutateTask.mutate({ task, action: "update", body: values })}
+        onSave={(task, values) =>
+          mutateTask.mutate({ task, action: "update", body: values })
+        }
       />
     </main>
   );

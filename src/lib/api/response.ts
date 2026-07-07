@@ -27,10 +27,9 @@ export function apiSuccess<T>(
     requestId?: string;
   },
 ): NextResponse<ApiSuccess<T>> {
-  const response = NextResponse.json(
-    init?.meta ? { data, meta: init.meta } : { data },
-    { status: init?.status ?? 200 },
-  );
+  const response = NextResponse.json(init?.meta ? { data, meta: init.meta } : { data }, {
+    status: init?.status ?? 200,
+  });
   if (init?.requestId) response.headers.set("x-request-id", init.requestId);
   return response;
 }
@@ -42,14 +41,17 @@ export function apiSuccess<T>(
  * Side effects: Adds request ID header.
  */
 export function apiFailure(error: unknown, requestId: string): NextResponse<ApiFailure> {
+  if (
+    process.env.NODE_ENV !== "production" &&
+    !(error instanceof AppError) &&
+    !(error instanceof ZodError)
+  ) {
+    console.error(`[api:${requestId}] Unhandled API error`, error);
+  }
+
   const appError =
     error instanceof ZodError
-      ? new AppError(
-          "VALIDATION_ERROR",
-          400,
-          "Validation failed.",
-          zodFieldErrors(error),
-        )
+      ? new AppError("VALIDATION_ERROR", 400, "Validation failed.", zodFieldErrors(error))
       : normalizeAppError(error);
   const response = NextResponse.json(
     {

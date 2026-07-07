@@ -37,51 +37,82 @@ export function DashboardScreen() {
   const to = format(subDays(new Date(`${from}T00:00:00Z`), -6), "yyyy-MM-dd");
   const query = useQuery({
     queryKey: queryKeys.dashboard(from, to),
-    queryFn: ({ signal }) => apiGet<DashboardData>(`/api/dashboard?from=${from}&to=${to}`, signal),
+    queryFn: ({ signal }) =>
+      apiGet<DashboardData>(`/api/dashboard?from=${from}&to=${to}`, signal),
   });
   const taskMutation = useTaskMutation(from);
 
   if (query.isLoading) return <DashboardSkeleton />;
   if (query.isError || !query.data) {
-    return <AppEmptyState title="Dashboard unavailable" description="Rudo Quest could not load the dashboard aggregates." />;
+    return (
+      <AppEmptyState
+        title="Dashboard unavailable"
+        description="Rudo Quest could not load the dashboard aggregates."
+      />
+    );
   }
   const todayTasks = [...query.data.today.overdue, ...query.data.today.tasks];
   return (
-    <main className="mx-auto grid max-w-7xl gap-6 p-5 md:p-8">
-      <PageHeader title="Dashboard" description="Today, weekly progress, completion rhythm, and project load." />
-      <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+    <main className="mx-auto grid min-w-0 max-w-7xl gap-4 overflow-x-hidden px-4 py-5 sm:gap-5 sm:px-5 md:gap-6 md:p-8">
+      <PageHeader
+        title="Dashboard"
+        description="Today, weekly progress, completion rhythm, and project load."
+      />
+      <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
         <Widget title="Today">
           {todayTasks.length ? (
-            <div className="grid gap-2">
+            <div className="grid min-w-0 gap-2">
               {todayTasks.map((task) => (
                 <TaskRow
                   key={task.id}
                   task={task}
                   onOpen={() => undefined}
-                  onStart={(target) => taskMutation.mutate({ task: target, action: "start" })}
+                  onStart={(target) =>
+                    taskMutation.mutate({ task: target, action: "start" })
+                  }
                   onCompleteToggle={(target) =>
-                    taskMutation.mutate({ task: target, action: target.status === "DONE" ? "reopen" : "complete" })
+                    taskMutation.mutate({
+                      task: target,
+                      action: target.status === "DONE" ? "reopen" : "complete",
+                    })
                   }
                 />
               ))}
             </div>
           ) : (
-            <AppEmptyState title="Clear today" description="No overdue or incomplete tasks scheduled for today." />
+            <AppEmptyState
+              title="Clear today"
+              description="No overdue or incomplete tasks scheduled for today."
+            />
           )}
         </Widget>
         <Widget title="Weekly progress">
-          <div className="flex items-end justify-between">
-            <div>
-              <p className="font-mono text-4xl font-semibold">{query.data.weeklyProgress.percent}%</p>
+          <div className="flex min-w-0 items-end justify-between">
+            <div className="min-w-0">
+              <p className="font-mono text-3xl font-semibold sm:text-4xl">
+                {query.data.weeklyProgress.percent}%
+              </p>
               <p className="text-sm text-text-secondary">
-                {query.data.weeklyProgress.completed} / {query.data.weeklyProgress.total} completed
+                {query.data.weeklyProgress.completed} / {query.data.weeklyProgress.total}{" "}
+                completed
               </p>
             </div>
           </div>
-          <div className="mt-5 h-32">
+          <div className="mt-5 h-32 min-w-0 overflow-hidden">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={query.data.weeklyProgress.days}>
-                <XAxis dataKey="date" tickFormatter={(value) => value.slice(5)} fontSize={11} />
+              <BarChart
+                data={query.data.weeklyProgress.days}
+                margin={{ top: 8, right: 4, bottom: 0, left: 4 }}
+              >
+                <XAxis
+                  dataKey="date"
+                  tickFormatter={(value) => value.slice(5)}
+                  fontSize={11}
+                  interval={0}
+                  minTickGap={0}
+                  tickLine={false}
+                  axisLine={false}
+                />
                 <Tooltip />
                 <Bar dataKey="completed" fill="var(--brand)" radius={[4, 4, 0, 0]} />
               </BarChart>
@@ -89,41 +120,60 @@ export function DashboardScreen() {
           </div>
         </Widget>
       </section>
-      <section className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
+      <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
         <Widget title="Activity heatmap">
-          <p className="mb-3 text-sm text-text-secondary">{query.data.heatmap.streak} day current completion streak</p>
-          <div className="grid grid-flow-col grid-rows-7 gap-1 overflow-x-auto pb-2" aria-label="365 day task completion heatmap">
-            {Array.from({ length: 365 }, (_, index) => {
-              const date = format(subDays(new Date(), 364 - index), "yyyy-MM-dd");
-              const count = query.data?.heatmap.days.find((day) => day.date === date)?.count ?? 0;
-              return (
-                <span
-                  key={date}
-                  tabIndex={0}
-                  title={`${date}: ${count} completed`}
-                  aria-label={`${date}: ${count} completed tasks`}
-                  className="size-3 rounded-[3px]"
-                  style={{ background: heatmapColor(count) }}
-                />
-              );
-            })}
+          <p className="mb-3 text-sm text-text-secondary">
+            {query.data.heatmap.streak} day current completion streak
+          </p>
+          <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
+            <div
+              className="grid w-max grid-flow-col grid-rows-7 gap-1"
+              aria-label="365 day task completion heatmap"
+            >
+              {Array.from({ length: 365 }, (_, index) => {
+                const date = format(subDays(new Date(), 364 - index), "yyyy-MM-dd");
+                const count =
+                  query.data?.heatmap.days.find((day) => day.date === date)?.count ?? 0;
+                return (
+                  <span
+                    key={date}
+                    tabIndex={0}
+                    title={`${date}: ${count} completed`}
+                    aria-label={`${date}: ${count} completed tasks`}
+                    className="size-2.5 shrink-0 rounded-[3px] sm:size-3"
+                    style={{ background: heatmapColor(count) }}
+                  />
+                );
+              })}
+            </div>
           </div>
         </Widget>
         <Widget title="Project snapshot">
           {query.data.projects.length ? (
-            <div className="grid gap-3">
+            <div className="grid min-w-0 gap-3">
               {query.data.projects.map((project) => (
-                <a key={project.id} href={`/projects/${project.id}` as Route} className="rounded-md border border-border p-3 hover:bg-surface-muted">
-                  <div className="flex items-center justify-between gap-3">
-                    <h3 className="font-semibold">{project.title}</h3>
-                    <span className="font-mono text-sm text-text-secondary">{project.openTaskCount} open</span>
+                <a
+                  key={project.id}
+                  href={`/projects/${project.id}` as Route}
+                  className="block min-w-0 rounded-md border border-border p-3 hover:bg-surface-muted"
+                >
+                  <div className="flex min-w-0 items-center justify-between gap-3">
+                    <h3 className="min-w-0 truncate font-semibold">{project.title}</h3>
+                    <span className="shrink-0 font-mono text-sm text-text-secondary">
+                      {project.openTaskCount} open
+                    </span>
                   </div>
-                  <p className="mt-1 text-sm text-text-secondary">{project.weeklyCompletionPercent}% complete this week</p>
+                  <p className="mt-1 text-sm text-text-secondary">
+                    {project.weeklyCompletionPercent}% complete this week
+                  </p>
                 </a>
               ))}
             </div>
           ) : (
-            <AppEmptyState title="No projects yet" description="Create a project when work needs collaborators." />
+            <AppEmptyState
+              title="No projects yet"
+              description="Create a project when work needs collaborators."
+            />
           )}
         </Widget>
       </section>
@@ -139,8 +189,10 @@ export function DashboardScreen() {
  */
 function Widget({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border border-border bg-surface p-4 shadow-[var(--shadow-surface)]">
-      <h2 className="mb-4 text-sm font-semibold uppercase tracking-normal text-text-secondary">{title}</h2>
+    <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-surface p-4 shadow-[var(--shadow-surface)]">
+      <h2 className="mb-4 text-sm font-semibold uppercase tracking-normal text-text-secondary">
+        {title}
+      </h2>
       {children}
     </section>
   );
@@ -153,8 +205,15 @@ function Widget({ title, children }: { title: string; children: React.ReactNode 
  * Side effects: None.
  */
 function heatmapColor(count: number): string {
-  const colors = ["#F7F7F8", "#FFF0EA", "#FFD6C6", "#FFB08F", "#FF835C", "#FF5A1F"];
-  return colors[Math.min(count, colors.length - 1)] ?? "#F7F7F8";
+  const colors = [
+    "var(--surface-muted)",
+    "var(--brand-soft)",
+    "color-mix(in srgb, var(--brand) 28%, var(--surface))",
+    "color-mix(in srgb, var(--brand) 48%, var(--surface))",
+    "color-mix(in srgb, var(--brand) 72%, var(--surface))",
+    "var(--brand)",
+  ];
+  return colors[Math.min(count, colors.length - 1)] ?? "var(--surface-muted)";
 }
 
 /**
@@ -165,7 +224,7 @@ function heatmapColor(count: number): string {
  */
 function DashboardSkeleton() {
   return (
-    <main className="grid gap-4 p-5 md:p-8">
+    <main className="grid min-w-0 gap-4 px-4 py-5 sm:px-5 md:p-8">
       <AppSkeleton className="h-12 w-56" />
       <AppSkeleton className="h-64 w-full" />
       <AppSkeleton className="h-64 w-full" />

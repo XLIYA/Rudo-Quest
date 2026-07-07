@@ -69,8 +69,13 @@ export async function readAllNotifications(userId: string) {
  * Output: Stored subscription ID.
  * Side effects: Writes push_subscriptions.
  */
-export async function subscribeToPush(userId: string, payload: unknown, userAgent: string | null) {
-  if (!hasPushEnv()) throw new AppError("INTEGRATION_NOT_CONFIGURED", 503, "Push is not configured.");
+export async function subscribeToPush(
+  userId: string,
+  payload: unknown,
+  userAgent: string | null,
+) {
+  if (!hasPushEnv())
+    throw new AppError("INTEGRATION_NOT_CONFIGURED", 503, "Push is not configured.");
   const parsed = pushSubscriptionSchema.parse(payload);
   const subscription = await upsertPushSubscription({
     userId,
@@ -99,7 +104,10 @@ export async function unsubscribeFromPush(userId: string, payload: unknown) {
  * Output: Count of successful sends.
  * Side effects: Sends network requests to push services, logs delivery, deletes dead endpoints.
  */
-export async function sendPushForNotification(notification: NotificationDto, userId: string) {
+export async function sendPushForNotification(
+  notification: NotificationDto,
+  userId: string,
+) {
   const env = getServerEnv();
   if (!hasPushEnv(env)) return { sent: 0 };
   webPush.setVapidDetails(
@@ -119,7 +127,7 @@ export async function sendPushForNotification(notification: NotificationDto, use
         JSON.stringify({
           title: notification.title,
           body: notification.body,
-          href: notification.href ?? "/notifications",
+          href: notification.href ?? "/profile#notifications",
         }),
       );
       sent += 1;

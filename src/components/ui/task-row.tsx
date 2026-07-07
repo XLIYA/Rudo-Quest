@@ -21,7 +21,13 @@ export type TaskRowProps = {
  * Output: Keyboard/touch-operable task row.
  * Side effects: Invokes action callbacks.
  */
-export function TaskRow({ task, disabled, onOpen, onCompleteToggle, onStart }: TaskRowProps) {
+export function TaskRow({
+  task,
+  disabled,
+  onOpen,
+  onCompleteToggle,
+  onStart,
+}: TaskRowProps) {
   const color = task.project ? getProjectColor(task.project.colorKey) : null;
   return (
     <article
@@ -31,7 +37,7 @@ export function TaskRow({ task, disabled, onOpen, onCompleteToggle, onStart }: T
       onKeyDown={(event) => {
         if (event.key === "Enter") onOpen(task);
       }}
-      className="grid grid-cols-[auto_1fr_auto] gap-3 rounded-md border border-border bg-surface p-3 shadow-[var(--shadow-surface)]"
+      className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] gap-3 rounded-md border border-border bg-surface p-3 shadow-[var(--shadow-surface)]"
     >
       <TaskCheckbox
         checked={task.status === "DONE"}
@@ -41,11 +47,14 @@ export function TaskRow({ task, disabled, onOpen, onCompleteToggle, onStart }: T
       />
       <div className="min-w-0">
         <h3 className="line-clamp-2 text-sm font-semibold">{task.title}</h3>
-        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-secondary">
+        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-xs text-text-secondary">
           {task.project ? (
-            <span className="inline-flex items-center gap-1">
-              <span className="size-2 rounded-sm" style={{ background: color?.main }} />
-              {task.project.title}
+            <span className="inline-flex min-w-0 max-w-full items-center gap-1">
+              <span
+                className="size-2 shrink-0 rounded-sm"
+                style={{ background: color?.main }}
+              />
+              <span className="truncate">{task.project.title}</span>
             </span>
           ) : (
             <span>Personal</span>
@@ -59,7 +68,7 @@ export function TaskRow({ task, disabled, onOpen, onCompleteToggle, onStart }: T
           <span>{task.status.replace("_", " ")}</span>
         </div>
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1">
         {task.status === "TODO" ? (
           <AppIconButton
             label={`Start ${task.title}`}
@@ -72,7 +81,13 @@ export function TaskRow({ task, disabled, onOpen, onCompleteToggle, onStart }: T
             <Play className="size-4" />
           </AppIconButton>
         ) : null}
-        {task.assignee ? <AppAvatar name={task.assignee.displayName} src={task.assignee.avatarUrl} className="size-8" /> : null}
+        {task.assignee ? (
+          <AppAvatar
+            name={task.assignee.displayName}
+            src={task.assignee.avatarUrl}
+            className="size-8"
+          />
+        ) : null}
       </div>
     </article>
   );

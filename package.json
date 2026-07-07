@@ -14,7 +14,7 @@
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "node src/db/migrate.mjs",
     "db:seed": "node src/db/seeds/seed.mjs",
     "icons": "node scripts/generate-icons.mjs",
     "prepare": "husky"
@@ -36,9 +36,7 @@
     "@serwist/window": "^9.5.11",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.110.0",
-    "@tanstack/query-sync-storage-persister": "^5.101.2",
     "@tanstack/react-query": "^5.101.2",
-    "@tanstack/react-query-persist-client": "^5.101.2",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.0",
     "axios": "^1.18.1",

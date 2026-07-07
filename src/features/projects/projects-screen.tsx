@@ -17,12 +17,25 @@ import { AppSkeleton } from "@/components/ui/app-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { apiGet } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
-import { projectRoles, type ProfileSummary, type ProjectColorKey, type ProjectIconKey, type ProjectRole, type ProjectSummary } from "@/types/domain";
+import {
+  projectRoles,
+  type ProfileSummary,
+  type ProjectColorKey,
+  type ProjectIconKey,
+  type ProjectRole,
+  type ProjectSummary,
+} from "@/types/domain";
 import { getProjectColor } from "@/lib/theme/project-colors";
-import { ProjectColorPicker, ProjectIconGlyph, ProjectIconPicker } from "./project-pickers";
+import {
+  ProjectColorPicker,
+  ProjectIconGlyph,
+  ProjectIconPicker,
+} from "./project-pickers";
 import { useCreateProject, useProjects } from "./project-hooks";
 
-const invitationRoles = projectRoles.filter((role): role is Exclude<ProjectRole, "OWNER"> => role !== "OWNER");
+const invitationRoles = projectRoles.filter(
+  (role): role is Exclude<ProjectRole, "OWNER"> => role !== "OWNER",
+);
 
 type PendingInvitation = {
   user: ProfileSummary;
@@ -54,12 +67,19 @@ export function ProjectsScreen() {
         action={<AppButton onClick={() => setCreateOpen(true)}>Create project</AppButton>}
       />
       <section className="grid gap-3 rounded-lg border border-border bg-surface p-4 md:grid-cols-[1fr_12rem_12rem]">
-        <AppInput label="Search" value={search} onChange={(event) => setSearch(event.currentTarget.value)} />
+        <AppInput
+          label="Search"
+          value={search}
+          onChange={(event) => setSearch(event.currentTarget.value)}
+        />
         <AppSelect
           label="Role"
           value={role}
           onValueChange={setRole}
-          options={[{ value: "all", label: "All roles" }, ...projectRoles.map((item) => ({ value: item, label: item }))]}
+          options={[
+            { value: "all", label: "All roles" },
+            ...projectRoles.map((item) => ({ value: item, label: item })),
+          ]}
         />
         <AppSelect
           label="Archive"
@@ -75,11 +95,19 @@ export function ProjectsScreen() {
       {query.isLoading ? <ProjectGridSkeleton /> : null}
       {query.data?.length ? (
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {query.data.map((project) => <ProjectCard key={project.id} project={project} />)}
+          {query.data.map((project) => (
+            <ProjectCard key={project.id} project={project} />
+          ))}
         </section>
       ) : null}
       {query.data && !query.data.length ? (
-        <AppEmptyState title="No projects" description="Create a project when a task needs a shared owner, member list, or GitHub repository." action={<AppButton onClick={() => setCreateOpen(true)}>Create project</AppButton>} />
+        <AppEmptyState
+          title="No projects"
+          description="Create a project when a task needs a shared owner, member list, or GitHub repository."
+          action={
+            <AppButton onClick={() => setCreateOpen(true)}>Create project</AppButton>
+          }
+        />
       ) : null}
       <CreateProjectDialog open={createOpen} onOpenChange={setCreateOpen} />
     </main>
@@ -95,22 +123,36 @@ export function ProjectsScreen() {
 function ProjectCard({ project }: { project: ProjectSummary }) {
   const color = getProjectColor(project.colorKey);
   return (
-    <Link href={`/projects/${project.id}` as Route} className="rounded-lg border border-border bg-surface p-4 shadow-[var(--shadow-surface)] transition-colors hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-brand">
+    <Link
+      href={`/projects/${project.id}` as Route}
+      className="rounded-lg border border-border bg-surface p-4 shadow-[var(--shadow-surface)] transition-colors hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-brand"
+    >
       <div className="flex items-start justify-between gap-3">
-        <span className="flex size-11 items-center justify-center rounded-md" style={{ background: color.soft, color: color.text }}>
+        <span
+          className="flex size-11 items-center justify-center rounded-md"
+          style={{ background: color.soft, color: color.text }}
+        >
           <ProjectIconGlyph iconKey={project.iconKey} className="size-5" />
         </span>
-        <span className="rounded-sm bg-surface-muted px-2 py-1 font-mono text-xs text-text-secondary">{project.role}</span>
+        <span className="rounded-sm bg-surface-muted px-2 py-1 font-mono text-xs text-text-secondary">
+          {project.role}
+        </span>
       </div>
       <h2 className="mt-4 text-lg font-semibold">{project.title}</h2>
-      <p className="mt-1 line-clamp-2 min-h-10 text-sm leading-5 text-text-secondary">{project.description ?? "No description."}</p>
+      <p className="mt-1 line-clamp-2 min-h-10 text-sm leading-5 text-text-secondary">
+        {project.description ?? "No description."}
+      </p>
       <div className="mt-4 flex items-center justify-between gap-3">
         <AppAvatarStack users={project.members} />
-        <span className="font-mono text-xs text-text-secondary">{project.openTaskCount} open</span>
+        <span className="font-mono text-xs text-text-secondary">
+          {project.openTaskCount} open
+        </span>
       </div>
       <div className="mt-3 flex items-center justify-between gap-3 text-xs text-text-secondary">
         <span>{project.weeklyCompletionPercent}% this week</span>
-        <span>{project.githubRepositoryFullName ? "GitHub connected" : "No repository"}</span>
+        <span>
+          {project.githubRepositoryFullName ? "GitHub connected" : "No repository"}
+        </span>
       </div>
     </Link>
   );
@@ -122,7 +164,13 @@ function ProjectCard({ project }: { project: ProjectSummary }) {
  * Output: Dialog form.
  * Side effects: Calls project creation mutation.
  */
-function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+function CreateProjectDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const createProject = useCreateProject();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -161,22 +209,29 @@ function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   );
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => setDebouncedMemberSearch(memberSearch.trim()), 250);
+    const timeout = window.setTimeout(
+      () => setDebouncedMemberSearch(memberSearch.trim()),
+      250,
+    );
     return () => window.clearTimeout(timeout);
   }, [memberSearch]);
 
   const submit = async () => {
-    await createProject.mutateAsync({
-      title,
-      description: description || null,
-      iconKey,
-      colorKey,
-      timeZone,
-      invitations: pendingInvitations.map((invitation) => ({
-        userId: invitation.user.id,
-        role: invitation.role,
-      })),
-    });
+    try {
+      await createProject.mutateAsync({
+        title,
+        description: description || null,
+        iconKey,
+        colorKey,
+        timeZone,
+        invitations: pendingInvitations.map((invitation) => ({
+          userId: invitation.user.id,
+          role: invitation.role,
+        })),
+      });
+    } catch {
+      return;
+    }
     setTitle("");
     setDescription("");
     setMemberSearch("");
@@ -218,21 +273,36 @@ function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onOpenChan
         </div>
         {step === 1 ? (
           <>
-            <AppInput label="Title" value={title} onChange={(event) => setTitle(event.currentTarget.value)} />
-            <AppInput label="Description" value={description} onChange={(event) => setDescription(event.currentTarget.value)} />
+            <AppInput
+              label="Title"
+              value={title}
+              onChange={(event) => setTitle(event.currentTarget.value)}
+            />
+            <AppInput
+              label="Description"
+              value={description}
+              onChange={(event) => setDescription(event.currentTarget.value)}
+            />
             <ProjectIconPicker value={iconKey} onChange={setIconKey} />
             <ProjectColorPicker value={colorKey} onChange={setColorKey} />
-            <AppButton disabled={title.trim().length < 2} onClick={() => setStep(2)}>Next</AppButton>
+            <AppButton disabled={title.trim().length < 2} onClick={() => setStep(2)}>
+              Next
+            </AppButton>
           </>
         ) : null}
         {step === 2 ? (
           <>
-            <p className="text-sm leading-6 text-text-secondary">Search by handle or display name. Access starts only after each invitation is accepted.</p>
+            <p className="text-sm leading-6 text-text-secondary">
+              Search by handle or display name. Access starts only after each invitation
+              is accepted.
+            </p>
             <div className="grid gap-3 rounded-md border border-border bg-surface-muted p-3">
               <AppSelect
                 label="Invitation role"
                 value={inviteRole}
-                onValueChange={(value) => setInviteRole(value as Exclude<ProjectRole, "OWNER">)}
+                onValueChange={(value) =>
+                  setInviteRole(value as Exclude<ProjectRole, "OWNER">)
+                }
                 options={invitationRoles.map((role) => ({ value: role, label: role }))}
               />
               <AppInput
@@ -253,13 +323,19 @@ function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onOpenChan
                     >
                       <AppAvatar name={user.displayName} src={user.avatarUrl} />
                       <span className="min-w-0">
-                        <span className="block truncate text-sm font-semibold">{user.displayName}</span>
-                        <span className="block truncate font-mono text-xs text-text-secondary">@{user.handle}</span>
+                        <span className="block truncate text-sm font-semibold">
+                          {user.displayName}
+                        </span>
+                        <span className="block truncate font-mono text-xs text-text-secondary">
+                          @{user.handle}
+                        </span>
                       </span>
                     </button>
                   ))}
                   {!suggestions.isLoading && !visibleSuggestions.length ? (
-                    <p className="rounded-md border border-border bg-surface p-3 text-sm text-text-secondary">No matching users found.</p>
+                    <p className="rounded-md border border-border bg-surface p-3 text-sm text-text-secondary">
+                      No matching users found.
+                    </p>
                   ) : null}
                 </div>
               ) : null}
@@ -268,26 +344,47 @@ function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               <div className="grid gap-2">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-semibold">Selected collaborators</p>
-                  <AppAvatarStack users={pendingInvitations.map((invitation) => invitation.user)} />
+                  <AppAvatarStack
+                    users={pendingInvitations.map((invitation) => invitation.user)}
+                  />
                 </div>
                 {pendingInvitations.map((invitation) => (
-                  <div key={invitation.user.id} className="grid gap-3 rounded-md border border-border bg-surface p-3 sm:grid-cols-[1fr_10rem_auto] sm:items-center">
+                  <div
+                    key={invitation.user.id}
+                    className="grid gap-3 rounded-md border border-border bg-surface p-3 sm:grid-cols-[1fr_10rem_auto] sm:items-center"
+                  >
                     <div className="flex min-w-0 items-center gap-3">
-                      <AppAvatar name={invitation.user.displayName} src={invitation.user.avatarUrl} />
+                      <AppAvatar
+                        name={invitation.user.displayName}
+                        src={invitation.user.avatarUrl}
+                      />
                       <span className="min-w-0">
-                        <span className="block truncate text-sm font-semibold">{invitation.user.displayName}</span>
-                        <span className="block truncate font-mono text-xs text-text-secondary">@{invitation.user.handle}</span>
+                        <span className="block truncate text-sm font-semibold">
+                          {invitation.user.displayName}
+                        </span>
+                        <span className="block truncate font-mono text-xs text-text-secondary">
+                          @{invitation.user.handle}
+                        </span>
                       </span>
                     </div>
                     <AppSelect
                       label="Role"
                       value={invitation.role}
                       onValueChange={(value) =>
-                        updateInvitationRole(invitation.user.id, value as Exclude<ProjectRole, "OWNER">)
+                        updateInvitationRole(
+                          invitation.user.id,
+                          value as Exclude<ProjectRole, "OWNER">,
+                        )
                       }
-                      options={invitationRoles.map((role) => ({ value: role, label: role }))}
+                      options={invitationRoles.map((role) => ({
+                        value: role,
+                        label: role,
+                      }))}
                     />
-                    <AppIconButton label={`Remove ${invitation.user.displayName}`} onClick={() => removeInvitation(invitation.user.id)}>
+                    <AppIconButton
+                      label={`Remove ${invitation.user.displayName}`}
+                      onClick={() => removeInvitation(invitation.user.id)}
+                    >
                       <X className="size-4" />
                     </AppIconButton>
                   </div>
@@ -295,17 +392,26 @@ function CreateProjectDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               </div>
             ) : null}
             <div className="flex justify-between">
-              <AppButton variant="secondary" onClick={() => setStep(1)}>Back</AppButton>
+              <AppButton variant="secondary" onClick={() => setStep(1)}>
+                Back
+              </AppButton>
               <AppButton onClick={() => setStep(3)}>Next</AppButton>
             </div>
           </>
         ) : null}
         {step === 3 ? (
           <>
-            <p className="text-sm leading-6 text-text-secondary">GitHub can be connected from project settings after creation. Project creation does not require a repository.</p>
+            <p className="text-sm leading-6 text-text-secondary">
+              GitHub can be connected from project settings after creation. Project
+              creation does not require a repository.
+            </p>
             <div className="flex justify-between">
-              <AppButton variant="secondary" onClick={() => setStep(2)}>Back</AppButton>
-              <AppButton disabled={createProject.isPending} onClick={submit}>Create project</AppButton>
+              <AppButton variant="secondary" onClick={() => setStep(2)}>
+                Back
+              </AppButton>
+              <AppButton disabled={createProject.isPending} onClick={submit}>
+                Create project
+              </AppButton>
             </div>
           </>
         ) : null}

@@ -1,11 +1,11 @@
-import { NotificationsScreen } from "@/features/notifications/notifications-screen";
+import { redirect } from "next/navigation";
 
 /**
- * Purpose: Render notification center route.
+ * Purpose: Redirect legacy notification route into profile.
  * Inputs: None.
- * Output: Notifications feature screen.
+ * Output: Redirect response.
  * Side effects: None.
  */
 export default function NotificationsPage() {
-  return <NotificationsScreen />;
+  redirect("/profile#notifications");
 }

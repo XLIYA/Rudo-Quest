@@ -10,7 +10,9 @@ import { AppButton } from "@/components/ui/app-button";
 import { AppInput } from "@/components/ui/app-input";
 import { AppSelect } from "@/components/ui/app-select";
 import { AppEmptyState } from "@/components/ui/app-empty-state";
+import { AppSkeleton } from "@/components/ui/app-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
+import { NotificationsPanel } from "@/features/notifications/notifications-screen";
 
 type Profile = {
   id: string;
@@ -40,7 +42,8 @@ export function ProfileScreen() {
     queryFn: ({ signal }) => apiGet<Profile>("/api/me", signal),
   });
   const updatePrefs = useMutation({
-    mutationFn: (body: Partial<Profile>) => apiMutation<Profile>("patch", "/api/me/preferences", body),
+    mutationFn: (body: Partial<Profile>) =>
+      apiMutation<Profile>("patch", "/api/me/preferences", body),
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.me, data);
       setTheme(data.themePreference);
@@ -48,37 +51,83 @@ export function ProfileScreen() {
     onError: (error) => toast.error(normalizeApiClientError(error).message),
   });
   const updateProfile = useMutation({
-    mutationFn: (body: Pick<Profile, "displayName" | "handle">) => apiMutation<Profile>("patch", "/api/me/profile", body),
+    mutationFn: (body: Pick<Profile, "displayName" | "handle">) =>
+      apiMutation<Profile>("patch", "/api/me/profile", body),
     onSuccess: (data) => queryClient.setQueryData(queryKeys.me, data),
     onError: (error) => toast.error(normalizeApiClientError(error).message),
   });
-  if (!profile.data) return <main className="p-5 md:p-8"><AppEmptyState title="Profile unavailable" description="Sign in again to load profile data." /></main>;
+  if (profile.isLoading) {
+    return (
+      <main className="mx-auto grid max-w-4xl gap-5 p-5 md:p-8">
+        <AppSkeleton className="h-96" />
+      </main>
+    );
+  }
+  if (!profile.data) {
+    return (
+      <main className="p-5 md:p-8">
+        <AppEmptyState
+          title="Profile unavailable"
+          description="Sign in again to load profile data."
+        />
+      </main>
+    );
+  }
   return (
     <main className="mx-auto grid max-w-4xl gap-5 p-5 md:p-8">
-      <PageHeader title="Profile" description="Identity, theme, timezone, and notification preferences." />
+      <PageHeader
+        title="Profile"
+        description="Identity, appearance, timezone, and notifications."
+      />
       <section className="rounded-lg border border-border bg-surface p-5">
         <div className="flex items-center gap-4">
-          <AppAvatar name={profile.data.displayName} src={profile.data.avatarPath} className="size-16" />
+          <AppAvatar
+            name={profile.data.displayName}
+            src={profile.data.avatarPath}
+            className="size-16"
+          />
           <div>
             <h2 className="text-xl font-semibold">{profile.data.displayName}</h2>
-            <p className="font-mono text-sm text-text-secondary">@{profile.data.handle}</p>
+            <p className="font-mono text-sm text-text-secondary">
+              @{profile.data.handle}
+            </p>
           </div>
         </div>
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <AppInput
             label="Display name"
             defaultValue={profile.data.displayName}
-            onBlur={(event) => updateProfile.mutate({ displayName: event.currentTarget.value, handle: profile.data.handle })}
+            onBlur={(event) =>
+              updateProfile.mutate({
+                displayName: event.currentTarget.value,
+                handle: profile.data.handle,
+              })
+            }
           />
           <AppInput
             label="Handle"
             defaultValue={profile.data.handle}
-            onBlur={(event) => updateProfile.mutate({ displayName: profile.data.displayName, handle: event.currentTarget.value })}
+            onBlur={(event) =>
+              updateProfile.mutate({
+                displayName: profile.data.displayName,
+                handle: event.currentTarget.value,
+              })
+            }
           />
+        </div>
+      </section>
+      <section className="rounded-lg border border-border bg-surface p-5">
+        <h2 className="text-lg font-semibold">Appearance and schedule</h2>
+        <p className="mt-1 text-sm text-text-secondary">
+          Theme and local reminder timing live here, not in the app navigation.
+        </p>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
           <AppSelect
             label="Theme"
             value={profile.data.themePreference}
-            onValueChange={(value) => updatePrefs.mutate({ themePreference: value as Profile["themePreference"] })}
+            onValueChange={(value) =>
+              updatePrefs.mutate({ themePreference: value as Profile["themePreference"] })
+            }
             options={[
               { value: "system", label: "System" },
               { value: "light", label: "Light" },
@@ -88,26 +137,49 @@ export function ProfileScreen() {
           <AppInput
             label="Timezone"
             defaultValue={profile.data.timeZone}
-            onBlur={(event) => updatePrefs.mutate({ timeZone: event.currentTarget.value })}
+            onBlur={(event) =>
+              updatePrefs.mutate({ timeZone: event.currentTarget.value })
+            }
+          />
+          <AppInput
+            label="Daily reminder time"
+            type="time"
+            defaultValue={profile.data.dailyReminderTime ?? ""}
+            onBlur={(event) =>
+              updatePrefs.mutate({
+                dailyReminderTime: event.currentTarget.value.trim() || null,
+              })
+            }
           />
         </div>
       </section>
       <section className="rounded-lg border border-border bg-surface p-5">
-        <h2 className="text-lg font-semibold">Notifications</h2>
+        <h2 className="text-lg font-semibold">Notification preferences</h2>
         <div className="mt-4 flex flex-wrap gap-3">
           <AppButton
             variant={profile.data.notificationsEnabled ? "primary" : "secondary"}
-            onClick={() => updatePrefs.mutate({ notificationsEnabled: !profile.data.notificationsEnabled })}
+            onClick={() =>
+              updatePrefs.mutate({
+                notificationsEnabled: !profile.data.notificationsEnabled,
+              })
+            }
           >
             {profile.data.notificationsEnabled ? "Notifications on" : "Notifications off"}
           </AppButton>
           <AppButton
             variant={profile.data.dailyReminderEnabled ? "primary" : "secondary"}
-            onClick={() => updatePrefs.mutate({ dailyReminderEnabled: !profile.data.dailyReminderEnabled })}
+            onClick={() =>
+              updatePrefs.mutate({
+                dailyReminderEnabled: !profile.data.dailyReminderEnabled,
+              })
+            }
           >
             Daily reminder
           </AppButton>
         </div>
+      </section>
+      <section className="rounded-lg border border-border bg-surface p-5">
+        <NotificationsPanel compact />
       </section>
     </main>
   );

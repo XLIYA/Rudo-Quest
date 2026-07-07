@@ -8,6 +8,30 @@ let pool: Pool | null = null;
 let db: NodePgDatabase<typeof schema> | null = null;
 
 /**
+ * Purpose: Choose pg SSL settings from the database connection URL.
+ * Inputs: PostgreSQL connection URL.
+ * Output: SSL disabled for local loopback databases, permissive SSL for hosted databases.
+ * Side effects: None.
+ */
+export function getPgSslConfig(
+  databaseUrl: string,
+): false | { rejectUnauthorized: false } {
+  try {
+    const url = new URL(databaseUrl);
+    const sslMode = url.searchParams.get("sslmode");
+    if (sslMode === "disable") return false;
+    if (sslMode === "require" || sslMode === "no-verify")
+      return { rejectUnauthorized: false };
+    const hostname = url.hostname.replace(/^\[|\]$/g, "");
+    if (["localhost", "127.0.0.1", "::1"].includes(hostname)) return false;
+  } catch {
+    if (databaseUrl.includes("localhost") || databaseUrl.includes("127.0.0.1"))
+      return false;
+  }
+  return { rejectUnauthorized: false };
+}
+
+/**
  * Purpose: Return the process-wide Drizzle database client.
  * Inputs: DATABASE_URL from validated environment.
  * Output: Drizzle PostgreSQL database bound to the application schema.
@@ -22,7 +46,7 @@ export function getDb(): NodePgDatabase<typeof schema> {
   }
   pool = new Pool({
     connectionString: databaseUrl,
-    ssl: databaseUrl.includes("localhost") ? false : { rejectUnauthorized: false },
+    ssl: getPgSslConfig(databaseUrl),
   });
   db = drizzle(pool, { schema });
   return db;

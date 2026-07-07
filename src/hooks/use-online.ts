@@ -9,9 +9,10 @@ import { useEffect, useState } from "react";
  * Side effects: Subscribes to online/offline events.
  */
 export function useOnline(): boolean {
-  const [online, setOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
+  const [online, setOnline] = useState(true);
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);
+    update();
     window.addEventListener("online", update);
     window.addEventListener("offline", update);
     return () => {
