@@ -1,0 +1,7 @@
+<svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Rudo mark">
+  <rect width="96" height="96" rx="24" fill="#FF5A1F"/>
+  <path d="M26 52C26 35.431 35.85 24 48 24C60.15 24 70 35.431 70 52V66C70 73.732 63.732 80 56 80H40C32.268 80 26 73.732 26 66V52Z" fill="#FFFFFF"/>
+  <path d="M37 47C37 39.82 41.925 35 48 35C54.075 35 59 39.82 59 47V52H37V47Z" fill="#482217"/>
+  <path d="M45 58L49 62L59 51" stroke="#FF5A1F" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M48 18V27M23 31L31 38M73 31L65 38" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
+</svg>

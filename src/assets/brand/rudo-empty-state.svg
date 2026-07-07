@@ -1,0 +1,8 @@
+<svg width="240" height="180" viewBox="0 0 240 180" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Rudo waiting with an empty map">
+  <rect x="52" y="34" width="136" height="104" rx="24" fill="#FFF0EA"/>
+  <path d="M82 104C82 75.834 99.013 56 120 56C140.987 56 158 75.834 158 104V116C158 129.255 147.255 140 134 140H106C92.745 140 82 129.255 82 116V104Z" fill="#FF5A1F"/>
+  <path d="M102 94C102 82.402 110.059 74 120 74C129.941 74 138 82.402 138 94V102H102V94Z" fill="#482217"/>
+  <path d="M112 115H128" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
+  <path d="M120 44V58M72 64L84 76M168 64L156 76" stroke="#FF5A1F" stroke-width="8" stroke-linecap="round"/>
+  <path d="M46 150H194" stroke="#E5E5E5" stroke-width="8" stroke-linecap="round"/>
+</svg>

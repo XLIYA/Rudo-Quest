@@ -1,0 +1,102 @@
+import { z } from "zod";
+
+const serverEnvSchema = z.object({
+  NEXT_PUBLIC_APP_URL: z.url().optional().or(z.literal("")),
+  NEXT_PUBLIC_SUPABASE_URL: z.url().optional().or(z.literal("")),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+  DATABASE_URL: z.string().optional(),
+  GITHUB_APP_ID: z.string().optional(),
+  GITHUB_APP_CLIENT_ID: z.string().optional(),
+  GITHUB_APP_CLIENT_SECRET: z.string().optional(),
+  GITHUB_APP_PRIVATE_KEY: z.string().optional(),
+  GITHUB_WEBHOOK_SECRET: z.string().optional(),
+  NEXT_PUBLIC_VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().optional(),
+  UPSTASH_REDIS_REST_URL: z.url().optional().or(z.literal("")),
+  UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
+  CRON_SECRET: z.string().optional(),
+  NEXT_PUBLIC_SENTRY_DSN: z.url().optional().or(z.literal("")),
+  SENTRY_AUTH_TOKEN: z.string().optional(),
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+});
+
+export type ServerEnv = z.infer<typeof serverEnvSchema>;
+
+let cachedEnv: ServerEnv | null = null;
+
+/**
+ * Purpose: Parse process environment into a typed server configuration object.
+ * Inputs: process.env from the current runtime.
+ * Output: Validated environment values with optional integrations represented as missing.
+ * Side effects: Caches the parsed result for the process lifetime.
+ * Failure behavior: Throws when an environment value has an invalid shape.
+ */
+export function getServerEnv(): ServerEnv {
+  if (cachedEnv) return cachedEnv;
+  cachedEnv = serverEnvSchema.parse(process.env);
+  return cachedEnv;
+}
+
+/**
+ * Purpose: Determine whether Supabase-backed authentication and data access can run.
+ * Inputs: Parsed server environment.
+ * Output: Boolean readiness flag.
+ * Side effects: None.
+ */
+export function hasSupabaseEnv(env: ServerEnv = getServerEnv()): boolean {
+  return Boolean(env.NEXT_PUBLIC_SUPABASE_URL && env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+}
+
+/**
+ * Purpose: Determine whether the database can accept Drizzle queries.
+ * Inputs: Parsed server environment.
+ * Output: Boolean readiness flag.
+ * Side effects: None.
+ */
+export function hasDatabaseEnv(env: ServerEnv = getServerEnv()): boolean {
+  return Boolean(env.DATABASE_URL);
+}
+
+/**
+ * Purpose: Determine whether the GitHub App integration is configured.
+ * Inputs: Parsed server environment.
+ * Output: Boolean readiness flag.
+ * Side effects: None.
+ */
+export function hasGitHubEnv(env: ServerEnv = getServerEnv()): boolean {
+  return Boolean(
+    env.GITHUB_APP_ID &&
+      env.GITHUB_APP_CLIENT_ID &&
+      env.GITHUB_APP_CLIENT_SECRET &&
+      env.GITHUB_APP_PRIVATE_KEY &&
+      env.GITHUB_WEBHOOK_SECRET,
+  );
+}
+
+/**
+ * Purpose: Determine whether web push delivery is configured.
+ * Inputs: Parsed server environment.
+ * Output: Boolean readiness flag.
+ * Side effects: None.
+ */
+export function hasPushEnv(env: ServerEnv = getServerEnv()): boolean {
+  return Boolean(
+    env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY && env.VAPID_SUBJECT,
+  );
+}
+
+/**
+ * Purpose: Read a required integration value at runtime.
+ * Inputs: Integration name and candidate value.
+ * Output: The candidate value when present.
+ * Side effects: None.
+ * Failure behavior: Throws an integration error consumed by API handlers.
+ */
+export function requireIntegrationValue(name: string, value: string | undefined): string {
+  if (!value) {
+    throw new Error(`INTEGRATION_NOT_CONFIGURED:${name}`);
+  }
+  return value;
+}

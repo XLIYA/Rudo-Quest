@@ -1,0 +1,5 @@
+.next
+coverage
+node_modules
+public/sw.js
+package-lock.json

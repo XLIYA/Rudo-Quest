@@ -1,0 +1,40 @@
+"use client";
+
+import * as Dialog from "@radix-ui/react-dialog";
+import { X } from "lucide-react";
+import type { ReactNode } from "react";
+import { AppIconButton } from "./app-icon-button";
+
+export type AppDialogProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  children: ReactNode;
+};
+
+/**
+ * Purpose: Render a modal dialog with focus trap and Escape handling.
+ * Inputs: Controlled open state, title, and content.
+ * Output: Accessible Radix dialog.
+ * Side effects: Locks focus while open.
+ */
+export function AppDialog({ open, onOpenChange, title, children }: AppDialogProps) {
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[88vh] w-[min(92vw,34rem)] -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-lg border border-border bg-surface p-5 shadow-[var(--shadow-overlay)]">
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <Dialog.Title className="text-lg font-semibold">{title}</Dialog.Title>
+            <Dialog.Close asChild>
+              <AppIconButton label="Close dialog">
+                <X className="size-5" />
+              </AppIconButton>
+            </Dialog.Close>
+          </div>
+          {children}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}

@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Rudo Quest
 
-## Getting Started
+Rudo Quest is a compact collaborative weekly task-management PWA built with Next.js App Router, Supabase Auth/PostgreSQL, Drizzle ORM, TanStack Query, Axios, Serwist, and Vercel.
 
-First, run the development server:
+## Local Setup
+
+Install dependencies with `npm install`, copy `.env.example` to `.env.local`, configure Supabase and database credentials, then run `npm run db:migrate`, `npm run db:seed`, and `npm run dev`.
+
+This application uses Supabase Auth and the database migration references `auth.users`, so local development requires a Supabase local stack or a hosted Supabase project. A plain PostgreSQL database is not enough. The repository includes a `.env.local` template for the current workspace with the standard local Supabase URL, local database URL, and development seed account; fill the anon key and service role key from your Supabase project before seeding.
+
+The development seed creates or updates this verified login:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run db:seed
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Use the seeded account from `.env.local` to sign in after migrations complete.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Required commands:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+npx playwright test
+```
 
-## Learn More
+## Environment
 
-To learn more about Next.js, take a look at the following resources:
+All variables are listed in `.env.example`. Supabase and `DATABASE_URL` are required for authenticated application flows. GitHub, VAPID, Sentry, Upstash, and Cron credentials are integration-specific; missing optional credentials disable the relevant UI/API action with a typed `INTEGRATION_NOT_CONFIGURED` error.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Database
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Schema lives in `src/db/schema/index.ts`. The initial SQL migration with indexes and RLS defense-in-depth policies is `src/db/migrations/0000_initial.sql`. Drizzle Kit is configured in `drizzle.config.ts`.
 
-## Deploy on Vercel
+## Application
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Browser mutations go through Route Handlers via `src/lib/api/client.ts`, the single Axios client. Server Components and Route Handlers resolve the current Supabase user server-side. Business logic is in `src/server/services`, database access is in `src/server/repositories`, and authorization is in `src/server/policies`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## PWA
+
+Serwist builds `public/sw.js` from `src/app/sw.ts`. The app manifest is `src/app/manifest.ts`; generated icons are in `public/icons`.
+
+## Documentation
+
+Read `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, `docs/GITHUB_APP_SETUP.md`, `docs/PUSH_NOTIFICATIONS.md`, `docs/PWA_OFFLINE.md`, and `docs/DECISIONS.md`.

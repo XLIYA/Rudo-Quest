@@ -1,0 +1,7 @@
+<svg width="280" height="64" viewBox="0 0 280 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Rudo Quest">
+  <rect x="4" y="8" width="48" height="48" rx="14" fill="#FF5A1F"/>
+  <path d="M16 34C16 24.059 21.373 18 28 18C34.627 18 40 24.059 40 34V40C40 44.418 36.418 48 32 48H24C19.582 48 16 44.418 16 40V34Z" fill="#fff"/>
+  <path d="M22 31C22 26.582 24.686 24 28 24C31.314 24 34 26.582 34 31V33H22V31Z" fill="#482217"/>
+  <path d="M26 38L29 41L35 34" stroke="#FF5A1F" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="64" y="43" fill="#1A1A1A" font-family="Bitcount Ink, Manrope, sans-serif" font-size="34" font-weight="700" letter-spacing="0">Rudo Quest</text>
+</svg>

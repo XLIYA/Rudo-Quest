@@ -1,0 +1,7 @@
+<svg width="240" height="180" viewBox="0 0 240 180" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Rudo celebrating a finished task">
+  <rect x="54" y="28" width="132" height="124" rx="30" fill="#FFF0EA"/>
+  <path d="M82 98C82 69.834 99.013 50 120 50C140.987 50 158 69.834 158 98V118C158 131.255 147.255 142 134 142H106C92.745 142 82 131.255 82 118V98Z" fill="#FF5A1F"/>
+  <path d="M102 88C102 76.402 110.059 68 120 68C129.941 68 138 76.402 138 88V96H102V88Z" fill="#482217"/>
+  <path d="M109 112L118 121L137 101" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M120 36V52M70 58L84 72M170 58L156 72" stroke="#198754" stroke-width="8" stroke-linecap="round"/>
+</svg>
