@@ -66,6 +66,18 @@ export const projectIconKeys = [
   "FlaskConical",
   "HeartHandshake",
   "Map",
+  "Target",
+  "CalendarCheck",
+  "FileText",
+  "Bug",
+  "ShieldCheck",
+  "Lightbulb",
+  "Hammer",
+  "Users",
+  "GraduationCap",
+  "BarChart3",
+  "Database",
+  "PackageCheck",
 ] as const;
 export type ProjectIconKey = (typeof projectIconKeys)[number];
 

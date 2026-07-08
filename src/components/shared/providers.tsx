@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { del } from "idb-keyval";
 import { useEffect, useState, type ReactNode } from "react";
 import { Toaster, toast } from "sonner";
+import { AgentationToolbar } from "@/components/shared/agentation-toolbar";
 import { registerSerwist } from "@/lib/pwa/register";
 
 const queryCacheKey = "rudo-query-cache-v2";
@@ -66,6 +67,7 @@ export function Providers({ children }: { children: ReactNode }) {
       <QueryClientProvider client={queryClient}>
         {children}
         <Toaster richColors position="top-center" />
+        <AgentationToolbar />
       </QueryClientProvider>
     </ThemeProvider>
   );

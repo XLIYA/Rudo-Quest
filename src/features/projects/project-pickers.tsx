@@ -1,7 +1,12 @@
 "use client";
 
 import * as Icons from "lucide-react";
-import { projectColorKeys, projectIconKeys, type ProjectColorKey, type ProjectIconKey } from "@/types/domain";
+import {
+  projectColorKeys,
+  projectIconKeys,
+  type ProjectColorKey,
+  type ProjectIconKey,
+} from "@/types/domain";
 import { getProjectColor } from "@/lib/theme/project-colors";
 import { cn } from "@/lib/utils/cn";
 
@@ -20,6 +25,18 @@ const iconMap: Record<ProjectIconKey, IconComponent> = {
   FlaskConical: Icons.FlaskConical,
   HeartHandshake: Icons.HeartHandshake,
   Map: Icons.Map,
+  Target: Icons.Target,
+  CalendarCheck: Icons.CalendarCheck,
+  FileText: Icons.FileText,
+  Bug: Icons.Bug,
+  ShieldCheck: Icons.ShieldCheck,
+  Lightbulb: Icons.Lightbulb,
+  Hammer: Icons.Hammer,
+  Users: Icons.Users,
+  GraduationCap: Icons.GraduationCap,
+  BarChart3: Icons.BarChart3,
+  Database: Icons.Database,
+  PackageCheck: Icons.PackageCheck,
 };
 
 /**
@@ -38,7 +55,13 @@ export function resolveProjectIcon(iconKey: ProjectIconKey): IconComponent {
  * Output: Lucide icon element.
  * Side effects: None.
  */
-export function ProjectIconGlyph({ iconKey, className }: { iconKey: ProjectIconKey; className?: string }) {
+export function ProjectIconGlyph({
+  iconKey,
+  className,
+}: {
+  iconKey: ProjectIconKey;
+  className?: string;
+}) {
   switch (iconKey) {
     case "CheckCircle2":
       return <Icons.CheckCircle2 className={className} aria-hidden />;
@@ -62,6 +85,30 @@ export function ProjectIconGlyph({ iconKey, className }: { iconKey: ProjectIconK
       return <Icons.HeartHandshake className={className} aria-hidden />;
     case "Map":
       return <Icons.Map className={className} aria-hidden />;
+    case "Target":
+      return <Icons.Target className={className} aria-hidden />;
+    case "CalendarCheck":
+      return <Icons.CalendarCheck className={className} aria-hidden />;
+    case "FileText":
+      return <Icons.FileText className={className} aria-hidden />;
+    case "Bug":
+      return <Icons.Bug className={className} aria-hidden />;
+    case "ShieldCheck":
+      return <Icons.ShieldCheck className={className} aria-hidden />;
+    case "Lightbulb":
+      return <Icons.Lightbulb className={className} aria-hidden />;
+    case "Hammer":
+      return <Icons.Hammer className={className} aria-hidden />;
+    case "Users":
+      return <Icons.Users className={className} aria-hidden />;
+    case "GraduationCap":
+      return <Icons.GraduationCap className={className} aria-hidden />;
+    case "BarChart3":
+      return <Icons.BarChart3 className={className} aria-hidden />;
+    case "Database":
+      return <Icons.Database className={className} aria-hidden />;
+    case "PackageCheck":
+      return <Icons.PackageCheck className={className} aria-hidden />;
     case "Compass":
     default:
       return <Icons.Compass className={className} aria-hidden />;
@@ -94,12 +141,16 @@ export function ProjectColorPicker({
               onClick={() => onChange(key)}
               aria-pressed={value === key}
               className={cn(
-                "min-h-11 rounded-md border px-2 text-xs font-semibold capitalize",
-                value === key ? "border-brand" : "border-border",
+                "flex min-h-12 items-center gap-2 rounded-md border bg-surface px-2 text-left text-xs font-semibold capitalize transition-colors hover:bg-surface-muted",
+                value === key ? "border-brand text-brand" : "border-border",
               )}
-              style={{ background: color.soft, color: color.text }}
             >
-              {key}
+              <span
+                className="size-6 rounded-sm border border-border"
+                style={{ background: color.main }}
+                aria-hidden
+              />
+              <span className="min-w-0 truncate">{key}</span>
             </button>
           );
         })}
@@ -124,7 +175,7 @@ export function ProjectIconPicker({
   return (
     <fieldset className="grid gap-2">
       <legend className="text-sm font-semibold">Icon</legend>
-      <div className="grid grid-cols-6 gap-2">
+      <div className="grid grid-cols-6 gap-2 sm:grid-cols-8">
         {projectIconKeys.map((key) => {
           return (
             <button

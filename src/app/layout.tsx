@@ -1,24 +1,13 @@
-import type { Metadata } from "next";
-import { Bitcount_Ink, Manrope, Roboto_Mono } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Fjord_One } from "next/font/google";
 import type { ReactNode } from "react";
 import { Providers } from "@/components/shared/providers";
 import "./globals.css";
 
-const manrope = Manrope({
-  variable: "--font-manrope",
+const fjordOne = Fjord_One({
+  variable: "--font-fjord-one",
   subsets: ["latin"],
-  display: "swap",
-});
-
-const robotoMono = Roboto_Mono({
-  variable: "--font-roboto-mono",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-const bitcountInk = Bitcount_Ink({
-  variable: "--font-bitcount-ink",
-  subsets: ["latin"],
+  weight: "400",
   display: "swap",
 });
 
@@ -44,6 +33,12 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -53,7 +48,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${manrope.variable} ${robotoMono.variable} ${bitcountInk.variable} h-full antialiased`}
+      className={`${fjordOne.variable} h-full antialiased`}
     >
       <body>
         <Providers>{children}</Providers>

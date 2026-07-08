@@ -59,7 +59,27 @@ self.addEventListener("notificationclick", (event) => {
     typeof event.notification.data?.href === "string"
       ? event.notification.data.href
       : "/profile#notifications";
-  event.waitUntil(self.clients.openWindow(href));
+  const targetUrl = new URL(href, self.location.origin).href;
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then(async (clients) => {
+        const matchingClient = clients.find((client) => client.url === targetUrl);
+        if (matchingClient) {
+          await matchingClient.focus();
+          return;
+        }
+        const appClient = clients.find(
+          (client) => new URL(client.url).origin === self.location.origin,
+        );
+        if (appClient) {
+          await appClient.navigate(targetUrl);
+          await appClient.focus();
+          return;
+        }
+        await self.clients.openWindow(targetUrl);
+      }),
+  );
 });
 
 serwist.addEventListeners();

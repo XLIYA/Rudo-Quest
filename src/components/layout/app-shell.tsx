@@ -8,7 +8,6 @@ import {
   FolderKanban,
   LayoutDashboard,
   Plus,
-  Settings,
   User,
 } from "lucide-react";
 import RudoMark from "@/assets/brand/rudo-mark.svg";
@@ -30,7 +29,7 @@ const navItems = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   return (
-    <div className="min-h-screen bg-background text-text-primary md:grid md:grid-cols-[15rem_1fr]">
+    <div className="min-h-dvh bg-background text-text-primary md:grid md:grid-cols-[15rem_1fr]">
       <aside className="sticky top-0 hidden h-screen border-r border-border bg-surface p-4 md:block">
         <Link href="/dashboard" className="flex items-center gap-3">
           <Image src={RudoMark} alt="" width={36} height={36} />
@@ -41,6 +40,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link
               key={item.href}
               href={item.href}
+              aria-current={pathname.startsWith(item.href) ? "page" : undefined}
               className={cn(
                 "flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary",
                 pathname.startsWith(item.href) ? "bg-brand-soft text-brand" : null,
@@ -51,35 +51,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
           ))}
         </nav>
-        <div className="absolute bottom-4 left-4 right-4 grid gap-2">
-          <Link
-            href="/settings"
-            className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold text-text-secondary hover:bg-surface-muted"
-          >
-            <Settings className="size-4" />
-            Settings
-          </Link>
-        </div>
       </aside>
-      <div className="min-w-0 pb-24 md:pb-0">
+      <div className="min-w-0 pb-[calc(6rem+env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] md:pb-0 md:pl-0 md:pr-0 md:pt-0">
         {children}
         <Link
           href="/weekly?quickAdd=1"
-          className="fixed bottom-20 right-5 z-30 inline-flex size-14 items-center justify-center rounded-lg bg-brand text-white shadow-[var(--shadow-raised)] md:hidden"
+          className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-[calc(1.25rem+env(safe-area-inset-right))] z-30 inline-flex size-14 items-center justify-center rounded-lg bg-brand text-white shadow-[var(--shadow-raised)] md:hidden"
           aria-label="Add task"
         >
           <Plus className="size-6" />
         </Link>
         <nav
-          className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t border-border bg-surface/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+          className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] pl-[calc(0.25rem+env(safe-area-inset-left))] pr-[calc(0.25rem+env(safe-area-inset-right))] backdrop-blur md:hidden"
           aria-label="Mobile primary"
         >
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
+              aria-current={pathname.startsWith(item.href) ? "page" : undefined}
               className={cn(
-                "flex min-h-16 flex-col items-center justify-center gap-1 rounded-md text-[11px] font-semibold text-text-secondary",
+                "flex min-h-16 flex-col items-center justify-center gap-1 rounded-md text-[11px] font-semibold text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary",
                 pathname.startsWith(item.href) ? "text-brand" : null,
               )}
             >

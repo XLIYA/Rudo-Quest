@@ -2,6 +2,7 @@
 
 import { useTheme } from "next-themes";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { apiGet, apiMutation, normalizeApiClientError } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
@@ -13,6 +14,12 @@ import { AppEmptyState } from "@/components/ui/app-empty-state";
 import { AppSkeleton } from "@/components/ui/app-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { NotificationsPanel } from "@/features/notifications/notifications-screen";
+import {
+  getPushBrowserState,
+  subscribeCurrentBrowserToPush,
+  unsubscribeCurrentBrowserFromPush,
+  type PushBrowserState,
+} from "@/lib/pwa/push";
 
 type Profile = {
   id: string;
@@ -28,6 +35,13 @@ type Profile = {
   dailyReminderTime: string | null;
 };
 
+function getErrorMessage(error: unknown): string {
+  if (typeof error === "object" && error && "message" in error) {
+    return String(error.message);
+  }
+  return normalizeApiClientError(error).message;
+}
+
 /**
  * Purpose: Render editable profile, theme, timezone, notifications, and activity summary.
  * Inputs: None.
@@ -37,6 +51,12 @@ type Profile = {
 export function ProfileScreen() {
   const { setTheme } = useTheme();
   const queryClient = useQueryClient();
+  const [pushState, setPushState] = useState<PushBrowserState>({
+    supported: false,
+    configured: false,
+    permission: "unsupported",
+    subscribed: false,
+  });
   const profile = useQuery({
     queryKey: queryKeys.me,
     queryFn: ({ signal }) => apiGet<Profile>("/api/me", signal),
@@ -56,6 +76,64 @@ export function ProfileScreen() {
     onSuccess: (data) => queryClient.setQueryData(queryKeys.me, data),
     onError: (error) => toast.error(normalizeApiClientError(error).message),
   });
+
+  useEffect(() => {
+    let ignore = false;
+    if (!profile.data) return;
+    void getPushBrowserState().then((state) => {
+      if (!ignore) setPushState(state);
+    });
+    return () => {
+      ignore = true;
+    };
+  }, [profile.data]);
+
+  const toggleNotifications = async () => {
+    if (!profile.data) return;
+    if (profile.data.notificationsEnabled && pushState.subscribed) {
+      try {
+        setPushState(await unsubscribeCurrentBrowserFromPush());
+      } catch (error) {
+        toast.error(getErrorMessage(error));
+      }
+      updatePrefs.mutate({
+        notificationsEnabled: false,
+        dailyReminderEnabled: false,
+      });
+      return;
+    }
+
+    try {
+      setPushState(await subscribeCurrentBrowserToPush());
+      updatePrefs.mutate({ notificationsEnabled: true });
+      toast.success("Notifications enabled for this device.");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
+  };
+
+  const toggleDailyReminder = async () => {
+    if (!profile.data) return;
+    if (profile.data.dailyReminderEnabled) {
+      updatePrefs.mutate({ dailyReminderEnabled: false });
+      return;
+    }
+
+    if (!profile.data.notificationsEnabled || !pushState.subscribed) {
+      try {
+        setPushState(await subscribeCurrentBrowserToPush());
+      } catch (error) {
+        toast.error(getErrorMessage(error));
+        return;
+      }
+    }
+
+    updatePrefs.mutate({
+      notificationsEnabled: true,
+      dailyReminderEnabled: true,
+    });
+  };
+
   if (profile.isLoading) {
     return (
       <main className="mx-auto grid max-w-4xl gap-5 p-5 md:p-8">
@@ -121,7 +199,7 @@ export function ProfileScreen() {
         <p className="mt-1 text-sm text-text-secondary">
           Theme and local reminder timing live here, not in the app navigation.
         </p>
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <AppSelect
             label="Theme"
             value={profile.data.themePreference}
@@ -155,24 +233,35 @@ export function ProfileScreen() {
       </section>
       <section className="rounded-lg border border-border bg-surface p-5">
         <h2 className="text-lg font-semibold">Notification preferences</h2>
+        <p className="mt-1 text-sm leading-6 text-text-secondary">
+          {notificationStatus(profile.data, pushState)}
+        </p>
         <div className="mt-4 flex flex-wrap gap-3">
           <AppButton
             variant={profile.data.notificationsEnabled ? "primary" : "secondary"}
-            onClick={() =>
-              updatePrefs.mutate({
-                notificationsEnabled: !profile.data.notificationsEnabled,
-              })
-            }
+            disabled={updatePrefs.isPending}
+            onClick={toggleNotifications}
           >
-            {profile.data.notificationsEnabled ? "Notifications on" : "Notifications off"}
+            {notificationActionLabel(profile.data, pushState)}
           </AppButton>
+          {profile.data.notificationsEnabled && !pushState.subscribed ? (
+            <AppButton
+              variant="secondary"
+              disabled={updatePrefs.isPending}
+              onClick={() =>
+                updatePrefs.mutate({
+                  notificationsEnabled: false,
+                  dailyReminderEnabled: false,
+                })
+              }
+            >
+              Turn off
+            </AppButton>
+          ) : null}
           <AppButton
             variant={profile.data.dailyReminderEnabled ? "primary" : "secondary"}
-            onClick={() =>
-              updatePrefs.mutate({
-                dailyReminderEnabled: !profile.data.dailyReminderEnabled,
-              })
-            }
+            disabled={updatePrefs.isPending}
+            onClick={toggleDailyReminder}
           >
             Daily reminder
           </AppButton>
@@ -183,4 +272,30 @@ export function ProfileScreen() {
       </section>
     </main>
   );
+}
+
+function notificationStatus(profile: Profile, pushState: PushBrowserState): string {
+  if (!pushState.supported) {
+    return "Push is not available in this browser. Install the PWA or use a browser with push support.";
+  }
+  if (!pushState.configured) {
+    return "Push keys are not configured for this deployment.";
+  }
+  if (pushState.permission === "denied") {
+    return "Browser notification permission is blocked for this site.";
+  }
+  if (!profile.notificationsEnabled) {
+    return "Notifications are off. Turn them on to subscribe this device.";
+  }
+  if (!pushState.subscribed) {
+    return "Notifications are on, but this device still needs to be subscribed.";
+  }
+  return "This device is subscribed for PWA notifications and daily reminders.";
+}
+
+function notificationActionLabel(profile: Profile, pushState: PushBrowserState): string {
+  if (profile.notificationsEnabled && !pushState.subscribed) {
+    return "Subscribe this device";
+  }
+  return profile.notificationsEnabled ? "Notifications on" : "Notifications off";
 }

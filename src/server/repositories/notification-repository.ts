@@ -47,6 +47,31 @@ export async function listNotifications(userId: string): Promise<NotificationDto
 }
 
 /**
+ * Purpose: Check whether a notification already exists for a recipient/type/href.
+ * Inputs: Recipient ID, notification type, and href.
+ * Output: Boolean existence flag.
+ * Side effects: Reads notifications.
+ */
+export async function hasNotificationForRecipientHref(input: {
+  recipientId: string;
+  type: NotificationType;
+  href: string;
+}): Promise<boolean> {
+  const rows = await getDb()
+    .select({ id: notifications.id })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.recipientId, input.recipientId),
+        eq(notifications.type, input.type),
+        eq(notifications.href, input.href),
+      ),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+/**
  * Purpose: Mark a notification read.
  * Inputs: User ID and notification ID.
  * Output: Updated notification DTO or null.

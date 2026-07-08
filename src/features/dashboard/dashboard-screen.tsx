@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { ProjectSummary, TaskDto } from "@/types/domain";
 import { AppEmptyState } from "@/components/ui/app-empty-state";
 import { AppSkeleton } from "@/components/ui/app-skeleton";
+import { AppTooltip } from "@/components/ui/app-tooltip";
 import { PageHeader } from "@/components/shared/page-header";
 import { TaskRow } from "@/components/ui/task-row";
 import { useTaskMutation } from "@/features/tasks/task-hooks";
@@ -52,6 +53,14 @@ export function DashboardScreen() {
     );
   }
   const todayTasks = [...query.data.today.overdue, ...query.data.today.tasks];
+  const heatmapCounts = new Map(
+    query.data.heatmap.days.map((day) => [day.date, day.count]),
+  );
+  const heatmapDays = Array.from({ length: 91 }, (_, index) => {
+    const date = format(subDays(new Date(), 90 - index), "yyyy-MM-dd");
+    return { date, count: heatmapCounts.get(date) ?? 0 };
+  });
+
   return (
     <main className="mx-auto grid min-w-0 max-w-7xl gap-4 overflow-x-hidden px-4 py-5 sm:gap-5 sm:px-5 md:gap-6 md:p-8">
       <PageHeader
@@ -59,7 +68,7 @@ export function DashboardScreen() {
         description="Today, weekly progress, completion rhythm, and project load."
       />
       <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-        <Widget title="Today">
+        <Widget title="Today" description="Overdue and scheduled work for the day.">
           {todayTasks.length ? (
             <div className="grid min-w-0 gap-2">
               {todayTasks.map((task) => (
@@ -86,7 +95,7 @@ export function DashboardScreen() {
             />
           )}
         </Widget>
-        <Widget title="Weekly progress">
+        <Widget title="Weekly progress" description="Completed tasks across this week.">
           <div className="flex min-w-0 items-end justify-between">
             <div className="min-w-0">
               <p className="font-mono text-3xl font-semibold sm:text-4xl">
@@ -121,34 +130,27 @@ export function DashboardScreen() {
         </Widget>
       </section>
       <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
-        <Widget title="Activity heatmap">
-          <p className="mb-3 text-sm text-text-secondary">
-            {query.data.heatmap.streak} day current completion streak
-          </p>
-          <div className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
-            <div
-              className="grid w-max grid-flow-col grid-rows-7 gap-1"
-              aria-label="365 day task completion heatmap"
-            >
-              {Array.from({ length: 365 }, (_, index) => {
-                const date = format(subDays(new Date(), 364 - index), "yyyy-MM-dd");
-                const count =
-                  query.data?.heatmap.days.find((day) => day.date === date)?.count ?? 0;
-                return (
-                  <span
-                    key={date}
-                    tabIndex={0}
-                    title={`${date}: ${count} completed`}
-                    aria-label={`${date}: ${count} completed tasks`}
-                    className="size-2.5 shrink-0 rounded-[3px] sm:size-3"
-                    style={{ background: heatmapColor(count) }}
-                  />
-                );
-              })}
-            </div>
+        <Widget
+          title="Activity"
+          description={`${query.data.heatmap.streak} day current completion streak.`}
+        >
+          <div
+            className="grid grid-flow-col grid-rows-7 gap-1 [grid-auto-columns:minmax(0,1fr)]"
+            aria-label="Last 13 weeks task completion heatmap"
+          >
+            {heatmapDays.map((day) => (
+              <AppTooltip key={day.date} label={heatmapLabel(day.date, day.count)}>
+                <span
+                  tabIndex={0}
+                  aria-label={heatmapLabel(day.date, day.count)}
+                  className="aspect-square min-h-2 w-full rounded-[3px] transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-3"
+                  style={{ background: heatmapColor(day.count) }}
+                />
+              </AppTooltip>
+            ))}
           </div>
         </Widget>
-        <Widget title="Project snapshot">
+        <Widget title="Projects" description="Open work and weekly completion by project.">
           {query.data.projects.length ? (
             <div className="grid min-w-0 gap-3">
               {query.data.projects.map((project) => (
@@ -187,15 +189,37 @@ export function DashboardScreen() {
  * Output: Section card.
  * Side effects: None.
  */
-function Widget({ title, children }: { title: string; children: React.ReactNode }) {
+function Widget({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-surface p-4 shadow-[var(--shadow-surface)]">
-      <h2 className="mb-4 text-sm font-semibold uppercase tracking-normal text-text-secondary">
-        {title}
-      </h2>
+    <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-surface p-4 shadow-[var(--shadow-surface)] md:p-5">
+      <div className="mb-4">
+        <h2 className="font-display text-2xl leading-none text-text-primary">{title}</h2>
+        {description ? (
+          <p className="mt-1 text-sm leading-5 text-text-secondary">{description}</p>
+        ) : null}
+      </div>
       {children}
     </section>
   );
+}
+
+/**
+ * Purpose: Render a compact completion-count label for the activity tooltip.
+ * Inputs: ISO date and completed task count.
+ * Output: Human-readable tooltip text.
+ * Side effects: None.
+ */
+function heatmapLabel(date: string, count: number): string {
+  if (count === 0) return `${date}: no completed tasks`;
+  return `${date}: ${count} completed task${count === 1 ? "" : "s"}`;
 }
 
 /**

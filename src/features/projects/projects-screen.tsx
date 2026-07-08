@@ -12,6 +12,7 @@ import { AppDialog } from "@/components/ui/app-dialog";
 import { AppEmptyState } from "@/components/ui/app-empty-state";
 import { AppIconButton } from "@/components/ui/app-icon-button";
 import { AppInput } from "@/components/ui/app-input";
+import { AppProgress } from "@/components/ui/app-progress";
 import { AppSelect } from "@/components/ui/app-select";
 import { AppSkeleton } from "@/components/ui/app-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
@@ -154,6 +155,11 @@ function ProjectCard({ project }: { project: ProjectSummary }) {
           {project.githubRepositoryFullName ? "GitHub connected" : "No repository"}
         </span>
       </div>
+      <AppProgress
+        value={project.weeklyCompletionPercent}
+        label={`${project.title} weekly completion`}
+        className="mt-2"
+      />
     </Link>
   );
 }
@@ -266,10 +272,17 @@ function CreateProjectDialog({
   return (
     <AppDialog open={open} onOpenChange={onOpenChange} title="Create project">
       <div className="grid gap-4">
-        <div className="flex gap-2 text-xs font-semibold text-text-secondary">
-          <span className={step === 1 ? "text-brand" : ""}>Details</span>
-          <span className={step === 2 ? "text-brand" : ""}>Team</span>
-          <span className={step === 3 ? "text-brand" : ""}>GitHub</span>
+        <div className="grid gap-2">
+          <div className="flex justify-between gap-2 text-xs font-semibold text-text-secondary">
+            <span className={step === 1 ? "text-brand" : ""}>Details</span>
+            <span className={step === 2 ? "text-brand" : ""}>Team</span>
+            <span className={step === 3 ? "text-brand" : ""}>GitHub</span>
+          </div>
+          <AppProgress
+            value={(step / 3) * 100}
+            label="Create project progress"
+            className="h-1.5"
+          />
         </div>
         {step === 1 ? (
           <>
