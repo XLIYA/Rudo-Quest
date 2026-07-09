@@ -272,3 +272,12 @@ Details: [docs/SECURITY.md](docs/SECURITY.md).
 - Offline V1: an open app keeps in-memory data and shows a persistent offline warning; mutations are disabled until reconnection; a cold offline navigation gets the neutral offline route. **No fake mutation success, no background mutation queue.**
 
 Details: [docs/PWA_OFFLINE.md](docs/PWA_OFFLINE.md).
+
+## Push Notifications
+
+- Users opt in explicitly from Profile/Settings — the app never requests notification permission on first load.
+- Subscriptions are stored per browser/device in `push_subscriptions`.
+- The scheduled endpoint (`POST /api/cron/notifications`, bearer-authenticated via `CRON_SECRET`) runs every 15 minutes via Supabase Cron, evaluating each user in their own IANA timezone with quiet hours and unique dedupe keys.
+- Delivery rows enforce one notification/subscription pair, track attempts with exponential backoff, and remove subscriptions that return 404/410. Assignment/invitation notifications dispatch immediately after the DB transaction commits — a failed push never rolls back the product action.
+
+Details: [docs/PUSH_NOTIFICATIONS.md](docs/PUSH_NOTIFICATIONS.md).
