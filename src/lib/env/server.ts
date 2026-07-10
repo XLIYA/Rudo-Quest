@@ -20,6 +20,8 @@ const serverEnvSchema = z.object({
   VAPID_SUBJECT: z.string().optional(),
   UPSTASH_REDIS_REST_URL: z.url().optional().or(z.literal("")),
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
+  KV_REST_API_URL: z.url().optional().or(z.literal("")),
+  KV_REST_API_TOKEN: z.string().optional(),
   CRON_SECRET: z.string().optional(),
   NEXT_PUBLIC_SENTRY_DSN: z.url().optional().or(z.literal("")),
   SENTRY_AUTH_TOKEN: z.string().optional(),
@@ -113,6 +115,27 @@ export function hasPushEnv(env: ServerEnv = getServerEnv()): boolean {
   return Boolean(
     env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY && env.VAPID_SUBJECT,
   );
+}
+
+/**
+ * Purpose: Read Upstash REST credentials from direct or Vercel Marketplace names.
+ * Inputs: Parsed server environment.
+ * Output: A complete credential pair, preferring direct Upstash names, or null.
+ * Side effects: None.
+ */
+export function getRedisRestCredentials(
+  env: ServerEnv = getServerEnv(),
+): { url: string; token: string } | null {
+  if (env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN) {
+    return {
+      url: env.UPSTASH_REDIS_REST_URL,
+      token: env.UPSTASH_REDIS_REST_TOKEN,
+    };
+  }
+  if (env.KV_REST_API_URL && env.KV_REST_API_TOKEN) {
+    return { url: env.KV_REST_API_URL, token: env.KV_REST_API_TOKEN };
+  }
+  return null;
 }
 
 /**

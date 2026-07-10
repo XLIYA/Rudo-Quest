@@ -1,7 +1,7 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { AppError } from "@/lib/api/errors";
-import { getServerEnv } from "@/lib/env/server";
+import { getRedisRestCredentials, getServerEnv } from "@/lib/env/server";
 
 type LocalHit = { count: number; resetAt: number };
 const localHits = new Map<string, LocalHit>();
@@ -26,10 +26,11 @@ export async function assertRateLimit(
   windowSeconds: number,
 ): Promise<void> {
   const env = getServerEnv();
-  if (env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN) {
+  const redisCredentials = getRedisRestCredentials(env);
+  if (redisCredentials) {
     sharedRedis ??= new Redis({
-      url: env.UPSTASH_REDIS_REST_URL,
-      token: env.UPSTASH_REDIS_REST_TOKEN,
+      url: redisCredentials.url,
+      token: redisCredentials.token,
     });
     const cacheKey = limiterCacheKey(key, limit, windowSeconds);
     let limiter = sharedLimiters.get(cacheKey);
