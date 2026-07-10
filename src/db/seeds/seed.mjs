@@ -24,7 +24,7 @@ const STORAGE_BUCKET = "profile-assets";
 function parseEnvValue(rawValue) {
   const trimmed = rawValue.trim();
   if (
-    (trimmed.startsWith("\"") && trimmed.endsWith("\"")) ||
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
     (trimmed.startsWith("'") && trimmed.endsWith("'"))
   ) {
     return trimmed.slice(1, -1);
@@ -82,6 +82,22 @@ function readRequiredEnv(name) {
     );
   }
   return value;
+}
+
+/**
+ * Purpose: Read a required value that may use a current or legacy environment name.
+ * Inputs: Candidate environment variable names in priority order.
+ * Output: First configured value.
+ * Side effects: None.
+ */
+function readRequiredEnvAlias(...names) {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  throw new Error(
+    `${names.join(" or ")} is required. Configure Supabase admin credentials in .env.local before running npm run db:seed.`,
+  );
 }
 
 /**
@@ -171,11 +187,18 @@ async function ensureAuthUser(supabase, { email, password, displayName }) {
  * Business rule: Handles are lowercase and unique.
  */
 async function resolveProfileHandle(pool, desiredHandle, userId) {
-  const normalized = desiredHandle.toLowerCase().replace(/[^a-z0-9_-]/g, "-").slice(0, 30);
-  const existingProfile = await pool.query("select handle from profiles where id = $1", [userId]);
+  const normalized = desiredHandle
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "-")
+    .slice(0, 30);
+  const existingProfile = await pool.query("select handle from profiles where id = $1", [
+    userId,
+  ]);
   if (existingProfile.rows[0]?.handle) return existingProfile.rows[0].handle;
 
-  const handleRows = await pool.query("select id from profiles where handle = $1", [normalized]);
+  const handleRows = await pool.query("select id from profiles where handle = $1", [
+    normalized,
+  ]);
   if (!handleRows.rows.length || handleRows.rows[0].id === userId) return normalized;
 
   return `${normalized.slice(0, 23)}-${userId.slice(0, 6).toLowerCase()}`;
@@ -248,9 +271,10 @@ async function ensureProfileAssetsBucket(supabase) {
 function createPool(databaseUrl) {
   return new Pool({
     connectionString: databaseUrl,
-    ssl: databaseUrl.includes("localhost") || databaseUrl.includes("127.0.0.1")
-      ? false
-      : { rejectUnauthorized: false },
+    ssl:
+      databaseUrl.includes("localhost") || databaseUrl.includes("127.0.0.1")
+        ? false
+        : { rejectUnauthorized: false },
   });
 }
 
@@ -265,7 +289,10 @@ async function main() {
   loadLocalEnv();
 
   const supabaseUrl = readRequiredEnv("NEXT_PUBLIC_SUPABASE_URL");
-  const serviceRoleKey = readRequiredEnv("SUPABASE_SERVICE_ROLE_KEY");
+  const serviceRoleKey = readRequiredEnvAlias(
+    "SUPABASE_SECRET_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
+  );
   const databaseUrl = readRequiredEnv("DATABASE_URL");
   const email = readSeedEnv("SEED_ADMIN_EMAIL", DEFAULTS.email);
   const password = readRequiredEnv("SEED_ADMIN_PASSWORD");

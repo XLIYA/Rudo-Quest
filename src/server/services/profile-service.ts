@@ -1,6 +1,6 @@
 import { AppError } from "@/lib/api/errors";
 import { createSupabaseAdminClient } from "@/lib/auth/supabase";
-import { getServerEnv } from "@/lib/env/server";
+import { getServerEnv, getSupabaseAdminKey } from "@/lib/env/server";
 import { uploadMetadataSchema } from "@/lib/validation/common";
 import type { ProfileSummary } from "@/types/domain";
 import {
@@ -25,7 +25,11 @@ import {
  * Side effects: None.
  */
 export function deriveHandle(email: string, id: string): string {
-  const local = email.split("@")[0]?.toLowerCase().replace(/[^a-z0-9_-]/g, "-") ?? "rudo";
+  const local =
+    email
+      .split("@")[0]
+      ?.toLowerCase()
+      .replace(/[^a-z0-9_-]/g, "-") ?? "rudo";
   const trimmed = local.replace(/-+/g, "-").slice(0, 20).replace(/^-|-$/g, "");
   return `${trimmed || "rudo"}-${id.slice(0, 6).toLowerCase()}`;
 }
@@ -156,13 +160,16 @@ export async function commitProfileAsset(
     [kind === "avatar" ? "avatarPath" : "bannerPath"]: path,
   });
   if (!updated) throw new AppError("NOT_FOUND", 404, "Profile not found.");
-  if (oldPath && oldPath !== path && getServerEnv().SUPABASE_SERVICE_ROLE_KEY) {
+  const env = getServerEnv();
+  if (oldPath && oldPath !== path && getSupabaseAdminKey(env)) {
     await createSupabaseAdminClient().storage.from("profile-assets").remove([oldPath]);
   }
   return serializeProfile(updated);
 }
 
-async function serializeProfile(profile: NonNullable<Awaited<ReturnType<typeof findProfileById>>>) {
+async function serializeProfile(
+  profile: NonNullable<Awaited<ReturnType<typeof findProfileById>>>,
+) {
   const urls = await createProfileAssetUrlMap([profile.avatarPath, profile.bannerPath]);
   return {
     ...profile,

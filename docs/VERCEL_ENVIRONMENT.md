@@ -15,27 +15,30 @@ browser code and can be bundled into client JavaScript. Every other variable in
 this project is server-only and must stay out of browser code, logs, screenshots,
 and client-visible configuration.
 
-| Variable                        | Scope       | Required for production                     | Where the value comes from                                                                                                                                                                                                                            |
-| ------------------------------- | ----------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_APP_URL`           | Public      | Yes                                         | The canonical production URL in Vercel, for example `https://app.yourdomain.com`. Use the assigned Vercel production domain or your custom domain from Vercel Project Settings > Domains. Do not include a trailing slash.                            |
-| `NEXT_PUBLIC_SUPABASE_URL`      | Public      | Yes                                         | Supabase project URL from Supabase Dashboard > Project Settings > API. It looks like `https://<project-ref>.supabase.co`.                                                                                                                             |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public      | Yes                                         | Supabase anon key or publishable client key from Supabase Dashboard > Project Settings > API Keys. It is browser-safe only when Row Level Security and server authorization are correct.                                                              |
-| `SUPABASE_SERVICE_ROLE_KEY`     | Server-only | Yes                                         | Supabase service role key or server secret key from Supabase Dashboard > Project Settings > API Keys. This bypasses RLS and must never be exposed to the browser.                                                                                     |
-| `DATABASE_URL`                  | Server-only | Yes                                         | Supabase PostgreSQL connection string from Supabase Dashboard > Project Settings > Database > Connection string. Use the pooled/serverless connection string when available, include the database password, and keep SSL enabled for hosted Supabase. |
-| `GITHUB_APP_ID`                 | Server-only | Required when GitHub integration is enabled | GitHub App settings page, under App ID.                                                                                                                                                                                                               |
-| `GITHUB_APP_SLUG`               | Server-only | Required when GitHub integration is enabled | The slug in the GitHub App URL: `https://github.com/apps/<slug>`.                                                                                                                                                                                     |
-| `GITHUB_APP_CLIENT_ID`          | Server-only | Required when GitHub integration is enabled | GitHub App settings page, under Client ID.                                                                                                                                                                                                            |
-| `GITHUB_APP_CLIENT_SECRET`      | Server-only | Required when GitHub integration is enabled | GitHub App settings page, Client secrets section. Generate a client secret and copy it once.                                                                                                                                                          |
-| `GITHUB_APP_PRIVATE_KEY`        | Server-only | Required when GitHub integration is enabled | GitHub App settings page, Private keys section. Generate a private key and paste the PEM into Vercel. Escaped `\n` newlines are supported by the app.                                                                                                 |
-| `GITHUB_WEBHOOK_SECRET`         | Server-only | Required when GitHub integration is enabled | A random secret you create, for example `openssl rand -hex 32`. Enter the same value in the GitHub App webhook settings and in Vercel.                                                                                                                |
-| `NEXT_PUBLIC_VAPID_PUBLIC_KEY`  | Public      | Required for push notifications             | The `publicKey` from `npx web-push generate-vapid-keys --json`.                                                                                                                                                                                       |
-| `VAPID_PRIVATE_KEY`             | Server-only | Required for push notifications             | The `privateKey` from `npx web-push generate-vapid-keys --json`.                                                                                                                                                                                      |
-| `VAPID_SUBJECT`                 | Server-only | Required for push notifications             | A contact subject for push services, usually `mailto:ops@yourdomain.com` or `https://yourdomain.com`.                                                                                                                                                 |
-| `UPSTASH_REDIS_REST_URL`        | Server-only | Yes for production rate limiting            | Upstash Redis REST URL from the Upstash Console or the Upstash Vercel integration.                                                                                                                                                                    |
-| `UPSTASH_REDIS_REST_TOKEN`      | Server-only | Yes for production rate limiting            | Upstash Redis REST token from the Upstash Console or the Upstash Vercel integration.                                                                                                                                                                  |
-| `CRON_SECRET`                   | Server-only | Yes for scheduled notifications             | A random secret, for example `openssl rand -base64 32`. Vercel Cron sends it as a bearer token when the variable exists.                                                                                                                              |
-| `NEXT_PUBLIC_SENTRY_DSN`        | Public      | Optional                                    | Sentry project DSN from Sentry Project Settings > Client Keys. Required only if browser/server error reporting is enabled.                                                                                                                            |
-| `SENTRY_AUTH_TOKEN`             | Server-only | Optional                                    | Sentry auth token with source map upload permissions. Required only for production source map upload during `next build`.                                                                                                                             |
+| Variable                               | Scope       | Required for production                     | Where the value comes from                                                                                                                                                                                                                            |
+| -------------------------------------- | ----------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_APP_URL`                  | Public      | Yes                                         | The canonical production URL in Vercel, for example `https://app.yourdomain.com`. Use the assigned Vercel production domain or your custom domain from Vercel Project Settings > Domains. Do not include a trailing slash.                            |
+| `NEXT_PUBLIC_SUPABASE_URL`             | Public      | Yes                                         | Supabase project URL from Supabase Dashboard > Project Settings > API. For the project details supplied in this audit, this is `https://fypfpkrahvgitekovnos.supabase.co`.                                                                            |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public      | Yes                                         | Supabase publishable key from Supabase Dashboard > Project Settings > API Keys. For the project details supplied in this audit, this is `sb_publishable_wXrXOizdwJO-SVczyflgmQ_SWeIAxMU`.                                                             |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY`        | Public      | Legacy fallback                             | Legacy Supabase anon key name. Leave unset when `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` is set.                                                                                                                                                        |
+| `SUPABASE_SECRET_KEY`                  | Server-only | Yes                                         | Supabase secret key from Supabase Dashboard > Project Settings > API Keys. This bypasses RLS and must never be exposed to the browser.                                                                                                                |
+| `SUPABASE_SERVICE_ROLE_KEY`            | Server-only | Legacy fallback                             | Legacy Supabase service role key name. Leave unset when `SUPABASE_SECRET_KEY` is set.                                                                                                                                                                 |
+| `SUPABASE_JWKS_URL`                    | Server-only | Not used by current app                     | Supabase JWKS URL for runtimes using direct JWT verification. The current Next.js SSR implementation does not need it.                                                                                                                                |
+| `DATABASE_URL`                         | Server-only | Yes                                         | Supabase PostgreSQL connection string from Supabase Dashboard > Project Settings > Database > Connection string. Use the pooled/serverless connection string when available, include the database password, and keep SSL enabled for hosted Supabase. |
+| `GITHUB_APP_ID`                        | Server-only | Required when GitHub integration is enabled | GitHub App settings page, under App ID.                                                                                                                                                                                                               |
+| `GITHUB_APP_SLUG`                      | Server-only | Required when GitHub integration is enabled | The slug in the GitHub App URL: `https://github.com/apps/<slug>`.                                                                                                                                                                                     |
+| `GITHUB_APP_CLIENT_ID`                 | Server-only | Required when GitHub integration is enabled | GitHub App settings page, under Client ID.                                                                                                                                                                                                            |
+| `GITHUB_APP_CLIENT_SECRET`             | Server-only | Required when GitHub integration is enabled | GitHub App settings page, Client secrets section. Generate a client secret and copy it once.                                                                                                                                                          |
+| `GITHUB_APP_PRIVATE_KEY`               | Server-only | Required when GitHub integration is enabled | GitHub App settings page, Private keys section. Generate a private key and paste the PEM into Vercel. Escaped `\n` newlines are supported by the app.                                                                                                 |
+| `GITHUB_WEBHOOK_SECRET`                | Server-only | Required when GitHub integration is enabled | A random secret you create, for example `openssl rand -hex 32`. Enter the same value in the GitHub App webhook settings and in Vercel.                                                                                                                |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY`         | Public      | Required for push notifications             | The `publicKey` from `npx web-push generate-vapid-keys --json`.                                                                                                                                                                                       |
+| `VAPID_PRIVATE_KEY`                    | Server-only | Required for push notifications             | The `privateKey` from `npx web-push generate-vapid-keys --json`.                                                                                                                                                                                      |
+| `VAPID_SUBJECT`                        | Server-only | Required for push notifications             | A contact subject for push services, usually `mailto:ops@yourdomain.com` or `https://yourdomain.com`.                                                                                                                                                 |
+| `UPSTASH_REDIS_REST_URL`               | Server-only | Yes for production rate limiting            | Upstash Redis REST URL from the Upstash Console or the Upstash Vercel integration.                                                                                                                                                                    |
+| `UPSTASH_REDIS_REST_TOKEN`             | Server-only | Yes for production rate limiting            | Upstash Redis REST token from the Upstash Console or the Upstash Vercel integration.                                                                                                                                                                  |
+| `CRON_SECRET`                          | Server-only | Yes for scheduled notifications             | A random secret, for example `openssl rand -base64 32`. Vercel Cron sends it as a bearer token when the variable exists.                                                                                                                              |
+| `NEXT_PUBLIC_SENTRY_DSN`               | Public      | Optional                                    | Sentry project DSN from Sentry Project Settings > Client Keys. Required only if browser/server error reporting is enabled.                                                                                                                            |
+| `SENTRY_AUTH_TOKEN`                    | Server-only | Optional                                    | Sentry auth token with source map upload permissions. Required only for production source map upload during `next build`.                                                                                                                             |
 
 The `SEED_ADMIN_*` variables in `.env.example` are development seed inputs.
 They are not required in Vercel production.
@@ -43,9 +46,25 @@ They are not required in Vercel production.
 ## Supabase Setup
 
 Create a production Supabase project. In Project Settings > API, copy the
-Project URL into `NEXT_PUBLIC_SUPABASE_URL`, the anon or publishable key into
-`NEXT_PUBLIC_SUPABASE_ANON_KEY`, and the service role or secret server key into
-`SUPABASE_SERVICE_ROLE_KEY`.
+Project URL into `NEXT_PUBLIC_SUPABASE_URL`, the publishable key into
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and the server secret key into
+`SUPABASE_SECRET_KEY`. The app still accepts the legacy
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` names, but new
+Vercel environments should use the current publishable/secret names.
+
+For the Supabase project details supplied in this audit, the Vercel Production
+Supabase variables should start with:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://fypfpkrahvgitekovnos.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_wXrXOizdwJO-SVczyflgmQ_SWeIAxMU
+SUPABASE_SECRET_KEY=<copy the full sb_secret value from Supabase API Keys>
+SUPABASE_JWKS_URL=https://fypfpkrahvgitekovnos.supabase.co/auth/v1/.well-known/jwks.json
+```
+
+`SUPABASE_JWKS_URL` is listed for completeness because Supabase exposes it for
+direct JWT verification. This app currently uses `@supabase/ssr` and
+`@supabase/supabase-js`, so the JWKS URL is not required by runtime code.
 
 In Project Settings > Database, copy the PostgreSQL connection string into
 `DATABASE_URL`. Use the direct or pooled connection string recommended by
@@ -199,12 +218,12 @@ deployments. Redeploy after adding or changing variables.
 Rotate one integration at a time and redeploy after each rotation.
 
 For Supabase anon or publishable keys, create or rotate the key in Supabase,
-update `NEXT_PUBLIC_SUPABASE_ANON_KEY` in Vercel, redeploy, verify login and API
-requests, then retire the old key if Supabase exposes an overlap period.
+update `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in Vercel, redeploy, verify login
+and API requests, then retire the old key if Supabase exposes an overlap period.
 
 For Supabase service role or server secret keys, create the new key in Supabase,
-update `SUPABASE_SERVICE_ROLE_KEY`, redeploy, verify profile asset signed URLs
-and server-side profile operations, then revoke the old key.
+update `SUPABASE_SECRET_KEY`, redeploy, verify profile asset signed URLs and
+server-side profile operations, then revoke the old key.
 
 For GitHub App private keys, generate a new private key in the GitHub App
 settings, update `GITHUB_APP_PRIVATE_KEY`, redeploy, verify installation

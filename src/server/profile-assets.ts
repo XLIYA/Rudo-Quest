@@ -1,6 +1,6 @@
 import { AppError } from "@/lib/api/errors";
 import { createSupabaseAdminClient } from "@/lib/auth/supabase";
-import { getServerEnv } from "@/lib/env/server";
+import { getServerEnv, getSupabaseAdminKey } from "@/lib/env/server";
 
 const bucketName = "profile-assets";
 const signedUrlTtlSeconds = 60 * 60;
@@ -33,7 +33,10 @@ export function parseProfileAssetPath(
     throw new AppError("BAD_REQUEST", 400, "Asset path is invalid.");
   }
   const extension = fileName.split(".").at(-1);
-  const id = fileName.slice(prefix.length, extension ? -(extension.length + 1) : undefined);
+  const id = fileName.slice(
+    prefix.length,
+    extension ? -(extension.length + 1) : undefined,
+  );
   if (!extension || !assetExtensions.has(extension) || !isUuid(id)) {
     throw new AppError("BAD_REQUEST", 400, "Asset path is invalid.");
   }
@@ -54,8 +57,7 @@ export async function assertProfileAssetExists(
 ): Promise<void> {
   const { folder, fileName } = parseProfileAssetPath(userId, kind, path);
   const { data, error } = await createSupabaseAdminClient()
-    .storage
-    .from(bucketName)
+    .storage.from(bucketName)
     .list(folder, { limit: 1, search: fileName });
   if (error || !data?.some((item) => item.name === fileName)) {
     throw new AppError("BAD_REQUEST", 400, "Uploaded asset was not found.");
@@ -74,12 +76,11 @@ export async function createProfileAssetUrlMap(
   const uniquePaths = Array.from(
     new Set(Array.from(paths).filter((path): path is string => Boolean(path))),
   );
-  if (uniquePaths.length === 0 || !getServerEnv().SUPABASE_SERVICE_ROLE_KEY) {
+  if (uniquePaths.length === 0 || !getSupabaseAdminKey(getServerEnv())) {
     return new Map();
   }
   const { data, error } = await createSupabaseAdminClient()
-    .storage
-    .from(bucketName)
+    .storage.from(bucketName)
     .createSignedUrls(uniquePaths, signedUrlTtlSeconds);
   if (error || !data) return new Map();
   const urls = new Map<string, string>();
@@ -89,6 +90,9 @@ export async function createProfileAssetUrlMap(
   return urls;
 }
 
-export function profileAssetUrl(path: string | null | undefined, urls: Map<string, string>): string | null {
-  return path ? urls.get(path) ?? null : null;
+export function profileAssetUrl(
+  path: string | null | undefined,
+  urls: Map<string, string>,
+): string | null {
+  return path ? (urls.get(path) ?? null) : null;
 }

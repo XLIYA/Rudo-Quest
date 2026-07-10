@@ -2,7 +2,11 @@ import { cookies } from "next/headers";
 import { createBrowserClient, createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "@/lib/api/errors";
-import { getServerEnv } from "@/lib/env/server";
+import {
+  getServerEnv,
+  getSupabaseAdminKey,
+  getSupabasePublicKey,
+} from "@/lib/env/server";
 
 /**
  * Purpose: Create a Supabase browser client for client-side auth calls.
@@ -13,10 +17,11 @@ import { getServerEnv } from "@/lib/env/server";
  */
 export function createSupabaseBrowserClient(): SupabaseClient {
   const env = getServerEnv();
-  if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  const publishableKey = getSupabasePublicKey(env);
+  if (!env.NEXT_PUBLIC_SUPABASE_URL || !publishableKey) {
     throw new AppError("INTEGRATION_NOT_CONFIGURED", 503, "Supabase is not configured.");
   }
-  return createBrowserClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  return createBrowserClient(env.NEXT_PUBLIC_SUPABASE_URL, publishableKey);
 }
 
 /**
@@ -28,11 +33,12 @@ export function createSupabaseBrowserClient(): SupabaseClient {
  */
 export async function createSupabaseServerClient(): Promise<SupabaseClient> {
   const env = getServerEnv();
-  if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  const publishableKey = getSupabasePublicKey(env);
+  if (!env.NEXT_PUBLIC_SUPABASE_URL || !publishableKey) {
     throw new AppError("INTEGRATION_NOT_CONFIGURED", 503, "Supabase is not configured.");
   }
   const cookieStore = await cookies();
-  return createServerClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+  return createServerClient(env.NEXT_PUBLIC_SUPABASE_URL, publishableKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -59,10 +65,15 @@ export async function createSupabaseServerClient(): Promise<SupabaseClient> {
  */
 export function createSupabaseAdminClient(): SupabaseClient {
   const env = getServerEnv();
-  if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new AppError("INTEGRATION_NOT_CONFIGURED", 503, "Supabase admin is not configured.");
+  const adminKey = getSupabaseAdminKey(env);
+  if (!env.NEXT_PUBLIC_SUPABASE_URL || !adminKey) {
+    throw new AppError(
+      "INTEGRATION_NOT_CONFIGURED",
+      503,
+      "Supabase admin is not configured.",
+    );
   }
-  return createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+  return createClient(env.NEXT_PUBLIC_SUPABASE_URL, adminKey, {
     auth: { persistSession: false },
   });
 }

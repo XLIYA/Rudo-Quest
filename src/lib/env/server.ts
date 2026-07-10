@@ -3,8 +3,11 @@ import { z } from "zod";
 const serverEnvSchema = z.object({
   NEXT_PUBLIC_APP_URL: z.url().optional().or(z.literal("")),
   NEXT_PUBLIC_SUPABASE_URL: z.url().optional().or(z.literal("")),
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().optional(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().optional(),
+  SUPABASE_SECRET_KEY: z.string().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+  SUPABASE_JWKS_URL: z.url().optional().or(z.literal("")),
   DATABASE_URL: z.string().optional(),
   GITHUB_APP_ID: z.string().optional(),
   GITHUB_APP_SLUG: z.string().optional(),
@@ -48,7 +51,29 @@ export function getServerEnv(): ServerEnv {
  * Side effects: None.
  */
 export function hasSupabaseEnv(env: ServerEnv = getServerEnv()): boolean {
-  return Boolean(env.NEXT_PUBLIC_SUPABASE_URL && env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  return Boolean(env.NEXT_PUBLIC_SUPABASE_URL && getSupabasePublicKey(env));
+}
+
+/**
+ * Purpose: Read the browser-safe Supabase key, supporting current and legacy names.
+ * Inputs: Parsed server environment.
+ * Output: Publishable or legacy anon key.
+ * Side effects: None.
+ */
+export function getSupabasePublicKey(
+  env: ServerEnv = getServerEnv(),
+): string | undefined {
+  return env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+}
+
+/**
+ * Purpose: Read the server-only Supabase admin key, supporting current and legacy names.
+ * Inputs: Parsed server environment.
+ * Output: Secret or legacy service role key.
+ * Side effects: None.
+ */
+export function getSupabaseAdminKey(env: ServerEnv = getServerEnv()): string | undefined {
+  return env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
 }
 
 /**
@@ -70,11 +95,11 @@ export function hasDatabaseEnv(env: ServerEnv = getServerEnv()): boolean {
 export function hasGitHubEnv(env: ServerEnv = getServerEnv()): boolean {
   return Boolean(
     env.GITHUB_APP_ID &&
-      env.GITHUB_APP_SLUG &&
-      env.GITHUB_APP_CLIENT_ID &&
-      env.GITHUB_APP_CLIENT_SECRET &&
-      env.GITHUB_APP_PRIVATE_KEY &&
-      env.GITHUB_WEBHOOK_SECRET,
+    env.GITHUB_APP_SLUG &&
+    env.GITHUB_APP_CLIENT_ID &&
+    env.GITHUB_APP_CLIENT_SECRET &&
+    env.GITHUB_APP_PRIVATE_KEY &&
+    env.GITHUB_WEBHOOK_SECRET,
   );
 }
 
