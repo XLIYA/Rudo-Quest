@@ -9,6 +9,96 @@ export type GitHubRepository = {
   defaultBranch: string | null;
 };
 
+export type GitHubInstallationInfo = {
+  githubInstallationId: number;
+  githubAccountLogin: string;
+  githubAccountType: string;
+};
+
+type GitHubInstallationState = {
+  v: 1;
+  userId: string;
+  nonce: string;
+  exp: number;
+};
+
+const installationStateTtlSeconds = 10 * 60;
+
+function getStateSecret(): string {
+  const secret = getServerEnv().GITHUB_APP_CLIENT_SECRET;
+  if (!secret) {
+    throw new AppError("INTEGRATION_NOT_CONFIGURED", 503, "GitHub App is not configured.");
+  }
+  return secret;
+}
+
+function signStatePayload(payload: string): string {
+  return crypto.createHmac("sha256", getStateSecret()).update(payload).digest("base64url");
+}
+
+function timingSafeStringEqual(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  if (left.byteLength !== right.byteLength) return false;
+  return crypto.timingSafeEqual(left, right);
+}
+
+/**
+ * Purpose: Create a signed short-lived GitHub installation state token.
+ * Inputs: Authenticated Rudo Quest user ID.
+ * Output: URL-safe state string that binds the callback to the current user.
+ * Side effects: None.
+ * Failure behavior: Throws integration error when GitHub App credentials are missing.
+ */
+export function createGitHubInstallationState(userId: string): string {
+  const payload: GitHubInstallationState = {
+    v: 1,
+    userId,
+    nonce: crypto.randomUUID(),
+    exp: Math.floor(Date.now() / 1000) + installationStateTtlSeconds,
+  };
+  const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  return `${encoded}.${signStatePayload(encoded)}`;
+}
+
+/**
+ * Purpose: Validate a GitHub installation state token returned to the callback.
+ * Inputs: State token and current authenticated user ID.
+ * Output: Decoded state when valid.
+ * Side effects: None.
+ * Failure behavior: Throws FORBIDDEN for missing, expired, tampered, or cross-user state.
+ */
+export function verifyGitHubInstallationState(
+  state: string | undefined,
+  userId: string,
+): GitHubInstallationState {
+  if (!state) {
+    throw new AppError("FORBIDDEN", 403, "GitHub installation state is invalid.");
+  }
+  const [payload, signature, extra] = state.split(".");
+  if (!payload || !signature || extra) {
+    throw new AppError("FORBIDDEN", 403, "GitHub installation state is invalid.");
+  }
+  if (!timingSafeStringEqual(signature, signStatePayload(payload))) {
+    throw new AppError("FORBIDDEN", 403, "GitHub installation state is invalid.");
+  }
+  let parsed: GitHubInstallationState;
+  try {
+    parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as GitHubInstallationState;
+  } catch {
+    throw new AppError("FORBIDDEN", 403, "GitHub installation state is invalid.");
+  }
+  if (
+    parsed.v !== 1 ||
+    parsed.userId !== userId ||
+    !parsed.nonce ||
+    parsed.exp < Math.floor(Date.now() / 1000)
+  ) {
+    throw new AppError("FORBIDDEN", 403, "GitHub installation state is invalid.");
+  }
+  return parsed;
+}
+
 /**
  * Purpose: Create the GitHub App installation URL.
  * Inputs: Optional state token.
@@ -21,7 +111,11 @@ export function getGitHubInstallUrl(state: string): string {
   if (!hasGitHubEnv(env)) {
     throw new AppError("INTEGRATION_NOT_CONFIGURED", 503, "GitHub App is not configured.");
   }
-  const url = new URL("https://github.com/apps/rudo-quest/installations/new");
+  const appSlug = env.GITHUB_APP_SLUG;
+  if (!appSlug) {
+    throw new AppError("INTEGRATION_NOT_CONFIGURED", 503, "GitHub App is not configured.");
+  }
+  const url = new URL(`https://github.com/apps/${encodeURIComponent(appSlug)}/installations/new`);
   url.searchParams.set("state", state);
   return url.toString();
 }
@@ -80,6 +174,43 @@ export async function createInstallationToken(githubInstallationId: number): Pro
 }
 
 /**
+ * Purpose: Fetch verified GitHub App installation metadata from GitHub.
+ * Inputs: Numeric GitHub installation ID returned by the callback.
+ * Output: Installation account metadata suitable for persistence.
+ * Side effects: Calls GitHub's REST API with an app JWT.
+ */
+export async function getGitHubInstallationInfo(
+  githubInstallationId: number,
+): Promise<GitHubInstallationInfo> {
+  const response = await fetch(`https://api.github.com/app/installations/${githubInstallationId}`, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${createGitHubAppJwt()}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new AppError("INTERNAL_ERROR", 502, "GitHub installation lookup failed.");
+  }
+  const payload = (await response.json()) as {
+    id?: number;
+    account?: {
+      login?: string;
+      type?: string;
+    } | null;
+  };
+  if (!payload.id || !payload.account?.login || !payload.account.type) {
+    throw new AppError("INTERNAL_ERROR", 502, "GitHub installation response was invalid.");
+  }
+  return {
+    githubInstallationId: payload.id,
+    githubAccountLogin: payload.account.login,
+    githubAccountType: payload.account.type,
+  };
+}
+
+/**
  * Purpose: Verify a GitHub webhook HMAC signature.
  * Inputs: Raw request body and signature header.
  * Output: True when the signature matches.
@@ -102,36 +233,60 @@ export function verifyGitHubWebhookSignature(body: string, signature: string | n
  * Side effects: Would call GitHub when credentials are present.
  * Failure behavior: Returns integration-not-configured rather than exposing tokens.
  */
-export async function listInstallationRepositories(_installationId: string): Promise<GitHubRepository[]> {
+export async function listInstallationRepositories(githubInstallationId: number): Promise<GitHubRepository[]> {
   if (!hasGitHubEnv()) {
     throw new AppError("INTEGRATION_NOT_CONFIGURED", 503, "GitHub App is not configured.");
   }
-  const installationNumber = Number(_installationId);
-  if (!Number.isSafeInteger(installationNumber)) {
+  if (!Number.isSafeInteger(githubInstallationId)) {
     throw new AppError("BAD_REQUEST", 400, "Installation ID is invalid.");
   }
-  const token = await createInstallationToken(installationNumber);
-  const response = await fetch("https://api.github.com/installation/repositories", {
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-    cache: "no-store",
-  });
-  if (!response.ok) throw new AppError("INTERNAL_ERROR", 502, "GitHub repository listing failed.");
-  const payload = (await response.json()) as {
-    repositories?: {
-      id: number;
-      full_name: string;
-      html_url: string;
-      default_branch?: string | null;
-    }[];
-  };
-  return (payload.repositories ?? []).map((repo) => ({
-    id: repo.id,
-    fullName: repo.full_name,
-    htmlUrl: repo.html_url,
-    defaultBranch: repo.default_branch ?? null,
-  }));
+  const token = await createInstallationToken(githubInstallationId);
+  const repositories: GitHubRepository[] = [];
+  for (let page = 1; page <= 20; page += 1) {
+    const url = new URL("https://api.github.com/installation/repositories");
+    url.searchParams.set("per_page", "100");
+    url.searchParams.set("page", String(page));
+    const response = await fetch(url, {
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      cache: "no-store",
+    });
+    if (!response.ok) throw new AppError("INTERNAL_ERROR", 502, "GitHub repository listing failed.");
+    const payload = (await response.json()) as {
+      repositories?: {
+        id: number;
+        full_name: string;
+        html_url: string;
+        default_branch?: string | null;
+      }[];
+    };
+    const pageRepositories = payload.repositories ?? [];
+    repositories.push(
+      ...pageRepositories.map((repo) => ({
+        id: repo.id,
+        fullName: repo.full_name,
+        htmlUrl: repo.html_url,
+        defaultBranch: repo.default_branch ?? null,
+      })),
+    );
+    if (pageRepositories.length < 100) break;
+  }
+  return repositories;
+}
+
+/**
+ * Purpose: Resolve one repository from an installation-owned repository list.
+ * Inputs: Numeric installation ID and repository ID.
+ * Output: Repository metadata when the installation can access it.
+ * Side effects: Calls GitHub's repository listing endpoint.
+ */
+export async function findInstallationRepository(
+  githubInstallationId: number,
+  repositoryId: number,
+): Promise<GitHubRepository | null> {
+  const repositories = await listInstallationRepositories(githubInstallationId);
+  return repositories.find((repository) => repository.id === repositoryId) ?? null;
 }

@@ -4,6 +4,11 @@ import { getServerEnv } from "@/lib/env/server";
 import { uploadMetadataSchema } from "@/lib/validation/common";
 import type { ProfileSummary } from "@/types/domain";
 import {
+  assertProfileAssetExists,
+  createProfileAssetUrlMap,
+  profileAssetUrl,
+} from "@/server/profile-assets";
+import {
   findProfileById,
   isHandleAvailable,
   suggestUsers,
@@ -57,7 +62,7 @@ export async function ensureProfileForAuthUser(input: {
 export async function getMyProfile(userId: string) {
   const profile = await findProfileById(userId);
   if (!profile) throw new AppError("NOT_FOUND", 404, "Profile not found.");
-  return profile;
+  return serializeProfile(profile);
 }
 
 /**
@@ -78,7 +83,7 @@ export async function updateMyProfile(
   }
   const profile = await updateProfileIdentity(userId, values);
   if (!profile) throw new AppError("NOT_FOUND", 404, "Profile not found.");
-  return profile;
+  return serializeProfile(profile);
 }
 
 /**
@@ -93,7 +98,7 @@ export async function updateMyPreferences(
 ) {
   const profile = await updateProfilePreferences(userId, values);
   if (!profile) throw new AppError("NOT_FOUND", 404, "Profile not found.");
-  return profile;
+  return serializeProfile(profile);
 }
 
 /**
@@ -143,7 +148,9 @@ export async function commitProfileAsset(
   kind: "avatar" | "banner",
   path: string | null,
 ) {
-  const current = await getMyProfile(userId);
+  if (path) await assertProfileAssetExists(userId, kind, path);
+  const current = await findProfileById(userId);
+  if (!current) throw new AppError("NOT_FOUND", 404, "Profile not found.");
   const oldPath = kind === "avatar" ? current.avatarPath : current.bannerPath;
   const updated = await updateProfileAssets(userId, {
     [kind === "avatar" ? "avatarPath" : "bannerPath"]: path,
@@ -152,5 +159,14 @@ export async function commitProfileAsset(
   if (oldPath && oldPath !== path && getServerEnv().SUPABASE_SERVICE_ROLE_KEY) {
     await createSupabaseAdminClient().storage.from("profile-assets").remove([oldPath]);
   }
-  return updated;
+  return serializeProfile(updated);
+}
+
+async function serializeProfile(profile: NonNullable<Awaited<ReturnType<typeof findProfileById>>>) {
+  const urls = await createProfileAssetUrlMap([profile.avatarPath, profile.bannerPath]);
+  return {
+    ...profile,
+    avatarPath: profileAssetUrl(profile.avatarPath, urls),
+    bannerPath: profileAssetUrl(profile.bannerPath, urls),
+  };
 }

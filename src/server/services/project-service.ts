@@ -4,6 +4,7 @@ import { assertProjectRole } from "@/server/policies/project-policy";
 import { createActivityEvent } from "@/server/repositories/activity-repository";
 import {
   archiveProjectRow,
+  findProjectInvitation,
   findProjectRole,
   findProjectSummary,
   insertInvitation,
@@ -175,9 +176,16 @@ export async function changeInvitationStatus(
   invitationId: string,
   status: "ACCEPTED" | "DECLINED" | "REVOKED",
 ) {
+  const existing = await findProjectInvitation(projectId, invitationId);
+  if (!existing) throw new AppError("NOT_FOUND", 404, "Invitation not found.");
   if (status === "REVOKED") {
     const role = await findProjectRole(projectId, userId);
     assertProjectRole(role, "ADMIN");
+  } else if (existing.invitedUserId !== userId) {
+    throw new AppError("FORBIDDEN", 403, "You cannot change this invitation.");
+  }
+  if (status === "ACCEPTED" && existing.expiresAt < new Date()) {
+    throw new AppError("CONFLICT", 409, "Invitation has expired.");
   }
   const invitation = await transitionInvitation({ projectId, invitationId, actorId: userId, status });
   if (!invitation) throw new AppError("CONFLICT", 409, "Invitation cannot be changed.");

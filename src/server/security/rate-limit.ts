@@ -5,7 +5,12 @@ import { getServerEnv } from "@/lib/env/server";
 
 type LocalHit = { count: number; resetAt: number };
 const localHits = new Map<string, LocalHit>();
-let sharedLimiter: Ratelimit | null = null;
+let sharedRedis: Redis | null = null;
+const sharedLimiters = new Map<string, Ratelimit>();
+
+function limiterCacheKey(key: string, limit: number, windowSeconds: number): string {
+  return `${key}:${limit}:${windowSeconds}`;
+}
 
 /**
  * Purpose: Rate-limit sensitive routes with Upstash in production and a bounded local fallback in development.
@@ -22,16 +27,22 @@ export async function assertRateLimit(
 ): Promise<void> {
   const env = getServerEnv();
   if (env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN) {
-    sharedLimiter ??= new Ratelimit({
-      redis: new Redis({
-        url: env.UPSTASH_REDIS_REST_URL,
-        token: env.UPSTASH_REDIS_REST_TOKEN,
-      }),
-      limiter: Ratelimit.slidingWindow(limit, `${windowSeconds} s`),
-      analytics: false,
-      prefix: "rudo",
+    sharedRedis ??= new Redis({
+      url: env.UPSTASH_REDIS_REST_URL,
+      token: env.UPSTASH_REDIS_REST_TOKEN,
     });
-    const result = await sharedLimiter.limit(`${key}:${identity}`);
+    const cacheKey = limiterCacheKey(key, limit, windowSeconds);
+    let limiter = sharedLimiters.get(cacheKey);
+    if (!limiter) {
+      limiter = new Ratelimit({
+        redis: sharedRedis,
+        limiter: Ratelimit.slidingWindow(limit, `${windowSeconds} s`),
+        analytics: false,
+        prefix: "rudo",
+      });
+      sharedLimiters.set(cacheKey, limiter);
+    }
+    const result = await limiter.limit(`${key}:${identity}`);
     if (!result.success) {
       throw new AppError("RATE_LIMITED", 429, "Too many requests.");
     }

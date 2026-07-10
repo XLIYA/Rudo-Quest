@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, ne } from "drizzle-orm";
 import { notificationDeliveries, notifications, profiles, pushSubscriptions, tasks } from "@/db/schema";
 import { getDb } from "@/lib/db/client";
 import type { NotificationDto, NotificationType } from "@/types/domain";
@@ -238,6 +238,7 @@ export async function countDueTasksForDate(userId: string, date: string): Promis
       and(
         eq(tasks.assigneeId, userId),
         eq(tasks.scheduledDate, date),
+        ne(tasks.status, "DONE"),
         isNull(tasks.archivedAt),
       ),
     );

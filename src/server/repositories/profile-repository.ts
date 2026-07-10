@@ -1,6 +1,7 @@
 import { and, eq, ilike, ne, or, sql } from "drizzle-orm";
 import { profiles, projectMemberships } from "@/db/schema";
 import { getDb } from "@/lib/db/client";
+import { createProfileAssetUrlMap, profileAssetUrl } from "@/server/profile-assets";
 import type { ProfileSummary, ThemePreference } from "@/types/domain";
 
 /**
@@ -137,11 +138,12 @@ export async function suggestUsers(input: {
     )
     .orderBy(profiles.handle)
     .limit(8);
+  const avatarUrls = await createProfileAssetUrlMap(rows.map((row) => row.avatarPath));
   return rows.map((row) => ({
     id: row.id,
     handle: row.handle,
     displayName: row.displayName,
-    avatarUrl: row.avatarPath,
+    avatarUrl: profileAssetUrl(row.avatarPath, avatarUrls),
   }));
 }
 

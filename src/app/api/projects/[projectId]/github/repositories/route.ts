@@ -11,9 +11,6 @@ type Context = { params: Promise<{ projectId: string }> };
 const connectSchema = z.object({
   githubInstallationId: uuidSchema,
   repositoryId: z.number().int().positive(),
-  repositoryFullName: z.string().min(1).max(200),
-  repositoryUrl: z.url(),
-  defaultBranch: z.string().max(120).nullable().optional(),
 });
 
 /**
@@ -29,7 +26,7 @@ export async function GET(request: NextRequest, context: Context) {
     const parsedProjectId = uuidSchema.parse(projectId);
     const installationId = request.nextUrl.searchParams.get("installationId");
     const data = installationId
-      ? await listGitHubRepositories(user.id, parsedProjectId, installationId)
+      ? await listGitHubRepositories(user.id, parsedProjectId, uuidSchema.parse(installationId))
       : await getProjectRepository(user.id, parsedProjectId);
     return apiSuccess(data, { requestId });
   });

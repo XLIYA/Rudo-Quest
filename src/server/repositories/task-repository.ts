@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gte, isNull, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { activityEvents, profiles, projects, projectMemberships, tasks } from "@/db/schema";
 import { getDb } from "@/lib/db/client";
+import { createProfileAssetUrlMap, profileAssetUrl } from "@/server/profile-assets";
 import type { ProjectColorKey, ProjectIconKey, TaskDto, TaskStatus } from "@/types/domain";
 
 /**
@@ -37,7 +38,7 @@ function toTaskDto(row: {
   projectTitle: string | null;
   projectColorKey: string | null;
   projectIconKey: string | null;
-}): TaskDto {
+}, avatarUrls: Map<string, string>): TaskDto {
   return {
     id: row.id,
     projectId: row.projectId,
@@ -45,14 +46,14 @@ function toTaskDto(row: {
       id: row.createdById,
       handle: row.createdByHandle,
       displayName: row.createdByDisplayName,
-      avatarUrl: row.createdByAvatarPath,
+      avatarUrl: profileAssetUrl(row.createdByAvatarPath, avatarUrls),
     },
     assignee: row.assigneeId
       ? {
           id: row.assigneeId,
           handle: row.assigneeHandle ?? "unknown",
           displayName: row.assigneeDisplayName ?? "Unknown user",
-          avatarUrl: row.assigneeAvatarPath,
+          avatarUrl: profileAssetUrl(row.assigneeAvatarPath, avatarUrls),
         }
       : null,
     title: row.title,
@@ -138,13 +139,16 @@ export async function listWeekTasks(input: {
       ),
     )
     .orderBy(asc(tasks.scheduledDate), asc(tasks.scheduledTime), asc(tasks.createdAt));
+  const avatarUrls = await createProfileAssetUrlMap(
+    rows.flatMap((row) => [row.createdByAvatarPath, row.assigneeAvatarPath]),
+  );
   return rows
     .filter(
       (row) =>
         (row.projectId === null && (row.assigneeId === input.userId || row.createdById === input.userId)) ||
         (row.projectId !== null && row.viewerRole !== null),
     )
-    .map(toTaskDto);
+    .map((row) => toTaskDto(row, avatarUrls));
 }
 
 /**
@@ -191,7 +195,10 @@ export async function findTaskDto(taskId: string): Promise<TaskDto | null> {
     .leftJoin(projects, eq(tasks.projectId, projects.id))
     .where(eq(tasks.id, taskId))
     .limit(1);
-  return rows[0] ? toTaskDto(rows[0]) : null;
+  const row = rows[0];
+  if (!row) return null;
+  const avatarUrls = await createProfileAssetUrlMap([row.createdByAvatarPath, row.assigneeAvatarPath]);
+  return toTaskDto(row, avatarUrls);
 }
 
 /**

@@ -62,7 +62,7 @@ export function TaskDetailSheet({ task, open, offline, onOpenChange, onSave, onA
           </div>
         </dl>
         <div className="flex justify-between gap-2">
-          <AppButton variant="danger" disabled={offline} onClick={() => onArchive(task)}>
+          <AppButton type="button" variant="danger" disabled={offline} onClick={() => onArchive(task)}>
             Archive
           </AppButton>
           <AppButton type="submit" disabled={offline}>

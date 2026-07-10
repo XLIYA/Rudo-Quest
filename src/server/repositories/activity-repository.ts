@@ -1,6 +1,7 @@
-import { desc, eq, lt, or } from "drizzle-orm";
-import { activityEvents, profiles } from "@/db/schema";
+import { and, desc, eq, isNotNull, isNull, lt, or } from "drizzle-orm";
+import { activityEvents, profiles, projectMemberships, tasks } from "@/db/schema";
 import { getDb } from "@/lib/db/client";
+import { createProfileAssetUrlMap, profileAssetUrl } from "@/server/profile-assets";
 import type { ActivityEventDto, ActivityEventType } from "@/types/domain";
 
 /**
@@ -53,24 +54,46 @@ export async function listActivityForUser(input: {
       taskId: activityEvents.taskId,
       eventType: activityEvents.eventType,
       createdAt: activityEvents.createdAt,
+      viewerUserId: projectMemberships.userId,
+      taskProjectId: tasks.projectId,
+      taskCreatedBy: tasks.createdBy,
+      taskAssigneeId: tasks.assigneeId,
     })
     .from(activityEvents)
     .leftJoin(profiles, eq(activityEvents.actorId, profiles.id))
+    .leftJoin(
+      projectMemberships,
+      and(
+        eq(projectMemberships.projectId, activityEvents.projectId),
+        eq(projectMemberships.userId, input.userId),
+      ),
+    )
+    .leftJoin(tasks, eq(activityEvents.taskId, tasks.id))
     .where(
-      input.cursor
-        ? lt(activityEvents.createdAt, new Date(input.cursor))
-        : or(eq(activityEvents.actorId, input.userId), eq(activityEvents.actorId, input.userId)),
+      and(
+        input.cursor ? lt(activityEvents.createdAt, new Date(input.cursor)) : undefined,
+        or(
+          isNotNull(projectMemberships.userId),
+          and(isNull(activityEvents.projectId), eq(activityEvents.actorId, input.userId)),
+          and(
+            isNull(tasks.projectId),
+            or(eq(tasks.createdBy, input.userId), eq(tasks.assigneeId, input.userId)),
+          ),
+        ),
+      ),
     )
     .orderBy(desc(activityEvents.createdAt))
     .limit(limit + 1);
-  const items = rows.slice(0, limit).map((row) => ({
+  const visibleRows = rows.filter((row) => canViewActivityRow(input.userId, row));
+  const avatarUrls = await createProfileAssetUrlMap(visibleRows.map((row) => row.actorAvatarPath));
+  const items = visibleRows.slice(0, limit).map((row) => ({
     id: row.id,
     actor: row.actorId
       ? {
           id: row.actorId,
           handle: row.actorHandle ?? "unknown",
           displayName: row.actorDisplayName ?? "Unknown user",
-          avatarUrl: row.actorAvatarPath,
+          avatarUrl: profileAssetUrl(row.actorAvatarPath, avatarUrls),
         }
       : null,
     projectId: row.projectId,
@@ -79,8 +102,27 @@ export async function listActivityForUser(input: {
     label: humanizeActivity(row.eventType as ActivityEventType),
     createdAt: row.createdAt.toISOString(),
   }));
-  const next = rows.length > limit ? rows[limit]?.createdAt.toISOString() : undefined;
+  const next = visibleRows.length > limit ? visibleRows[limit]?.createdAt.toISOString() : undefined;
   return next ? { items, cursor: next } : { items };
+}
+
+export function canViewActivityRow(
+  userId: string,
+  row: {
+    actorId: string | null;
+    projectId: string | null;
+    viewerUserId: string | null;
+    taskProjectId: string | null;
+    taskCreatedBy: string | null;
+    taskAssigneeId: string | null;
+  },
+): boolean {
+  if (row.viewerUserId === userId) return true;
+  if (!row.projectId && row.actorId === userId) return true;
+  return (
+    !row.taskProjectId &&
+    (row.taskCreatedBy === userId || row.taskAssigneeId === userId)
+  );
 }
 
 /**

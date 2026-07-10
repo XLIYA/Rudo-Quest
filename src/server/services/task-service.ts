@@ -96,6 +96,12 @@ export async function updateTask(
   }
   const targetProjectId = payload.projectId === undefined ? task.projectId : payload.projectId;
   const targetAssignee = payload.assigneeId === undefined ? task.assignee?.id ?? null : payload.assigneeId;
+  if (targetProjectId && targetProjectId !== task.projectId) {
+    const targetRole = await findProjectRole(targetProjectId, userId);
+    if (targetRole === "VIEWER" || !targetRole) {
+      throw new AppError("FORBIDDEN", 403, "Cannot move task into this project.");
+    }
+  }
   if (targetProjectId && targetAssignee && !(await isProjectMember(targetProjectId, targetAssignee))) {
     throw new AppError("BAD_REQUEST", 400, "Assignee must be a project member.");
   }

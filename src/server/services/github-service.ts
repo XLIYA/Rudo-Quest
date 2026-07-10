@@ -1,12 +1,22 @@
 import { AppError } from "@/lib/api/errors";
-import { getGitHubInstallUrl, listInstallationRepositories, verifyGitHubWebhookSignature } from "@/lib/github/app";
+import {
+  createGitHubInstallationState,
+  findInstallationRepository,
+  getGitHubInstallationInfo,
+  getGitHubInstallUrl,
+  listInstallationRepositories,
+  verifyGitHubInstallationState,
+  verifyGitHubWebhookSignature,
+} from "@/lib/github/app";
 import { assertProjectRole } from "@/server/policies/project-policy";
 import { createActivityEvent } from "@/server/repositories/activity-repository";
 import { findProjectRole } from "@/server/repositories/project-repository";
 import {
   connectProjectRepository,
   disconnectProjectRepository,
+  findGitHubInstallationForUser,
   findProjectRepository,
+  upsertGitHubInstallation,
 } from "@/server/repositories/github-repository";
 
 /**
@@ -16,8 +26,24 @@ import {
  * Side effects: None.
  */
 export async function startGitHubInstallation(userId: string) {
-  const state = Buffer.from(JSON.stringify({ userId, nonce: crypto.randomUUID() })).toString("base64url");
+  const state = createGitHubInstallationState(userId);
   return { url: getGitHubInstallUrl(state), state };
+}
+
+/**
+ * Purpose: Complete a GitHub App installation callback.
+ * Inputs: Actor ID, numeric GitHub installation ID, and signed state.
+ * Output: Stored installation row.
+ * Side effects: Calls GitHub to verify installation metadata and persists ownership.
+ */
+export async function completeGitHubInstallation(
+  userId: string,
+  githubInstallationId: number,
+  state: string | undefined,
+) {
+  verifyGitHubInstallationState(state, userId);
+  const installation = await getGitHubInstallationInfo(githubInstallationId);
+  return upsertGitHubInstallation({ ...installation, installedBy: userId });
 }
 
 /**
@@ -29,7 +55,9 @@ export async function startGitHubInstallation(userId: string) {
 export async function listGitHubRepositories(userId: string, projectId: string, installationId: string) {
   const role = await findProjectRole(projectId, userId);
   assertProjectRole(role, "ADMIN");
-  return listInstallationRepositories(installationId);
+  const installation = await findGitHubInstallationForUser(installationId, userId);
+  if (!installation) throw new AppError("NOT_FOUND", 404, "GitHub installation not found.");
+  return listInstallationRepositories(installation.githubInstallationId);
 }
 
 /**
@@ -44,14 +72,27 @@ export async function connectRepository(
   payload: {
     githubInstallationId: string;
     repositoryId: number;
-    repositoryFullName: string;
-    repositoryUrl: string;
-    defaultBranch?: string | null;
   },
 ) {
   const role = await findProjectRole(projectId, userId);
   assertProjectRole(role, "ADMIN");
-  const row = await connectProjectRepository({ projectId, ...payload });
+  const installation = await findGitHubInstallationForUser(payload.githubInstallationId, userId);
+  if (!installation) throw new AppError("NOT_FOUND", 404, "GitHub installation not found.");
+  const repository = await findInstallationRepository(
+    installation.githubInstallationId,
+    payload.repositoryId,
+  );
+  if (!repository) {
+    throw new AppError("BAD_REQUEST", 400, "Repository is not available to this installation.");
+  }
+  const row = await connectProjectRepository({
+    projectId,
+    githubInstallationId: installation.id,
+    repositoryId: repository.id,
+    repositoryFullName: repository.fullName,
+    repositoryUrl: repository.htmlUrl,
+    defaultBranch: repository.defaultBranch,
+  });
   await createActivityEvent({ actorId: userId, projectId, eventType: "GITHUB_CONNECTED" });
   return row;
 }

@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
+import { AppError } from "@/lib/api/errors";
 import { createSupabaseServerClient } from "@/lib/auth/supabase";
 import { apiSuccess } from "@/lib/api/response";
 import { withApiHandler, readJson } from "@/server/api/handler";
@@ -23,11 +24,14 @@ export async function POST(request: NextRequest) {
     await assertRateLimit("auth-signup", request.headers.get("x-forwarded-for") ?? "local", 5, 60);
     const body = signupSchema.parse(await readJson(request));
     const supabase = await createSupabaseServerClient();
-    await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: body.email,
       password: body.password,
       options: { data: { name: body.displayName } },
     });
+    if (error || !data.user) {
+      throw new AppError("BAD_REQUEST", 400, "Sign up could not be completed.");
+    }
     return apiSuccess({ ok: true }, { status: 201, requestId });
   });
 }

@@ -35,7 +35,8 @@ export type AppButtonProps = ButtonHTMLAttributes<HTMLButtonElement> &
 export const AppButton = forwardRef<HTMLButtonElement, AppButtonProps>(
   ({ className, variant, size, asChild, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
-    return <Comp ref={ref} className={cn(buttonVariants({ variant, size }), className)} {...props} />;
+    const buttonProps = asChild ? props : { type: "button" as const, ...props };
+    return <Comp ref={ref} className={cn(buttonVariants({ variant, size }), className)} {...buttonProps} />;
   },
 );
 AppButton.displayName = "AppButton";

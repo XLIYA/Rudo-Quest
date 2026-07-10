@@ -22,11 +22,27 @@ export async function upsertGitHubInstallation(input: {
       set: {
         githubAccountLogin: input.githubAccountLogin,
         githubAccountType: input.githubAccountType,
+        installedBy: input.installedBy,
         updatedAt: new Date(),
       },
     })
     .returning();
   return row;
+}
+
+/**
+ * Purpose: Find an installation row owned by a user.
+ * Inputs: Installation row ID and user ID.
+ * Output: Installation row or null.
+ * Side effects: Reads github_installations.
+ */
+export async function findGitHubInstallationForUser(id: string, userId: string) {
+  const rows = await getDb()
+    .select()
+    .from(githubInstallations)
+    .where(and(eq(githubInstallations.id, id), eq(githubInstallations.installedBy, userId)))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 /**

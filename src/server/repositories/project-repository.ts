@@ -9,6 +9,7 @@ import {
   profiles,
 } from "@/db/schema";
 import { getDb } from "@/lib/db/client";
+import { createProfileAssetUrlMap, profileAssetUrl } from "@/server/profile-assets";
 import type { ProjectColorKey, ProjectIconKey, ProjectRole, ProjectSummary } from "@/types/domain";
 
 /**
@@ -174,6 +175,7 @@ export async function listProjectSummaries(input: {
   }
   const today = new Date();
   const weekAgo = addDays(today, -7);
+  const avatarUrls = await createProfileAssetUrlMap(members.map((member) => member.avatarPath));
   return membershipRows.map((project) => {
     const projectTasks = taskRows.filter((task) => task.projectId === project.projectId);
     const completedWeek = projectTasks.filter(
@@ -194,7 +196,7 @@ export async function listProjectSummaries(input: {
         id: member.userId,
         handle: member.handle,
         displayName: member.displayName,
-        avatarUrl: member.avatarPath,
+        avatarUrl: profileAssetUrl(member.avatarPath, avatarUrls),
       })),
       archivedAt: project.archivedAt?.toISOString() ?? null,
     };
@@ -219,7 +221,7 @@ export async function findProjectSummary(projectId: string, userId: string) {
  * Side effects: Reads memberships and profiles.
  */
 export async function listProjectMembers(projectId: string) {
-  return getDb()
+  const rows = await getDb()
     .select({
       userId: profiles.id,
       handle: profiles.handle,
@@ -232,6 +234,11 @@ export async function listProjectMembers(projectId: string) {
     .innerJoin(profiles, eq(projectMemberships.userId, profiles.id))
     .where(eq(projectMemberships.projectId, projectId))
     .orderBy(projectMemberships.role, profiles.displayName);
+  const avatarUrls = await createProfileAssetUrlMap(rows.map((row) => row.avatarPath));
+  return rows.map((row) => ({
+    ...row,
+    avatarPath: profileAssetUrl(row.avatarPath, avatarUrls),
+  }));
 }
 
 /**
@@ -291,7 +298,7 @@ export async function insertInvitation(input: {
  * Side effects: Reads invitations.
  */
 export async function listProjectInvitations(projectId: string) {
-  return getDb()
+  const rows = await getDb()
     .select({
       id: projectInvitations.id,
       invitedUserId: profiles.id,
@@ -307,6 +314,26 @@ export async function listProjectInvitations(projectId: string) {
     .innerJoin(profiles, eq(projectInvitations.invitedUserId, profiles.id))
     .where(eq(projectInvitations.projectId, projectId))
     .orderBy(desc(projectInvitations.createdAt));
+  const avatarUrls = await createProfileAssetUrlMap(rows.map((row) => row.avatarPath));
+  return rows.map((row) => ({
+    ...row,
+    avatarPath: profileAssetUrl(row.avatarPath, avatarUrls),
+  }));
+}
+
+/**
+ * Purpose: Read one project invitation for transition authorization.
+ * Inputs: Project ID and invitation ID.
+ * Output: Invitation row or null.
+ * Side effects: Reads project_invitations.
+ */
+export async function findProjectInvitation(projectId: string, invitationId: string) {
+  const rows = await getDb()
+    .select()
+    .from(projectInvitations)
+    .where(and(eq(projectInvitations.id, invitationId), eq(projectInvitations.projectId, projectId)))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 /**

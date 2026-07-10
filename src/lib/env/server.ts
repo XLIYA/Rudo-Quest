@@ -7,6 +7,7 @@ const serverEnvSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   DATABASE_URL: z.string().optional(),
   GITHUB_APP_ID: z.string().optional(),
+  GITHUB_APP_SLUG: z.string().optional(),
   GITHUB_APP_CLIENT_ID: z.string().optional(),
   GITHUB_APP_CLIENT_SECRET: z.string().optional(),
   GITHUB_APP_PRIVATE_KEY: z.string().optional(),
@@ -34,9 +35,10 @@ let cachedEnv: ServerEnv | null = null;
  * Failure behavior: Throws when an environment value has an invalid shape.
  */
 export function getServerEnv(): ServerEnv {
-  if (cachedEnv) return cachedEnv;
-  cachedEnv = serverEnvSchema.parse(process.env);
-  return cachedEnv;
+  if (cachedEnv && cachedEnv.NODE_ENV !== "test") return cachedEnv;
+  const parsed = serverEnvSchema.parse(process.env);
+  if (parsed.NODE_ENV !== "test") cachedEnv = parsed;
+  return parsed;
 }
 
 /**
@@ -68,6 +70,7 @@ export function hasDatabaseEnv(env: ServerEnv = getServerEnv()): boolean {
 export function hasGitHubEnv(env: ServerEnv = getServerEnv()): boolean {
   return Boolean(
     env.GITHUB_APP_ID &&
+      env.GITHUB_APP_SLUG &&
       env.GITHUB_APP_CLIENT_ID &&
       env.GITHUB_APP_CLIENT_SECRET &&
       env.GITHUB_APP_PRIVATE_KEY &&

@@ -31,12 +31,6 @@ export function TaskRow({
   const color = task.project ? getProjectColor(task.project.colorKey) : null;
   return (
     <article
-      tabIndex={0}
-      role="button"
-      onClick={() => onOpen(task)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") onOpen(task);
-      }}
       className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] gap-3 rounded-md border border-border bg-surface p-3 shadow-[var(--shadow-surface)]"
     >
       <TaskCheckbox
@@ -45,7 +39,11 @@ export function TaskRow({
         label={`${task.status === "DONE" ? "Reopen" : "Complete"} ${task.title}`}
         onChange={() => onCompleteToggle(task)}
       />
-      <div className="min-w-0">
+      <button
+        type="button"
+        onClick={() => onOpen(task)}
+        className="min-w-0 rounded-sm text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+      >
         <h3 className="line-clamp-2 text-sm font-semibold">{task.title}</h3>
         <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-xs text-text-secondary">
           {task.project ? (
@@ -67,7 +65,7 @@ export function TaskRow({
           ) : null}
           <span>{task.status.replace("_", " ")}</span>
         </div>
-      </div>
+      </button>
       <div className="flex shrink-0 items-center gap-1">
         {task.status === "TODO" ? (
           <AppIconButton

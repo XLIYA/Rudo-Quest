@@ -24,7 +24,10 @@ export function TaskCheckbox({ checked, label, disabled, onChange }: TaskCheckbo
       aria-checked={checked}
       aria-label={label}
       disabled={disabled}
-      onClick={onChange}
+      onClick={(event) => {
+        event.stopPropagation();
+        onChange();
+      }}
       className={cn(
         "flex size-6 shrink-0 items-center justify-center rounded-sm border border-border-strong",
         checked ? "border-brand bg-brand text-white" : "bg-surface",

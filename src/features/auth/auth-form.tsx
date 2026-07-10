@@ -26,6 +26,17 @@ type AuthValues = {
   displayName?: string;
 };
 
+export function getSafePostLoginPath(next: string | null): Route {
+  if (!next || !next.startsWith("/") || next.startsWith("//")) return "/dashboard";
+  try {
+    const parsed = new URL(next, "https://rudo.local");
+    if (parsed.origin !== "https://rudo.local") return "/dashboard";
+    return `${parsed.pathname}${parsed.search}${parsed.hash}` as Route;
+  } catch {
+    return "/dashboard";
+  }
+}
+
 /**
  * Purpose: Render and submit login/signup forms through the central Axios client.
  * Inputs: Auth mode.
@@ -47,7 +58,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       if (mode === "signup") {
         router.push("/verify-email");
       } else {
-        router.push((search.get("next") ?? "/dashboard") as Route);
+        router.push(getSafePostLoginPath(search.get("next")));
       }
       router.refresh();
     } catch (error) {

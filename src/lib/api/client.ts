@@ -11,6 +11,17 @@ export type ApiClientError = {
   status: number;
 };
 
+function isApiClientError(error: unknown): error is ApiClientError {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    "message" in error &&
+    "requestId" in error &&
+    "status" in error
+  );
+}
+
 /**
  * Purpose: Normalize any Axios failure into the single typed API error shape.
  * Inputs: Unknown caught error.
@@ -18,6 +29,7 @@ export type ApiClientError = {
  * Side effects: None.
  */
 export function normalizeApiClientError(error: unknown): ApiClientError {
+  if (isApiClientError(error)) return error;
   if (error instanceof AxiosError) {
     const data = error.response?.data as ApiFailure | undefined;
     const normalized: ApiClientError = {

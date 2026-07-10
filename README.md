@@ -44,4 +44,4 @@ Serwist builds `public/sw.js` from `src/app/sw.ts`. The app manifest is `src/app
 
 ## Documentation
 
-Read `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, `docs/GITHUB_APP_SETUP.md`, `docs/PUSH_NOTIFICATIONS.md`, `docs/PWA_OFFLINE.md`, and `docs/DECISIONS.md`.
+Read `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, `docs/VERCEL_ENVIRONMENT.md`, `docs/GITHUB_APP_SETUP.md`, `docs/PUSH_NOTIFICATIONS.md`, `docs/PWA_OFFLINE.md`, `docs/AUDIT_FIXES.md`, and `docs/DECISIONS.md`.

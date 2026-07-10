@@ -3,6 +3,7 @@ import { z } from "zod";
 import { apiSuccess } from "@/lib/api/response";
 import { withApiHandler } from "@/server/api/handler";
 import { requireCurrentUser } from "@/server/auth/current-user";
+import { completeGitHubInstallation } from "@/server/services/github-service";
 
 const callbackSchema = z.object({
   installation_id: z.coerce.number().int().positive(),
@@ -18,8 +19,19 @@ const callbackSchema = z.object({
  */
 export async function GET(request: NextRequest) {
   return withApiHandler(request, async (requestId) => {
-    await requireCurrentUser();
+    const user = await requireCurrentUser();
     const query = callbackSchema.parse(Object.fromEntries(request.nextUrl.searchParams));
-    return apiSuccess({ installationId: query.installation_id, setupAction: query.setup_action ?? null }, { requestId });
+    const installation = await completeGitHubInstallation(
+      user.id,
+      query.installation_id,
+      query.state,
+    );
+    return apiSuccess(
+      {
+        installation,
+        setupAction: query.setup_action ?? null,
+      },
+      { requestId },
+    );
   });
 }
