@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const authMocks = vi.hoisted(() => ({
   signUp: vi.fn(),
@@ -34,6 +34,11 @@ function signupRequest(): NextRequest {
 describe("signup route", () => {
   beforeEach(() => {
     authMocks.signUp.mockReset();
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://rudo-quest.vercel.app");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("returns created when Supabase creates a user", async () => {
@@ -46,6 +51,14 @@ describe("signup route", () => {
     const response = await POST(signupRequest());
 
     expect(response.status).toBe(201);
+    expect(authMocks.signUp).toHaveBeenCalledWith({
+      email: "new@example.com",
+      password: "password123",
+      options: {
+        data: { name: "New User" },
+        emailRedirectTo: "https://rudo-quest.vercel.app/auth/callback",
+      },
+    });
     await expect(response.json()).resolves.toEqual({ data: { ok: true } });
   });
 
