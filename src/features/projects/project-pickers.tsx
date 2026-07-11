@@ -10,6 +10,8 @@ import {
 import { getProjectColor } from "@/lib/theme/project-colors";
 import { cn } from "@/lib/utils/cn";
 
+export { getProjectColor };
+
 type IconComponent = React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
 
 const iconMap: Record<ProjectIconKey, IconComponent> = {
@@ -131,7 +133,7 @@ export function ProjectColorPicker({
   return (
     <fieldset className="grid gap-2">
       <legend className="text-sm font-semibold">Color</legend>
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {projectColorKeys.map((key) => {
           const color = getProjectColor(key);
           return (
@@ -141,12 +143,12 @@ export function ProjectColorPicker({
               onClick={() => onChange(key)}
               aria-pressed={value === key}
               className={cn(
-                "flex min-h-12 items-center gap-2 rounded-md border bg-surface px-2 text-left text-xs font-semibold capitalize transition-colors hover:bg-surface-muted",
+                "flex min-h-12 items-center gap-2 rounded-md border bg-surface px-3 py-2 text-left text-sm font-semibold capitalize transition-colors hover:bg-surface-muted",
                 value === key ? "border-brand text-brand" : "border-border",
               )}
             >
               <span
-                className="size-6 rounded-sm border border-border"
+                className="size-6 shrink-0 rounded-sm border border-border"
                 style={{ background: color.main }}
                 aria-hidden
               />

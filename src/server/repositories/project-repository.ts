@@ -127,6 +127,7 @@ export async function listProjectSummaries(input: {
       iconKey: projects.iconKey,
       colorKey: projects.colorKey,
       archivedAt: projects.archivedAt,
+      createdAt: projects.createdAt,
       repo: projectRepositories.repositoryFullName,
     })
     .from(projectMemberships)
@@ -199,6 +200,7 @@ export async function listProjectSummaries(input: {
         avatarUrl: profileAssetUrl(member.avatarPath, avatarUrls),
       })),
       archivedAt: project.archivedAt?.toISOString() ?? null,
+      createdAt: project.createdAt?.toISOString() ?? new Date().toISOString(),
     };
   });
 }

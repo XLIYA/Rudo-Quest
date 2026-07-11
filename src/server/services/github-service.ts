@@ -16,6 +16,7 @@ import {
   disconnectProjectRepository,
   findGitHubInstallationForUser,
   findProjectRepository,
+  listGitHubInstallationsForUser,
   upsertGitHubInstallation,
 } from "@/server/repositories/github-repository";
 
@@ -135,4 +136,14 @@ export async function handleGitHubWebhook(body: string, signature: string | null
     throw new AppError("FORBIDDEN", 403, "Invalid GitHub webhook signature.");
   }
   return { accepted: true };
+}
+
+/**
+ * Purpose: List GitHub App installations for the current user.
+ * Inputs: User ID.
+ * Output: Installation list.
+ * Side effects: Reads database.
+ */
+export async function listGitHubInstallations(userId: string) {
+  return listGitHubInstallationsForUser(userId);
 }

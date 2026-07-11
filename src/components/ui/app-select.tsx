@@ -9,6 +9,8 @@ export type AppSelectProps = {
   value: string;
   onValueChange: (value: string) => void;
   options: AppSelectOption[];
+  disabled?: boolean;
+  placeholder?: string;
 };
 
 /**
@@ -17,13 +19,13 @@ export type AppSelectProps = {
  * Output: Accessible select control.
  * Side effects: None.
  */
-export function AppSelect({ label, value, onValueChange, options }: AppSelectProps) {
+export function AppSelect({ label, value, onValueChange, options, disabled, placeholder }: AppSelectProps) {
   return (
     <label className="grid gap-1.5 text-sm font-medium">
       <span>{label}</span>
-      <Select.Root value={value} onValueChange={onValueChange}>
+      <Select.Root value={value} onValueChange={onValueChange} disabled={disabled}>
         <Select.Trigger className="inline-flex min-h-11 items-center justify-between rounded-md border border-border bg-surface px-3 text-sm">
-          <Select.Value />
+          {value ? <Select.Value /> : <span className="text-text-tertiary">{placeholder ?? "Select..."}</span>}
           <Select.Icon>
             <ChevronDown className="size-4" />
           </Select.Icon>

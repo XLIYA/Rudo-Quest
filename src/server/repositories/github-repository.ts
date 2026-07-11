@@ -104,3 +104,23 @@ export async function disconnectProjectRepository(projectId: string, repositoryI
     .returning();
   return row ?? null;
 }
+
+/**
+ * Purpose: List GitHub installations for a user.
+ * Inputs: User ID.
+ * Output: Installation rows.
+ * Side effects: Reads github_installations.
+ */
+export async function listGitHubInstallationsForUser(userId: string) {
+  const rows = await getDb()
+    .select({
+      id: githubInstallations.id,
+      githubInstallationId: githubInstallations.githubInstallationId,
+      githubAccountLogin: githubInstallations.githubAccountLogin,
+      githubAccountType: githubInstallations.githubAccountType,
+    })
+    .from(githubInstallations)
+    .where(eq(githubInstallations.installedBy, userId))
+    .orderBy(githubInstallations.createdAt);
+  return rows;
+}

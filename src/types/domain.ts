@@ -121,6 +121,7 @@ export type ProjectSummary = {
   githubRepositoryFullName: string | null;
   members: ProfileSummary[];
   archivedAt: string | null;
+  createdAt: string;
 };
 
 export type TaskDto = {
@@ -169,4 +170,13 @@ export type NotificationDto = {
   href: string | null;
   readAt: string | null;
   createdAt: string;
+};
+
+export type GitHubRepository = {
+  id: string;
+  githubInstallationId: string;
+  repositoryId: number;
+  repositoryFullName: string;
+  repositoryUrl: string;
+  defaultBranch: string | null;
 };

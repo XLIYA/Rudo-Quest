@@ -9,9 +9,11 @@ import { AppAvatarStack } from "@/components/ui/app-avatar-stack";
 import { AppEmptyState } from "@/components/ui/app-empty-state";
 import { AppSkeleton } from "@/components/ui/app-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
+import { AppButton } from "@/components/ui/app-button";
 import { TaskRow } from "@/components/ui/task-row";
 import { useTaskMutation } from "@/features/tasks/task-hooks";
 import { getMondayWeekStart } from "@/lib/utils/dates";
+import Link from "next/link";
 
 /**
  * Purpose: Render project detail with tasks, members, GitHub status, and activity.
@@ -47,6 +49,13 @@ export function ProjectDetailScreen() {
           <p className="font-mono text-3xl font-semibold">{project.data.openTaskCount}</p>
           <p className="text-sm text-text-secondary">open tasks</p>
           <p className="mt-3 text-sm text-text-secondary">{project.data.githubRepositoryFullName ?? "No GitHub repository connected."}</p>
+          {!project.data.githubRepositoryFullName && (
+            <Link href={`/projects/${project.data.id}/settings`} className="mt-3 inline-block">
+              <AppButton variant="secondary" size="sm">
+                Connect GitHub Repository
+              </AppButton>
+            </Link>
+          )}
         </Panel>
         <Panel title="Members">
           <AppAvatarStack users={project.data.members} />
