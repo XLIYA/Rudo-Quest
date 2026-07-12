@@ -1,6 +1,24 @@
 @import "tailwindcss";
 
 @font-face {
+  font-family: "Fjord One";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("https://fonts.gstatic.com/s/fjordone/v17/21ce9d565752b16f-s.p.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Fjord One Fallback";
+  src: local("Georgia"), local("Times New Roman"), local("serif");
+  ascent-override: 85.76%;
+  descent-override: 27.41%;
+  line-gap-override: 0%;
+  size-adjust: 110.46%;
+}
+
+@font-face {
   font-family: "Bitcount Ink";
   font-style: normal;
   font-weight: 100 900;
@@ -49,7 +67,8 @@
   --shadow-surface: 0 1px 2px rgb(0 0 0 / 0.06);
   --shadow-raised: 0 10px 30px rgb(0 0 0 / 0.08);
   --shadow-overlay: 0 24px 80px rgb(0 0 0 / 0.18);
-  --font-bitcount-ink: "Bitcount Ink", var(--font-fjord-one), system-ui, sans-serif;
+  --font-bitcount-ink: "Bitcount Ink", "Fjord One", "Fjord One Fallback", system-ui, sans-serif;
+  --font-fjord-one: "Fjord One", "Fjord One Fallback", system-ui, sans-serif;
   color-scheme: light;
 }
 
