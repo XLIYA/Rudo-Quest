@@ -12,7 +12,11 @@ describe("project permissions", () => {
 
 describe("task transitions", () => {
   it("completes active tasks and stores previous status", () => {
-    const next = toggleCompletionState("IN_PROGRESS", null, new Date("2026-07-07T00:00:00Z"));
+    const next = toggleCompletionState(
+      "IN_PROGRESS",
+      null,
+      new Date("2026-07-07T00:00:00Z"),
+    );
     expect(next.status).toBe("DONE");
     expect(next.previousStatus).toBe("IN_PROGRESS");
     expect(next.completedAt).toBeInstanceOf(Date);

@@ -17,6 +17,8 @@ export async function GET(request: NextRequest, context: Context) {
   return withApiHandler(request, async (requestId) => {
     const user = await requireCurrentUser();
     const { projectId } = await context.params;
-    return apiSuccess(await getProjectMembers(user.id, uuidSchema.parse(projectId)), { requestId });
+    return apiSuccess(await getProjectMembers(user.id, uuidSchema.parse(projectId)), {
+      requestId,
+    });
   });
 }

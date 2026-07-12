@@ -1,4 +1,4 @@
-import type { NextRequest } from "next/server";
+import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const authMocks = vi.hoisted(() => ({
@@ -17,18 +17,19 @@ vi.mock("@/lib/auth/supabase", () => ({
 
 vi.mock("@/server/security/rate-limit", () => ({
   assertRateLimit: vi.fn(() => Promise.resolve()),
+  requestRateLimitIdentity: vi.fn(() => "test-client"),
 }));
 
 function signupRequest(): NextRequest {
-  return new Request("http://localhost/api/auth/signup", {
+  return new NextRequest("http://localhost/api/auth/signup", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", origin: "http://localhost" },
     body: JSON.stringify({
       email: "new@example.com",
       password: "password123",
       displayName: "New User",
     }),
-  }) as NextRequest;
+  });
 }
 
 describe("signup route", () => {

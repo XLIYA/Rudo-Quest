@@ -15,6 +15,9 @@ export async function POST(request: NextRequest) {
   return withApiHandler(request, async (requestId) => {
     const user = await requireCurrentUser();
     await assertRateLimit("banner-upload", user.id, 10, 3600);
-    return apiSuccess(await createProfileUploadUrl(user.id, "banner", await readJson(request)), { requestId });
+    return apiSuccess(
+      await createProfileUploadUrl(user.id, "banner", await readJson(request)),
+      { requestId },
+    );
   });
 }

@@ -24,14 +24,12 @@ describe("getPgSslConfig", () => {
       getPgSslConfig(
         "postgresql://postgres:postgres@127.0.0.1:54322/postgres?sslmode=require",
       ),
-    ).toEqual({ rejectUnauthorized: false });
+    ).toEqual({ rejectUnauthorized: true });
   });
 
   it("uses SSL for hosted database URLs by default", () => {
     expect(
       getPgSslConfig("postgresql://postgres:postgres@db.example.com/postgres"),
-    ).toEqual({
-      rejectUnauthorized: false,
-    });
+    ).toEqual({ rejectUnauthorized: true });
   });
 });

@@ -17,6 +17,8 @@ export async function PATCH(request: NextRequest, context: Context) {
   return withApiHandler(request, async (requestId) => {
     const user = await requireCurrentUser();
     const { notificationId } = await context.params;
-    return apiSuccess(await readNotification(user.id, uuidSchema.parse(notificationId)), { requestId });
+    return apiSuccess(await readNotification(user.id, uuidSchema.parse(notificationId)), {
+      requestId,
+    });
   });
 }

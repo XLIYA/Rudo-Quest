@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { AppToast } from "@/components/ui/app-toast";
 import { apiGet, apiMutation, normalizeApiClientError } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
 import type { TaskDto } from "@/types/domain";
@@ -15,7 +15,8 @@ import type { TaskDto } from "@/types/domain";
 export function useWeekTasks(weekStart: string) {
   return useQuery({
     queryKey: queryKeys.tasksWeek(weekStart),
-    queryFn: ({ signal }) => apiGet<TaskDto[]>(`/api/tasks/week?weekStart=${weekStart}`, signal),
+    queryFn: ({ signal }) =>
+      apiGet<TaskDto[]>(`/api/tasks/week?weekStart=${weekStart}`, signal),
   });
 }
 
@@ -37,12 +38,23 @@ export function useCreateTask(weekStart: string) {
     }) => apiMutation<TaskDto>("post", "/api/tasks", body),
     onMutate: async (body) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.tasksWeek(weekStart) });
-      const previous = queryClient.getQueryData<TaskDto[]>(queryKeys.tasksWeek(weekStart)) ?? [];
+      const previous =
+        queryClient.getQueryData<TaskDto[]>(queryKeys.tasksWeek(weekStart)) ?? [];
       const optimistic: TaskDto = {
         id: crypto.randomUUID(),
         projectId: body.projectId ?? null,
-        createdBy: { id: "optimistic", handle: "you", displayName: "You", avatarUrl: null },
-        assignee: { id: "optimistic", handle: "you", displayName: "You", avatarUrl: null },
+        createdBy: {
+          id: "optimistic",
+          handle: "you",
+          displayName: "You",
+          avatarUrl: null,
+        },
+        assignee: {
+          id: "optimistic",
+          handle: "you",
+          displayName: "You",
+          avatarUrl: null,
+        },
         title: body.title,
         description: null,
         iconKey: null,
@@ -58,12 +70,15 @@ export function useCreateTask(weekStart: string) {
         updatedAt: new Date().toISOString(),
         project: null,
       };
-      queryClient.setQueryData<TaskDto[]>(queryKeys.tasksWeek(weekStart), [...previous, optimistic]);
+      queryClient.setQueryData<TaskDto[]>(queryKeys.tasksWeek(weekStart), [
+        ...previous,
+        optimistic,
+      ]);
       return { previous };
     },
     onError: (error, _body, context) => {
       queryClient.setQueryData(queryKeys.tasksWeek(weekStart), context?.previous ?? []);
-      toast.error(normalizeApiClientError(error).message);
+      AppToast(normalizeApiClientError(error).message, "error");
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tasksWeek(weekStart) });
@@ -87,25 +102,47 @@ export function useTaskMutation(weekStart: string) {
       body?: Record<string, unknown>;
     }) => {
       if (input.action === "update") {
-        return apiMutation<TaskDto>("patch", `/api/tasks/${input.task.id}`, { ...input.body, version: input.task.version });
+        return apiMutation<TaskDto>("patch", `/api/tasks/${input.task.id}`, {
+          ...input.body,
+          version: input.task.version,
+        });
       }
       if (input.action === "archive") {
-        return apiMutation<TaskDto>("delete", `/api/tasks/${input.task.id}`, { version: input.task.version });
+        return apiMutation<TaskDto>("delete", `/api/tasks/${input.task.id}`, {
+          version: input.task.version,
+        });
       }
-      return apiMutation<TaskDto>("post", `/api/tasks/${input.task.id}/${input.action}`, { version: input.task.version });
+      return apiMutation<TaskDto>("post", `/api/tasks/${input.task.id}/${input.action}`, {
+        version: input.task.version,
+      });
     },
     onMutate: async (input) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.tasksWeek(weekStart) });
-      const previous = queryClient.getQueryData<TaskDto[]>(queryKeys.tasksWeek(weekStart)) ?? [];
-      queryClient.setQueryData<TaskDto[]>(
-        queryKeys.tasksWeek(weekStart),
-        previous.map((task) => (task.id === input.task.id ? optimisticTask(task, input.action, input.body) : task)),
-      );
+      const previous =
+        queryClient.getQueryData<TaskDto[]>(queryKeys.tasksWeek(weekStart)) ?? [];
+      if (input.action !== "archive") {
+        queryClient.setQueryData<TaskDto[]>(
+          queryKeys.tasksWeek(weekStart),
+          previous.map((task) =>
+            task.id === input.task.id
+              ? optimisticTask(task, input.action, input.body)
+              : task,
+          ),
+        );
+        queryClient.setQueryData<TaskDto>(
+          queryKeys.task(input.task.id),
+          optimisticTask(input.task, input.action, input.body),
+        );
+      }
       return { previous };
     },
     onError: (error, _input, context) => {
       queryClient.setQueryData(queryKeys.tasksWeek(weekStart), context?.previous ?? []);
-      toast.error(normalizeApiClientError(error).message);
+      if (_input) queryClient.setQueryData(queryKeys.task(_input.task.id), _input.task);
+      AppToast(normalizeApiClientError(error).message, "error");
+    },
+    onSuccess: (data, input) => {
+      queryClient.setQueryData(queryKeys.task(input.task.id), data);
     },
     onSettled: (_data, _error, input) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tasksWeek(weekStart) });
@@ -121,15 +158,33 @@ export function useTaskMutation(weekStart: string) {
  * Output: Updated task DTO.
  * Side effects: None.
  */
-function optimisticTask(task: TaskDto, action: string, body?: Record<string, unknown>): TaskDto {
+function optimisticTask(
+  task: TaskDto,
+  action: string,
+  body?: Record<string, unknown>,
+): TaskDto {
   const now = new Date().toISOString();
-  if (action === "start") return { ...task, status: "IN_PROGRESS", version: task.version + 1, updatedAt: now };
+  if (action === "start")
+    return { ...task, status: "IN_PROGRESS", version: task.version + 1, updatedAt: now };
   if (action === "complete") {
-    return { ...task, status: "DONE", previousStatus: task.status === "DONE" ? task.previousStatus : task.status, completedAt: now, version: task.version + 1, updatedAt: now };
+    return {
+      ...task,
+      status: "DONE",
+      previousStatus: task.status === "DONE" ? task.previousStatus : task.status,
+      completedAt: now,
+      version: task.version + 1,
+      updatedAt: now,
+    };
   }
   if (action === "reopen") {
-    return { ...task, status: task.previousStatus ?? "TODO", previousStatus: null, completedAt: null, version: task.version + 1, updatedAt: now };
+    return {
+      ...task,
+      status: task.previousStatus ?? "TODO",
+      previousStatus: null,
+      completedAt: null,
+      version: task.version + 1,
+      updatedAt: now,
+    };
   }
-  if (action === "archive") return { ...task, archivedAt: now, version: task.version + 1, updatedAt: now };
   return { ...task, ...body, version: task.version + 1, updatedAt: now };
 }

@@ -3,7 +3,6 @@ import {
   dateSchema,
   projectIconKeySchema,
   taskDescriptionSchema,
-  taskStatusSchema,
   taskTitleSchema,
   timeSchema,
   timeZoneSchema,
@@ -24,10 +23,12 @@ export const createTaskSchema = z.object({
 export const updateTaskSchema = createTaskSchema
   .partial()
   .extend({
-    status: taskStatusSchema.optional(),
     version: z.number().int().positive(),
   })
-  .refine((value) => Object.keys(value).length > 1, "Provide at least one field to update.");
+  .refine(
+    (value) => Object.keys(value).length > 1,
+    "Provide at least one field to update.",
+  );
 
 export const taskActionSchema = z.object({
   version: z.number().int().positive(),
@@ -35,4 +36,5 @@ export const taskActionSchema = z.object({
 
 export const weekQuerySchema = z.object({
   weekStart: dateSchema,
+  projectId: uuidSchema.optional(),
 });

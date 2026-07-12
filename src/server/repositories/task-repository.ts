@@ -1,9 +1,20 @@
-import { and, asc, desc, eq, gte, isNull, lte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, isNotNull, lte, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
-import { activityEvents, profiles, projects, projectMemberships, tasks } from "@/db/schema";
+import {
+  activityEvents,
+  profiles,
+  projects,
+  projectMemberships,
+  tasks,
+} from "@/db/schema";
 import { getDb } from "@/lib/db/client";
 import { createProfileAssetUrlMap, profileAssetUrl } from "@/server/profile-assets";
-import type { ProjectColorKey, ProjectIconKey, TaskDto, TaskStatus } from "@/types/domain";
+import type {
+  ProjectColorKey,
+  ProjectIconKey,
+  TaskDto,
+  TaskStatus,
+} from "@/types/domain";
 
 /**
  * Purpose: Map a task query row into the public task DTO.
@@ -11,34 +22,37 @@ import type { ProjectColorKey, ProjectIconKey, TaskDto, TaskStatus } from "@/typ
  * Output: TaskDto with ISO date strings.
  * Side effects: None.
  */
-function toTaskDto(row: {
-  id: string;
-  projectId: string | null;
-  createdById: string;
-  createdByHandle: string;
-  createdByDisplayName: string;
-  createdByAvatarPath: string | null;
-  assigneeId: string | null;
-  assigneeHandle: string | null;
-  assigneeDisplayName: string | null;
-  assigneeAvatarPath: string | null;
-  title: string;
-  description: string | null;
-  iconKey: string | null;
-  status: string;
-  previousStatus: string | null;
-  scheduledDate: string;
-  scheduledTime: string | null;
-  scheduledTimeZone: string;
-  completedAt: Date | null;
-  archivedAt: Date | null;
-  version: number;
-  createdAt: Date;
-  updatedAt: Date;
-  projectTitle: string | null;
-  projectColorKey: string | null;
-  projectIconKey: string | null;
-}, avatarUrls: Map<string, string>): TaskDto {
+function toTaskDto(
+  row: {
+    id: string;
+    projectId: string | null;
+    createdById: string;
+    createdByHandle: string;
+    createdByDisplayName: string;
+    createdByAvatarPath: string | null;
+    assigneeId: string | null;
+    assigneeHandle: string | null;
+    assigneeDisplayName: string | null;
+    assigneeAvatarPath: string | null;
+    title: string;
+    description: string | null;
+    iconKey: string | null;
+    status: string;
+    previousStatus: string | null;
+    scheduledDate: string;
+    scheduledTime: string | null;
+    scheduledTimeZone: string;
+    completedAt: Date | null;
+    archivedAt: Date | null;
+    version: number;
+    createdAt: Date;
+    updatedAt: Date;
+    projectTitle: string | null;
+    projectColorKey: string | null;
+    projectIconKey: string | null;
+  },
+  avatarUrls: Map<string, string>,
+): TaskDto {
   return {
     id: row.id,
     projectId: row.projectId,
@@ -90,6 +104,7 @@ export async function listWeekTasks(input: {
   userId: string;
   from: string;
   to: string;
+  projectId?: string;
 }): Promise<TaskDto[]> {
   const creator = alias(profiles, "creator_profiles");
   const assignee = alias(profiles, "assignee_profiles");
@@ -129,26 +144,35 @@ export async function listWeekTasks(input: {
     .leftJoin(projects, eq(tasks.projectId, projects.id))
     .leftJoin(
       projectMemberships,
-      and(eq(projectMemberships.projectId, tasks.projectId), eq(projectMemberships.userId, input.userId)),
+      and(
+        eq(projectMemberships.projectId, tasks.projectId),
+        eq(projectMemberships.userId, input.userId),
+      ),
     )
     .where(
       and(
         gte(tasks.scheduledDate, input.from),
         lte(tasks.scheduledDate, input.to),
+        input.projectId ? eq(tasks.projectId, input.projectId) : undefined,
         isNull(tasks.archivedAt),
+        or(
+          and(
+            isNull(tasks.projectId),
+            or(eq(tasks.createdBy, input.userId), eq(tasks.assigneeId, input.userId)),
+          ),
+          and(
+            isNotNull(tasks.projectId),
+            isNull(projects.archivedAt),
+            isNotNull(projectMemberships.userId),
+          ),
+        ),
       ),
     )
     .orderBy(asc(tasks.scheduledDate), asc(tasks.scheduledTime), asc(tasks.createdAt));
   const avatarUrls = await createProfileAssetUrlMap(
     rows.flatMap((row) => [row.createdByAvatarPath, row.assigneeAvatarPath]),
   );
-  return rows
-    .filter(
-      (row) =>
-        (row.projectId === null && (row.assigneeId === input.userId || row.createdById === input.userId)) ||
-        (row.projectId !== null && row.viewerRole !== null),
-    )
-    .map((row) => toTaskDto(row, avatarUrls));
+  return rows.map((row) => toTaskDto(row, avatarUrls));
 }
 
 /**
@@ -197,7 +221,10 @@ export async function findTaskDto(taskId: string): Promise<TaskDto | null> {
     .limit(1);
   const row = rows[0];
   if (!row) return null;
-  const avatarUrls = await createProfileAssetUrlMap([row.createdByAvatarPath, row.assigneeAvatarPath]);
+  const avatarUrls = await createProfileAssetUrlMap([
+    row.createdByAvatarPath,
+    row.assigneeAvatarPath,
+  ]);
   return toTaskDto(row, avatarUrls);
 }
 
@@ -277,11 +304,38 @@ export async function updateTaskRow(
  * Side effects: Reads activity_events.
  */
 export async function listTaskActivity(taskId: string) {
-  return getDb()
-    .select()
+  const rows = await getDb()
+    .select({
+      id: activityEvents.id,
+      actorId: activityEvents.actorId,
+      actorHandle: profiles.handle,
+      actorDisplayName: profiles.displayName,
+      actorAvatarPath: profiles.avatarPath,
+      eventType: activityEvents.eventType,
+      createdAt: activityEvents.createdAt,
+    })
     .from(activityEvents)
+    .leftJoin(profiles, eq(activityEvents.actorId, profiles.id))
     .where(eq(activityEvents.taskId, taskId))
     .orderBy(desc(activityEvents.createdAt));
+  const avatarUrls = await createProfileAssetUrlMap(
+    rows.map((row) => row.actorAvatarPath),
+  );
+  const { humanizeActivity } = await import("@/server/repositories/activity-repository");
+  return rows.map((row) => ({
+    id: row.id,
+    actor: row.actorId
+      ? {
+          id: row.actorId,
+          handle: row.actorHandle ?? "unknown",
+          displayName: row.actorDisplayName ?? "Unknown user",
+          avatarUrl: profileAssetUrl(row.actorAvatarPath, avatarUrls),
+        }
+      : null,
+    eventType: row.eventType,
+    label: humanizeActivity(row.eventType as Parameters<typeof humanizeActivity>[0]),
+    createdAt: row.createdAt.toISOString(),
+  }));
 }
 
 /**
@@ -290,7 +344,11 @@ export async function listTaskActivity(taskId: string) {
  * Output: Date/count pairs.
  * Side effects: Reads tasks.
  */
-export async function listCompletionCounts(input: { userId: string; from: string; to: string }) {
+export async function listCompletionCounts(input: {
+  userId: string;
+  from: string;
+  to: string;
+}) {
   const rows = await getDb()
     .select({
       scheduledDate: tasks.scheduledDate,
@@ -307,7 +365,8 @@ export async function listCompletionCounts(input: { userId: string; from: string
       ),
     );
   const counts = new Map<string, number>();
-  for (const row of rows) counts.set(row.scheduledDate, (counts.get(row.scheduledDate) ?? 0) + 1);
+  for (const row of rows)
+    counts.set(row.scheduledDate, (counts.get(row.scheduledDate) ?? 0) + 1);
   return Array.from(counts, ([date, count]) => ({ date, count }));
 }
 
@@ -317,6 +376,10 @@ export async function listCompletionCounts(input: { userId: string; from: string
  * Output: Task DTOs.
  * Side effects: Reads week tasks.
  */
-export async function listDashboardTasks(input: { userId: string; from: string; to: string }) {
+export async function listDashboardTasks(input: {
+  userId: string;
+  from: string;
+  to: string;
+}) {
   return listWeekTasks(input);
 }

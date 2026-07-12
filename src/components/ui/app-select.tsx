@@ -19,13 +19,24 @@ export type AppSelectProps = {
  * Output: Accessible select control.
  * Side effects: None.
  */
-export function AppSelect({ label, value, onValueChange, options, disabled, placeholder }: AppSelectProps) {
+export function AppSelect({
+  label,
+  value,
+  onValueChange,
+  options,
+  disabled,
+  placeholder,
+}: AppSelectProps) {
   return (
     <label className="grid gap-1.5 text-sm font-medium">
       <span>{label}</span>
       <Select.Root value={value} onValueChange={onValueChange} disabled={disabled}>
         <Select.Trigger className="inline-flex min-h-11 items-center justify-between rounded-md border border-border bg-surface px-3 text-sm">
-          {value ? <Select.Value /> : <span className="text-text-tertiary">{placeholder ?? "Select..."}</span>}
+          {value ? (
+            <Select.Value />
+          ) : (
+            <span className="text-text-tertiary">{placeholder ?? "Select..."}</span>
+          )}
           <Select.Icon>
             <ChevronDown className="size-4" />
           </Select.Icon>
@@ -34,7 +45,11 @@ export function AppSelect({ label, value, onValueChange, options, disabled, plac
           <Select.Content className="z-50 rounded-md border border-border bg-surface p-1 shadow-[var(--shadow-raised)]">
             <Select.Viewport>
               {options.map((option) => (
-                <Select.Item key={option.value} value={option.value} className="flex min-h-10 cursor-pointer items-center gap-2 rounded-sm px-2 text-sm outline-none data-[highlighted]:bg-surface-muted">
+                <Select.Item
+                  key={option.value}
+                  value={option.value}
+                  className="flex min-h-10 cursor-pointer items-center gap-2 rounded-sm px-2 text-sm outline-none data-[highlighted]:bg-surface-muted"
+                >
                   <Select.ItemIndicator>
                     <Check className="size-4" />
                   </Select.ItemIndicator>

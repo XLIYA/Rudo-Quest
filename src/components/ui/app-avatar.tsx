@@ -23,8 +23,15 @@ export function AppAvatar({ name, src, className }: AppAvatarProps) {
     .slice(0, 2)
     .toUpperCase();
   return (
-    <Avatar.Root className={cn("inline-flex size-9 items-center justify-center overflow-hidden rounded-md bg-brand-soft text-xs font-bold text-brand", className)}>
-      {src ? <Avatar.Image src={src} alt={name} className="size-full object-cover" /> : null}
+    <Avatar.Root
+      className={cn(
+        "inline-flex size-9 items-center justify-center overflow-hidden rounded-md bg-brand-soft text-xs font-bold text-brand",
+        className,
+      )}
+    >
+      {src ? (
+        <Avatar.Image src={src} alt={name} className="size-full object-cover" />
+      ) : null}
       <Avatar.Fallback>{initials || "RQ"}</Avatar.Fallback>
     </Avatar.Root>
   );

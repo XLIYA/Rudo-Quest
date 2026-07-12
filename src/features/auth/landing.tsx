@@ -21,13 +21,20 @@ export function Landing() {
             Weekly work, visible in seconds.
           </h1>
           <p className="mt-5 max-w-xl text-lg leading-8 text-text-secondary">
-            A calm task planner for small teams that need today, this week, and project ownership without heavy workflows.
+            A calm task planner for small teams that need today, this week, and project
+            ownership without heavy workflows.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link className="inline-flex min-h-11 items-center justify-center rounded-md bg-brand px-5 text-sm font-semibold text-white" href="/signup">
+            <Link
+              className="inline-flex min-h-11 items-center justify-center rounded-md bg-brand px-5 text-sm font-semibold text-white"
+              href="/signup"
+            >
               Create account
             </Link>
-            <Link className="inline-flex min-h-11 items-center justify-center rounded-md border border-border px-5 text-sm font-semibold" href="/login">
+            <Link
+              className="inline-flex min-h-11 items-center justify-center rounded-md border border-border px-5 text-sm font-semibold"
+              href="/login"
+            >
               Sign in
             </Link>
           </div>

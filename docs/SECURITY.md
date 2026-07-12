@@ -8,21 +8,27 @@ Rate limiting uses Upstash Redis in production and a bounded local fallback in d
 
 Secrets are server-only. The Supabase service role key, GitHub private key, GitHub installation tokens, VAPID private key, Cron secret, and Upstash token are never exposed to the browser.
 
-Content Security Policy, frame denial, nosniff, strict referrer policy, and restrictive permissions policy are configured in `next.config.ts`.
+Content Security Policy with per-request nonces, frame denial, nosniff, strict referrer policy, and restrictive permissions policy are applied in `src/proxy.ts`. Production CSP does not permit `unsafe-inline` or `unsafe-eval`.
+
+Hosted PostgreSQL connections require certificate verification. State-changing requests require a same-origin `Origin` header; cron and GitHub webhooks use their own bearer/HMAC authentication. JSON and webhook request bodies are streamed with hard byte limits, and production rate limiting uses Upstash Redis or fails closed with `INTEGRATION_NOT_CONFIGURED`.
+
+GitHub installation state is signed, persisted, short-lived, bound to the current Rudo user, and atomically consumed. The OAuth authorization leg stores an encrypted short-lived user token only on the server; callback replay and installation takeover are rejected. Installation ownership is verified against GitHub's user-installations API before persistence.
+
+Database defense in depth includes RLS on private integration tables, a non-recursive membership helper, project-owner membership integrity, project-member-only task assignees, personal-task ownership, task completion normalization, and optimistic version increments.
 
 Permission matrix:
 
-| Action | Owner | Admin | Member | Viewer |
-| --- | --- | --- | --- | --- |
-| View project | Yes | Yes | Yes | Yes |
-| Update project | Yes | Yes | No | No |
-| Archive project | Yes | No | No | No |
-| Invite users | Yes | Yes | No | No |
-| Remove member | Yes | Yes except owner | No | No |
-| Change member role | Yes | Limited | No | No |
-| Create project task | Yes | Yes | Yes | No |
-| Edit any task | Yes | Yes | No | No |
-| Edit assigned task | Yes | Yes | Yes | No |
-| Assign tasks | Yes | Yes | Yes | No |
-| Complete assigned task | Yes | Yes | Yes | No |
-| Connect GitHub repository | Yes | Yes | No | No |
+| Action                    | Owner | Admin            | Member | Viewer |
+| ------------------------- | ----- | ---------------- | ------ | ------ |
+| View project              | Yes   | Yes              | Yes    | Yes    |
+| Update project            | Yes   | Yes              | No     | No     |
+| Archive project           | Yes   | No               | No     | No     |
+| Invite users              | Yes   | Yes              | No     | No     |
+| Remove member             | Yes   | Yes except owner | No     | No     |
+| Change member role        | Yes   | Limited          | No     | No     |
+| Create project task       | Yes   | Yes              | Yes    | No     |
+| Edit any task             | Yes   | Yes              | No     | No     |
+| Edit assigned task        | Yes   | Yes              | Yes    | No     |
+| Assign tasks              | Yes   | Yes              | Yes    | No     |
+| Complete assigned task    | Yes   | Yes              | Yes    | No     |
+| Connect GitHub repository | Yes   | Yes              | No     | No     |

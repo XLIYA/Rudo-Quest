@@ -4,7 +4,7 @@ import { AppError } from "@/lib/api/errors";
 import { createSupabaseServerClient } from "@/lib/auth/supabase";
 import { apiSuccess } from "@/lib/api/response";
 import { withApiHandler, readJson } from "@/server/api/handler";
-import { assertRateLimit } from "@/server/security/rate-limit";
+import { assertRateLimit, requestRateLimitIdentity } from "@/server/security/rate-limit";
 import { ensureProfileForAuthUser } from "@/server/services/profile-service";
 
 const signinSchema = z.object({
@@ -21,7 +21,12 @@ const signinSchema = z.object({
  */
 export async function POST(request: NextRequest) {
   return withApiHandler(request, async (requestId) => {
-    await assertRateLimit("auth-signin", request.headers.get("x-forwarded-for") ?? "local", 8, 60);
+    await assertRateLimit(
+      "auth-signin",
+      requestRateLimitIdentity(request.headers),
+      8,
+      60,
+    );
     const body = signinSchema.parse(await readJson(request));
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase.auth.signInWithPassword(body);

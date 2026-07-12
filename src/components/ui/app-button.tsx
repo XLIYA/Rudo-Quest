@@ -9,7 +9,8 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary: "bg-brand text-white hover:bg-brand-hover",
-        secondary: "border border-border bg-surface text-text-primary hover:bg-surface-muted",
+        secondary:
+          "border border-border bg-surface text-text-primary hover:bg-surface-muted",
         ghost: "text-text-secondary hover:bg-surface-muted hover:text-text-primary",
         danger: "bg-error text-white hover:opacity-90",
       },
@@ -36,7 +37,13 @@ export const AppButton = forwardRef<HTMLButtonElement, AppButtonProps>(
   ({ className, variant, size, asChild, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
     const buttonProps = asChild ? props : { type: "button" as const, ...props };
-    return <Comp ref={ref} className={cn(buttonVariants({ variant, size }), className)} {...buttonProps} />;
+    return (
+      <Comp
+        ref={ref}
+        className={cn(buttonVariants({ variant, size }), className)}
+        {...buttonProps}
+      />
+    );
   },
 );
 AppButton.displayName = "AppButton";

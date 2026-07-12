@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" role="img" aria-label="Night watch banner">
+  <defs><linearGradient id="n" x1="0" x2="1"><stop stop-color="#202020"/><stop offset="1" stop-color="#482217"/></linearGradient></defs>
+  <rect width="1200" height="420" fill="url(#n)"/>
+  <circle cx="920" cy="110" r="68" fill="#f4c76e"/>
+  <circle cx="950" cy="90" r="68" fill="#202020"/>
+  <g fill="#fff" opacity=".75"><circle cx="170" cy="90" r="4"/><circle cx="320" cy="170" r="3"/><circle cx="580" cy="75" r="5"/><circle cx="740" cy="190" r="3"/><circle cx="1040" cy="240" r="4"/></g>
+  <path d="M0 350l180-110 120 70 170-125 160 125 170-95 220 135v70H0z" fill="#111" fill-opacity=".8"/>
+</svg>

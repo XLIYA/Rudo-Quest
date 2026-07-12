@@ -1,56 +1,78 @@
-import { useEffect, useMemo, useState } from "react";
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, Play, Archive, RotateCcw } from "lucide-react";
-import type { TaskDto, ProjectIconKey, ProfileSummary, ProjectSummary } from "@/types/domain";
-import { projectIconKeys } from "@/types/domain";
-import { resolveProjectIcon } from "@/features/projects/project-pickers";
-import { AppButton } from "./app-button";
-import { AppDatePicker } from "./app-date-picker";
-import { AppDialog } from "./app-dialog";
-import { AppSelect } from "./app-select";
-import { AppTextarea } from "./app-textarea";
-import { AppTimePicker } from "./app-time-picker";
-import { AppInput } from "./app-input";
-import { AppCombobox } from "./app-combobox";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { apiGet } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
-import { useQuery } from "@tanstack/react-query";
+import {
+  projectIconKeys,
+  type ProjectIconKey,
+  type ProfileSummary,
+  type ProjectSummary,
+  type TaskDto,
+} from "@/types/domain";
+import { resolveProjectIcon } from "@/features/projects/project-pickers";
+import { AppButton } from "./app-button";
+import { AppCombobox } from "./app-combobox";
+import { AppConfirmDialog } from "./app-confirm-dialog";
+import { AppDatePicker } from "./app-date-picker";
+import { AppInput } from "./app-input";
+import { AppSelect } from "./app-select";
+import { AppSheet } from "./app-sheet";
+import { AppTextarea } from "./app-textarea";
+import { AppTimePicker } from "./app-time-picker";
+
+type TaskDraft = {
+  title: string;
+  description: string | null;
+  scheduledDate: string;
+  scheduledTime: string | null;
+  projectId: string | null;
+  assigneeId: string | null;
+  iconKey: ProjectIconKey | null;
+  version: number;
+};
+
+export type TaskDetailAction = "start" | "complete" | "reopen";
 
 export type TaskDetailSheetProps = {
   task: TaskDto | null;
   open: boolean;
   offline?: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (task: TaskDto, values: {
-    title: string;
-    description: string | null;
-    scheduledDate: string;
-    scheduledTime: string | null;
-    projectId: string | null;
-    assigneeId: string | null;
-    iconKey: ProjectIconKey | null;
-    status: "TODO" | "IN_PROGRESS" | "DONE";
-    version: number;
-  }) => void;
+  onSave: (task: TaskDto, values: TaskDraft) => void;
+  onAction: (task: TaskDto, action: TaskDetailAction) => void;
   onArchive: (task: TaskDto) => void;
 };
+
+function toDraft(task: TaskDto): TaskDraft {
+  return {
+    title: task.title,
+    description: task.description,
+    scheduledDate: task.scheduledDate,
+    scheduledTime: task.scheduledTime?.slice(0, 5) ?? null,
+    projectId: task.projectId,
+    assigneeId: task.assignee?.id ?? null,
+    iconKey: task.iconKey,
+    version: task.version,
+  };
+}
 
 function ProjectCombobox({
   value,
   onChange,
   disabled,
-  placeholder = "Personal task (no project)",
 }: {
   value: string | null;
   onChange: (value: string | null) => void;
-  disabled?: boolean;
-  placeholder?: string;
+  disabled: boolean;
 }) {
   const projectsQuery = useQuery({
     queryKey: queryKeys.projects,
-    queryFn: ({ signal }) => apiGet<ProjectSummary[]>(`/api/projects`, signal),
+    queryFn: ({ signal }) => apiGet<ProjectSummary[]>("/api/projects", signal),
     enabled: !disabled,
   });
-
   const options = useMemo(
     () =>
       projectsQuery.data?.map((project) => ({
@@ -59,88 +81,111 @@ function ProjectCombobox({
       })) ?? [],
     [projectsQuery.data],
   );
-
   return (
-    <div className="grid gap-1.5 text-sm font-medium">
-      <label className="text-sm font-semibold">Project</label>
-      <AppSelect
-        label=""
-        value={value ?? ""}
-        onValueChange={(v) => onChange(v || null)}
-        options={options}
-        disabled={disabled}
-        placeholder={placeholder}
-      />
-    </div>
+    <AppSelect
+      label="Project"
+      value={value ?? ""}
+      onValueChange={(next) => onChange(next || null)}
+      options={options}
+      placeholder="Personal task"
+      disabled={disabled}
+    />
   );
 }
 
 function AssigneeCombobox({
-  onChange,
+  value,
+  currentAssignee,
   projectId,
+  onChange,
   disabled,
-  placeholder = "Select assignee",
 }: {
-  onChange: (value: string | null) => void;
+  value: string | null;
+  currentAssignee: ProfileSummary | null;
   projectId: string | null;
-  disabled?: boolean;
-  placeholder?: string;
+  onChange: (value: string | null, profile?: ProfileSummary) => void;
+  disabled: boolean;
 }) {
-  const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
-
+  const [search, setSearch] = useState(
+    currentAssignee ? `${currentAssignee.displayName} (@${currentAssignee.handle})` : "",
+  );
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   useEffect(() => {
-    const timeout = setTimeout(() => setDebouncedQuery(query), 250);
-    return () => clearTimeout(timeout);
-  }, [query]);
-
-  const suggestionsQuery = useQuery({
-    queryKey: ["user-suggestions", debouncedQuery, projectId],
+    const timeout = window.setTimeout(() => setDebouncedSearch(search), 250);
+    return () => window.clearTimeout(timeout);
+  }, [search]);
+  const suggestions = useQuery({
+    queryKey: ["user-suggestions", debouncedSearch, projectId],
     queryFn: ({ signal }) =>
       apiGet<ProfileSummary[]>(
-        `/api/users/suggest?q=${encodeURIComponent(debouncedQuery)}${projectId ? `&excludeProjectId=${projectId}` : ""}`,
+        `/api/users/suggest?q=${encodeURIComponent(debouncedSearch)}&memberProjectId=${projectId}`,
         signal,
       ),
-    enabled: !disabled && debouncedQuery.length >= 2 && !!projectId,
+    enabled: !disabled && Boolean(projectId) && debouncedSearch.trim().length >= 2,
   });
+  const options =
+    suggestions.data?.map((profile) => ({
+      value: profile.id,
+      label: `${profile.displayName} (@${profile.handle})`,
+    })) ?? [];
 
-  const options = useMemo(
-    () =>
-      suggestionsQuery.data?.map((user) => ({
-        value: user.id,
-        label: `${user.displayName} (@${user.handle})`,
-      })) ?? [],
-    [suggestionsQuery.data],
-  );
-
-  const handleChange = (val: string) => {
-    setQuery(val);
-    const match = suggestionsQuery.data?.find((u) => u.id === val);
-    onChange(match?.id ?? null);
-  };
-
+  if (!projectId)
+    return (
+      <p className="text-xs text-text-tertiary">Personal tasks stay assigned to you.</p>
+    );
   return (
-    <div className="grid gap-1.5 text-sm font-medium">
-      <label className="text-sm font-semibold">Assignee</label>
+    <div className="grid gap-2">
       <AppCombobox
         label="Assignee"
-        value={debouncedQuery}
-        onChange={handleChange}
-        placeholder={placeholder}
-        disabled={disabled || !projectId}
+        value={search}
+        onChange={(next) => {
+          setSearch(next);
+          if (!next) onChange(null);
+        }}
+        onOptionSelect={(option) => {
+          const profile = suggestions.data?.find(
+            (candidate) => candidate.id === option.value,
+          );
+          setSearch(option.label);
+          onChange(option.value, profile);
+        }}
+        options={options}
+        placeholder="Search project members"
+        disabled={disabled}
       />
-      {!projectId && <p className="text-xs text-text-tertiary">Select a project first</p>}
-      {projectId && debouncedQuery.length < 2 && <p className="text-xs text-text-tertiary">Type at least 2 characters</p>}
-      {projectId && debouncedQuery.length >= 2 && suggestionsQuery.isLoading && <p className="text-xs text-text-tertiary">Searching...</p>}
-      {projectId && debouncedQuery.length >= 2 && !suggestionsQuery.isLoading && !options.length && <p className="text-xs text-text-tertiary">No matching users</p>}
+      {value ? (
+        <button
+          type="button"
+          className="min-h-11 rounded-md border border-border text-left text-xs text-text-secondary hover:bg-surface-muted"
+          onClick={() => {
+            setSearch("");
+            onChange(null);
+          }}
+          disabled={disabled}
+        >
+          Clear assignee
+        </button>
+      ) : (
+        <span className="text-xs text-text-tertiary">
+          Choose an active project member or leave unassigned.
+        </span>
+      )}
     </div>
   );
 }
 
-function IconPicker({ value, onChange, disabled }: { value: ProjectIconKey | null; onChange: (value: ProjectIconKey | null) => void; disabled?: boolean }) {
+function IconPicker({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: ProjectIconKey | null;
+  onChange: (value: ProjectIconKey | null) => void;
+  disabled: boolean;
+}) {
   return (
-    <div className="grid gap-2">
-      <label className="text-sm font-semibold">Icon</label>
+    <fieldset className="grid gap-2">
+      <legend className="text-sm font-semibold">Icon</legend>
       <div className="grid grid-cols-6 gap-2 sm:grid-cols-8">
         {projectIconKeys.map((key) => {
           const Icon = resolveProjectIcon(key);
@@ -148,194 +193,261 @@ function IconPicker({ value, onChange, disabled }: { value: ProjectIconKey | nul
             <button
               key={key}
               type="button"
+              aria-label={`${key} icon`}
+              aria-pressed={value === key}
               onClick={() => onChange(value === key ? null : key)}
               disabled={disabled}
-              aria-pressed={value === key}
-              className={`flex min-h-11 items-center justify-center rounded-md border transition-colors ${
-                value === key ? "border-brand bg-brand-soft text-brand" : "border-border"
-              } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+              className={`flex min-h-11 items-center justify-center rounded-md border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${value === key ? "border-brand bg-brand-soft text-brand" : "border-border hover:bg-surface-muted"}`}
             >
-              <Icon className="size-5" aria-hidden />
+              <Icon className="size-5" aria-hidden={true} />
             </button>
           );
         })}
       </div>
-    </div>
+    </fieldset>
   );
 }
 
-function StatusBadge({ status }: { status: "TODO" | "IN_PROGRESS" | "DONE" }) {
-  const colors = {
-    TODO: "bg-surface-muted text-text-secondary",
-    IN_PROGRESS: "bg-brand-soft text-brand",
-    DONE: "bg-success-soft text-success",
-  };
-  const icons = {
-    TODO: null,
-    IN_PROGRESS: <Play className="size-3" />,
-    DONE: <CheckCircle2 className="size-3" />,
-  };
+function StatusBadge({ status }: { status: TaskDto["status"] }) {
+  const icon =
+    status === "IN_PROGRESS" ? (
+      <Play className="size-3" aria-hidden="true" />
+    ) : status === "DONE" ? (
+      <CheckCircle2 className="size-3" aria-hidden="true" />
+    ) : null;
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-xs ${colors[status]}`}>
-      {icons[status]} {status.replace("_", " ")}
+    <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2 py-1 font-mono text-xs">
+      {icon}
+      {status.replace("_", " ")}
     </span>
   );
 }
 
-export function TaskDetailSheet({ task, open, offline, onOpenChange, onSave, onArchive }: TaskDetailSheetProps) {
-  const [title, setTitle] = useState(task?.title ?? "");
-  const [description, setDescription] = useState(task?.description ?? "");
-  const [scheduledDate, setScheduledDate] = useState(task?.scheduledDate ?? "");
-  const [scheduledTime, setScheduledTime] = useState(task?.scheduledTime?.slice(0, 5) ?? "");
-  const [projectId, setProjectId] = useState<string | null>(task?.projectId ?? null);
-  const [assigneeId, setAssigneeId] = useState<string | null>(task?.assignee?.id ?? null);
-  const [iconKey, setIconKey] = useState<ProjectIconKey | null>(task?.iconKey ?? null);
-  const [status, setStatus] = useState<"TODO" | "IN_PROGRESS" | "DONE">(task?.status ?? "TODO");
+/**
+ * Purpose: Render editable task data and immediately persistent state actions in a responsive sheet.
+ * Inputs: Selected task, offline state, save/action/archive callbacks, and open state.
+ * Output: Accessible mobile bottom sheet and desktop side sheet.
+ * Side effects: Reads fresh task/activity data and invokes mutation callbacks.
+ * Failure behavior: Parent mutation errors roll back through TanStack Query and keep the sheet open.
+ */
+export function TaskDetailSheet({
+  task,
+  open,
+  offline = false,
+  onOpenChange,
+  onSave,
+  onAction,
+  onArchive,
+}: TaskDetailSheetProps) {
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [draftState, setDraftState] = useState<{ key: string; draft: TaskDraft } | null>(
+    () => (task ? { key: `${task.id}:${task.version}`, draft: toDraft(task) } : null),
+  );
+  const taskQuery = useQuery({
+    queryKey: queryKeys.task(task?.id ?? ""),
+    queryFn: ({ signal }) => apiGet<TaskDto>(`/api/tasks/${task?.id}`, signal),
+    enabled: open && Boolean(task?.id),
+  });
+  const activeTask = taskQuery.data ?? task;
+  const activity = useQuery({
+    queryKey: ["task-activity", activeTask?.id],
+    queryFn: ({ signal }) =>
+      apiGet<
+        { id: string; actor: ProfileSummary | null; label: string; createdAt: string }[]
+      >(`/api/tasks/${activeTask?.id}/activity`, signal),
+    enabled: open && Boolean(activeTask?.id),
+  });
 
-  const isPersonalTask = !projectId;
-  const canChangeAssignee = !isPersonalTask && projectId;
+  const draftKey = activeTask ? `${activeTask.id}:${activeTask.version}` : null;
+  const draft = activeTask
+    ? draftState?.key === draftKey
+      ? draftState.draft
+      : toDraft(activeTask)
+    : null;
 
-  if (!task) return null;
+  if (!activeTask || !draft || !draftKey) return null;
+  const update = <K extends keyof TaskDraft>(key: K, value: TaskDraft[K]) =>
+    setDraftState((current) => ({
+      key: draftKey,
+      draft: { ...(current?.key === draftKey ? current.draft : draft), [key]: value },
+    }));
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onSave(task, {
-      title: title.trim(),
-      description: description.trim() || null,
-      scheduledDate,
-      scheduledTime: scheduledTime || null,
-      projectId,
-      assigneeId: isPersonalTask ? task.createdBy.id : assigneeId,
-      iconKey,
-      status,
-      version: task.version,
+    onSave(activeTask, {
+      ...draft,
+      title: draft.title.trim(),
+      description: draft.description?.trim() || null,
+      scheduledTime: draft.scheduledTime || null,
+      assigneeId: draft.projectId ? draft.assigneeId : activeTask.createdBy.id,
     });
   };
 
-  const handleStart = () => {
-    if (status === "TODO") setStatus("IN_PROGRESS");
-  };
-
-  const handleComplete = () => {
-    if (status === "DONE") setStatus(task.previousStatus ?? "TODO");
-    else setStatus("DONE");
-  };
-
-  const handleReopen = () => {
-    if (status === "DONE") setStatus(task.previousStatus ?? "TODO");
-  };
-
   return (
-    <AppDialog open={open} onOpenChange={onOpenChange} title="Task details">
-      <form key={task.id} className="grid gap-4" onSubmit={handleSubmit}>
-        <AppInput label="Title" value={title} onChange={(e) => setTitle(e.target.value)} disabled={offline} autoFocus />
-        <AppTextarea label="Description" value={description} onChange={(e) => setDescription(e.target.value)} disabled={offline} rows={3} />
-
-        <div className="grid grid-cols-2 gap-3">
-          <AppDatePicker label="Date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} disabled={offline} />
-          <AppTimePicker label="Time" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} disabled={offline} />
-        </div>
-
-        <ProjectCombobox value={projectId} onChange={setProjectId} disabled={offline} />
-
-        {canChangeAssignee ? (
-          <AssigneeCombobox
-            onChange={setAssigneeId}
-            projectId={projectId}
+    <>
+      <AppSheet open={open} onOpenChange={onOpenChange} title="Task details">
+        <form className="grid gap-5" onSubmit={submit}>
+          <div className="flex items-center justify-between gap-3">
+            <StatusBadge status={activeTask.status} />
+            <span className="font-mono text-xs text-text-tertiary">
+              v{activeTask.version}
+            </span>
+          </div>
+          <AppInput
+            label="Title"
+            value={draft.title}
+            onChange={(event) => update("title", event.currentTarget.value)}
+            disabled={offline}
+            autoFocus
+          />
+          <AppTextarea
+            label="Description"
+            value={draft.description ?? ""}
+            onChange={(event) => update("description", event.currentTarget.value)}
+            disabled={offline}
+            rows={5}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <AppDatePicker
+              label="Scheduled date"
+              value={draft.scheduledDate}
+              onChange={(event) => update("scheduledDate", event.currentTarget.value)}
+              disabled={offline}
+            />
+            <AppTimePicker
+              label="Scheduled time"
+              value={draft.scheduledTime ?? ""}
+              onChange={(event) =>
+                update("scheduledTime", event.currentTarget.value || null)
+              }
+              disabled={offline}
+            />
+          </div>
+          <ProjectCombobox
+            value={draft.projectId}
+            onChange={(value) => {
+              update("projectId", value);
+              update("assigneeId", value ? null : activeTask.createdBy.id);
+            }}
             disabled={offline}
           />
-        ) : isPersonalTask ? (
-          <div className="grid gap-2">
-            <label className="text-sm font-semibold">Assignee</label>
-            <div className="flex items-center gap-2 rounded-md border border-border bg-surface p-3">
-              <span className="size-6 rounded-sm border border-border flex items-center justify-center" style={{ background: "var(--brand)" }} />
-              <span className="text-sm font-medium">You (personal task)</span>
+          <AssigneeCombobox
+            key={activeTask.id}
+            value={draft.assigneeId}
+            currentAssignee={activeTask.assignee}
+            projectId={draft.projectId}
+            onChange={(value) => update("assigneeId", value)}
+            disabled={offline}
+          />
+          <IconPicker
+            value={draft.iconKey}
+            onChange={(value) => update("iconKey", value)}
+            disabled={offline}
+          />
+          <dl className="grid gap-2 rounded-md bg-surface-muted p-3 text-sm">
+            <div className="flex justify-between gap-3">
+              <dt className="text-text-secondary">Created by</dt>
+              <dd>{activeTask.createdBy.displayName}</dd>
             </div>
-          </div>
-        ) : (
-          <div className="grid gap-2">
-            <label className="text-sm font-semibold">Assignee</label>
-            <div className="flex items-center gap-2 rounded-md border border-border bg-surface p-3">
-              {task.assignee ? (
-                <>
-                  <span className="size-6 rounded-sm border border-border flex items-center justify-center" style={{ background: "var(--brand)" }} />
-                  <span className="text-sm font-medium">{task.assignee.displayName}</span>
-                </>
-              ) : (
-                <span className="text-sm text-text-secondary">Unassigned</span>
-              )}
+            <div className="flex justify-between gap-3">
+              <dt className="text-text-secondary">Created</dt>
+              <dd className="font-mono text-xs">
+                {new Date(activeTask.createdAt).toLocaleString()}
+              </dd>
             </div>
-          </div>
-        )}
-
-        <IconPicker value={iconKey} onChange={setIconKey} disabled={offline} />
-
-        <div className="grid gap-2 rounded-md bg-surface-muted p-3 text-sm">
-          <div className="flex items-center justify-between gap-4">
-            <dt className="text-text-secondary">Status</dt>
-            <dd><StatusBadge status={status} /></dd>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <dt className="text-text-secondary">Created</dt>
-            <dd className="font-mono">{new Date(task.createdAt).toLocaleString()}</dd>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <dt className="text-text-secondary">Updated</dt>
-            <dd className="font-mono">{new Date(task.updatedAt).toLocaleString()}</dd>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <dt className="text-text-secondary">Version</dt>
-            <dd className="font-mono">{task.version}</dd>
-          </div>
-        </div>
-
-<div className="flex flex-wrap gap-2">
-            <div className="flex gap-2 flex-1">
-              <AppButton type="button" variant="secondary" disabled={offline} onClick={() => onArchive(task)} className="flex-1">
-                <Archive className="size-4 mr-2" /> Archive
+            <div className="flex justify-between gap-3">
+              <dt className="text-text-secondary">Last updated</dt>
+              <dd className="font-mono text-xs">
+                {new Date(activeTask.updatedAt).toLocaleString()}
+              </dd>
+            </div>
+          </dl>
+          <section className="grid gap-2">
+            <h2 className="text-sm font-semibold">Activity history</h2>
+            {activity.isLoading ? (
+              <p className="text-sm text-text-tertiary">Loading activity…</p>
+            ) : null}
+            {activity.data?.length
+              ? activity.data.map((event) => (
+                  <p
+                    key={event.id}
+                    className="rounded-md border border-border bg-surface-muted p-2 text-sm"
+                  >
+                    <span className="font-semibold">
+                      {event.actor?.displayName ?? "Someone"}
+                    </span>{" "}
+                    {event.label}
+                    <span className="mt-1 block font-mono text-xs text-text-tertiary">
+                      {new Date(event.createdAt).toLocaleString()}
+                    </span>
+                  </p>
+                ))
+              : null}
+            {!activity.isLoading && !activity.data?.length ? (
+              <p className="text-sm text-text-tertiary">No activity yet.</p>
+            ) : null}
+          </section>
+          <div className="flex flex-wrap gap-2">
+            {activeTask.status === "TODO" ? (
+              <AppButton
+                type="button"
+                variant="secondary"
+                disabled={offline}
+                onClick={() => onAction(activeTask, "start")}
+              >
+                <Play className="size-4" aria-hidden="true" />
+                Start
               </AppButton>
-              <AppButton type="submit" disabled={offline} className="flex-1">
-                Save
+            ) : null}
+            {activeTask.status === "IN_PROGRESS" ? (
+              <AppButton
+                type="button"
+                variant="secondary"
+                disabled={offline}
+                onClick={() => onAction(activeTask, "complete")}
+              >
+                <CheckCircle2 className="size-4" aria-hidden="true" />
+                Complete
               </AppButton>
-            </div>
-
-            <div className="flex gap-2">
-              {status === "TODO" && (
-                <AppButton
-                  type="button"
-                  variant="secondary"
-                  disabled={offline}
-                  onClick={handleStart}
-                  className="flex-1"
-                >
-                  <Play className="size-4 mr-2" /> Start
-                </AppButton>
-              )}
-              {status === "IN_PROGRESS" && (
-                <AppButton
-                  type="button"
-                  variant="secondary"
-                  disabled={offline}
-                  onClick={handleComplete}
-                  className="flex-1"
-                >
-                  <CheckCircle2 className="size-4 mr-2" /> Complete
-                </AppButton>
-              )}
-              {status === "DONE" && (
-                <AppButton
-                  type="button"
-                  variant="secondary"
-                  disabled={offline}
-                  onClick={handleReopen}
-                  className="flex-1"
-                >
-                  <RotateCcw className="size-4 mr-2" /> Reopen
-                </AppButton>
-              )}
-            </div>
-        </div>
-      </form>
-    </AppDialog>
+            ) : null}
+            {activeTask.status === "DONE" ? (
+              <AppButton
+                type="button"
+                variant="secondary"
+                disabled={offline}
+                onClick={() => onAction(activeTask, "reopen")}
+              >
+                <RotateCcw className="size-4" aria-hidden="true" />
+                Reopen
+              </AppButton>
+            ) : null}
+            <AppButton type="submit" disabled={offline || !draft.title.trim()}>
+              <CheckCircle2 className="size-4" aria-hidden="true" />
+              Save changes
+            </AppButton>
+            <AppButton
+              type="button"
+              variant="danger"
+              disabled={offline}
+              onClick={() => setConfirmArchive(true)}
+            >
+              <Archive className="size-4" aria-hidden="true" />
+              Archive
+            </AppButton>
+          </div>
+        </form>
+      </AppSheet>
+      <AppConfirmDialog
+        open={confirmArchive}
+        onOpenChange={setConfirmArchive}
+        title="Archive task?"
+        description="The task will leave normal weekly and dashboard views, but its history will be preserved."
+        confirmLabel="Archive task"
+        onConfirm={() => {
+          setConfirmArchive(false);
+          onArchive(activeTask);
+        }}
+      />
+    </>
   );
 }

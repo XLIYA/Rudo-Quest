@@ -3,7 +3,10 @@ import { apiSuccess } from "@/lib/api/response";
 import { withApiHandler, readJson } from "@/server/api/handler";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { assertRateLimit } from "@/server/security/rate-limit";
-import { subscribeToPush, unsubscribeFromPush } from "@/server/services/notification-service";
+import {
+  subscribeToPush,
+  unsubscribeFromPush,
+} from "@/server/services/notification-service";
 
 /**
  * Purpose: Store a browser push subscription after explicit opt-in.
@@ -15,9 +18,16 @@ export async function POST(request: NextRequest) {
   return withApiHandler(request, async (requestId) => {
     const user = await requireCurrentUser();
     await assertRateLimit("push-subscribe", user.id, 20, 3600);
-    return apiSuccess(await subscribeToPush(user.id, await readJson(request), request.headers.get("user-agent")), {
-      requestId,
-    });
+    return apiSuccess(
+      await subscribeToPush(
+        user.id,
+        await readJson(request),
+        request.headers.get("user-agent"),
+      ),
+      {
+        requestId,
+      },
+    );
   });
 }
 
@@ -30,6 +40,8 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   return withApiHandler(request, async (requestId) => {
     const user = await requireCurrentUser();
-    return apiSuccess(await unsubscribeFromPush(user.id, await readJson(request)), { requestId });
+    return apiSuccess(await unsubscribeFromPush(user.id, await readJson(request)), {
+      requestId,
+    });
   });
 }

@@ -31,6 +31,11 @@ export function registerSerwist(options?: { onUpdate?: () => void }): void {
 
   serwist.addEventListener("waiting", () => {
     options?.onUpdate?.();
+    serwist.messageSkipWaiting();
+  });
+
+  serwist.addEventListener("controlling", () => {
+    window.location.reload();
   });
 
   void serwist.register();

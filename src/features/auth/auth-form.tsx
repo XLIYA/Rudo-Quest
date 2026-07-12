@@ -5,10 +5,11 @@ import type { Route } from "next";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { toast } from "sonner";
+import { AppToast } from "@/components/ui/app-toast";
 import { apiMutation, normalizeApiClientError } from "@/lib/api/client";
 import { AppButton } from "@/components/ui/app-button";
 import { AppInput } from "@/components/ui/app-input";
+import { EmailRecoveryActions } from "./email-recovery";
 
 const loginSchema = z.object({
   email: z.email(),
@@ -49,12 +50,20 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const schema = mode === "login" ? loginSchema : signupSchema;
   const form = useForm<AuthValues>({
     resolver: zodResolver(schema),
-    defaultValues: { email: "", password: "", ...(mode === "signup" ? { displayName: "" } : {}) },
+    defaultValues: {
+      email: "",
+      password: "",
+      ...(mode === "signup" ? { displayName: "" } : {}),
+    },
   });
 
   const submit = form.handleSubmit(async (values) => {
     try {
-      await apiMutation("post", mode === "login" ? "/api/auth/signin" : "/api/auth/signup", values);
+      await apiMutation(
+        "post",
+        mode === "login" ? "/api/auth/signin" : "/api/auth/signup",
+        values,
+      );
       if (mode === "signup") {
         router.push("/verify-email");
       } else {
@@ -63,31 +72,40 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       router.refresh();
     } catch (error) {
       const normalized = normalizeApiClientError(error);
-      toast.error(normalized.message);
+      AppToast(normalized.message, "error");
     }
   });
 
   return (
-    <form onSubmit={submit} className="grid gap-4">
-      {mode === "signup" ? (
+    <div>
+      <form onSubmit={submit} className="grid gap-4">
+        {mode === "signup" ? (
+          <AppInput
+            label="Display name"
+            autoComplete="name"
+            error={form.formState.errors.displayName?.message}
+            {...form.register("displayName")}
+          />
+        ) : null}
         <AppInput
-          label="Display name"
-          autoComplete="name"
-          error={form.formState.errors.displayName?.message}
-          {...form.register("displayName")}
+          label="Email"
+          type="email"
+          autoComplete="email"
+          error={form.formState.errors.email?.message}
+          {...form.register("email")}
         />
-      ) : null}
-      <AppInput label="Email" type="email" autoComplete="email" error={form.formState.errors.email?.message} {...form.register("email")} />
-      <AppInput
-        label="Password"
-        type="password"
-        autoComplete={mode === "login" ? "current-password" : "new-password"}
-        error={form.formState.errors.password?.message}
-        {...form.register("password")}
-      />
-      <AppButton type="submit" disabled={form.formState.isSubmitting}>
-        {mode === "login" ? "Sign in" : "Create account"}
-      </AppButton>
-    </form>
+        <AppInput
+          label="Password"
+          type="password"
+          autoComplete={mode === "login" ? "current-password" : "new-password"}
+          error={form.formState.errors.password?.message}
+          {...form.register("password")}
+        />
+        <AppButton type="submit" disabled={form.formState.isSubmitting}>
+          {mode === "login" ? "Sign in" : "Create account"}
+        </AppButton>
+      </form>
+      {mode === "login" ? <EmailRecoveryActions /> : null}
+    </div>
   );
 }

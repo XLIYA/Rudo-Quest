@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { NotificationsScreen } from "@/features/notifications/notifications-screen";
 
 /**
  * Purpose: Redirect legacy notification route into profile.
@@ -7,5 +7,5 @@ import { redirect } from "next/navigation";
  * Side effects: None.
  */
 export default function NotificationsPage() {
-  redirect("/profile#notifications");
+  return <NotificationsScreen />;
 }

@@ -19,8 +19,15 @@ export async function DELETE(request: NextRequest, context: Context) {
     const user = await requireCurrentUser();
     const params = await context.params;
     const repositoryId = z.coerce.number().int().positive().parse(params.repositoryId);
-    return apiSuccess(await disconnectRepository(user.id, uuidSchema.parse(params.projectId), repositoryId), {
-      requestId,
-    });
+    return apiSuccess(
+      await disconnectRepository(
+        user.id,
+        uuidSchema.parse(params.projectId),
+        repositoryId,
+      ),
+      {
+        requestId,
+      },
+    );
   });
 }

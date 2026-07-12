@@ -10,6 +10,7 @@ import { searchUserSuggestions } from "@/server/services/profile-service";
 const suggestQuerySchema = z.object({
   q: searchQuerySchema,
   excludeProjectId: uuidSchema.optional(),
+  memberProjectId: uuidSchema.optional(),
 });
 
 /**
@@ -22,7 +23,9 @@ export async function GET(request: NextRequest) {
   return withApiHandler(request, async (requestId) => {
     const user = await requireCurrentUser();
     await assertRateLimit("user-suggest", user.id, 60, 60);
-    const query = suggestQuerySchema.parse(Object.fromEntries(request.nextUrl.searchParams));
+    const query = suggestQuerySchema.parse(
+      Object.fromEntries(request.nextUrl.searchParams),
+    );
     return apiSuccess(await searchUserSuggestions(query), { requestId });
   });
 }

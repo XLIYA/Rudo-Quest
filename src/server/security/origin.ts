@@ -20,15 +20,24 @@ function toOrigin(value: string | undefined): string | null {
  * Side effects: None.
  * Failure behavior: Throws FORBIDDEN for cross-origin state-changing requests.
  */
-export function assertSameOrigin(request: NextRequest): void {
+export function assertSameOrigin(
+  request: NextRequest,
+  options: { allowMissingOrigin?: boolean } = {},
+): void {
   if (!stateChangingMethods.has(request.method)) return;
   const origin = request.headers.get("origin");
-  if (!origin) return;
+  if (!origin) {
+    if (options.allowMissingOrigin) return;
+    throw new AppError("FORBIDDEN", 403, "Request origin is required.");
+  }
   const expected = getServerEnv().NEXT_PUBLIC_APP_URL;
   const host = request.headers.get("host");
   const fallback = host ? `${request.nextUrl.protocol}//${host}` : request.nextUrl.origin;
   const allowedOrigins = new Set(
-    [toOrigin(expected), toOrigin(fallback)].filter((value): value is string => Boolean(value)),
+    [
+      toOrigin(expected),
+      getServerEnv().NODE_ENV === "production" ? null : toOrigin(fallback),
+    ].filter((value): value is string => Boolean(value)),
   );
   if (!allowedOrigins.has(origin)) {
     throw new AppError("FORBIDDEN", 403, "Request origin is not allowed.");

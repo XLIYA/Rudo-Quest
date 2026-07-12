@@ -15,6 +15,8 @@ export async function GET(request: NextRequest) {
   return withApiHandler(request, async (requestId) => {
     const user = await requireCurrentUser();
     const query = weekQuerySchema.parse(Object.fromEntries(request.nextUrl.searchParams));
-    return apiSuccess(await getWeekTasks(user.id, query.weekStart), { requestId });
+    return apiSuccess(await getWeekTasks(user.id, query.weekStart, query.projectId), {
+      requestId,
+    });
   });
 }

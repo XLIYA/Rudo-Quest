@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from "@/lib/auth/supabase";
 import { apiSuccess } from "@/lib/api/response";
 import { getServerEnv } from "@/lib/env/server";
 import { withApiHandler, readJson } from "@/server/api/handler";
-import { assertRateLimit } from "@/server/security/rate-limit";
+import { assertRateLimit, requestRateLimitIdentity } from "@/server/security/rate-limit";
 
 const signupSchema = z.object({
   email: z.email(),
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   return withApiHandler(request, async (requestId) => {
     await assertRateLimit(
       "auth-signup",
-      request.headers.get("x-forwarded-for") ?? "local",
+      requestRateLimitIdentity(request.headers),
       5,
       60,
     );

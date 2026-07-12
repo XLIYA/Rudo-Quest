@@ -83,6 +83,9 @@ export type ProjectIconKey = (typeof projectIconKeys)[number];
 
 export type ThemePreference = "system" | "light" | "dark";
 
+export const bannerPresetKeys = ["sunrise", "trail", "night"] as const;
+export type BannerPresetKey = (typeof bannerPresetKeys)[number];
+
 export type ApiSuccess<T> = {
   data: T;
   meta?: {
@@ -109,12 +112,30 @@ export type ProfileSummary = {
   avatarUrl: string | null;
 };
 
+export type ProfileDto = {
+  id: string;
+  email: string;
+  handle: string;
+  displayName: string;
+  avatarPath: string | null;
+  bannerPath: string | null;
+  bannerPresetKey: BannerPresetKey | null;
+  themePreference: ThemePreference;
+  timeZone: string;
+  notificationsEnabled: boolean;
+  dailyReminderEnabled: boolean;
+  dailyReminderTime: string | null;
+  quietHoursStart: string;
+  quietHoursEnd: string;
+};
+
 export type ProjectSummary = {
   id: string;
   title: string;
   description: string | null;
   iconKey: ProjectIconKey;
   colorKey: ProjectColorKey;
+  timeZone: string;
   role: ProjectRole;
   openTaskCount: number;
   weeklyCompletionPercent: number;
@@ -142,14 +163,12 @@ export type TaskDto = {
   version: number;
   createdAt: string;
   updatedAt: string;
-  project:
-    | {
-        id: string;
-        title: string;
-        colorKey: ProjectColorKey;
-        iconKey: ProjectIconKey;
-      }
-    | null;
+  project: {
+    id: string;
+    title: string;
+    colorKey: ProjectColorKey;
+    iconKey: ProjectIconKey;
+  } | null;
 };
 
 export type ActivityEventDto = {
@@ -162,6 +181,11 @@ export type ActivityEventDto = {
   createdAt: string;
 };
 
+export type ActivityPageDto = {
+  items: ActivityEventDto[];
+  cursor?: string;
+};
+
 export type NotificationDto = {
   id: string;
   type: NotificationType;
@@ -169,6 +193,14 @@ export type NotificationDto = {
   body: string | null;
   href: string | null;
   readAt: string | null;
+  createdAt: string;
+};
+
+export type TaskActivityDto = {
+  id: string;
+  actor: ProfileSummary | null;
+  eventType: ActivityEventType;
+  label: string;
   createdAt: string;
 };
 

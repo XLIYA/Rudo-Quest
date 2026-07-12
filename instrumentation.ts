@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
+import { assertProductionEnv } from "@/lib/env/server";
 
 /**
  * Purpose: Register Sentry runtime instrumentation for Node and Edge runtimes.
@@ -8,6 +9,9 @@ import * as Sentry from "@sentry/nextjs";
  */
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME === "nodejs") {
+    if (process.env.NEXT_PHASE !== "phase-production-build") {
+      assertProductionEnv();
+    }
     await import("./sentry.server.config");
   }
   if (process.env.NEXT_RUNTIME === "edge") {

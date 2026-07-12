@@ -7,8 +7,10 @@ import {
   findProjectInvitation,
   findProjectRole,
   findProjectSummary,
+  findProjectOwnerId,
+  expirePendingInvitations,
   insertInvitation,
-  insertProject,
+  insertProjectWithInvitations,
   listProjectInvitations,
   listProjectMembers,
   listProjectSummaries,
@@ -16,6 +18,7 @@ import {
   transitionInvitation,
   updateMemberRole,
   updateProjectRow,
+  transferProjectOwnership,
 } from "@/server/repositories/project-repository";
 import { createNotification } from "@/server/services/notification-service";
 
@@ -40,21 +43,37 @@ export async function listProjectsForUser(
  */
 export async function createProject(
   userId: string,
-  payload: Parameters<typeof insertProject>[0] & {
+  payload: Omit<
+    Parameters<typeof insertProjectWithInvitations>[0],
+    "ownerId" | "invitations"
+  > & {
     invitations?: { userId: string; role: Exclude<ProjectRole, "OWNER"> }[];
   },
 ) {
-  const project = await insertProject({ ...payload, ownerId: userId });
+  const { project, invitations } = await insertProjectWithInvitations({
+    ...payload,
+    ownerId: userId,
+    invitations: payload.invitations ?? [],
+  });
   await createActivityEvent({
     actorId: userId,
     projectId: project.id,
     eventType: "PROJECT_CREATED",
     metadata: { title: project.title },
   });
-  for (const invitation of payload.invitations ?? []) {
-    await inviteProjectMember(userId, project.id, {
-      invitedUserId: invitation.userId,
-      role: invitation.role,
+  for (const invitation of invitations) {
+    await createNotification({
+      recipientId: invitation.invitedUserId,
+      type: "PROJECT_INVITATION",
+      title: "Project invitation",
+      body: "You were invited to a Rudo Quest project.",
+      href: `/projects/${project.id}?invitation=${invitation.id}`,
+    });
+    await createActivityEvent({
+      actorId: userId,
+      projectId: project.id,
+      eventType: "MEMBER_INVITED",
+      metadata: { role: invitation.role },
     });
   }
   const summary = await findProjectSummary(project.id, userId);
@@ -80,7 +99,11 @@ export async function getProject(userId: string, projectId: string) {
  * Output: Updated project row.
  * Side effects: Writes project and activity event.
  */
-export async function updateProject(userId: string, projectId: string, values: Parameters<typeof updateProjectRow>[1]) {
+export async function updateProject(
+  userId: string,
+  projectId: string,
+  values: Parameters<typeof updateProjectRow>[1],
+) {
   const role = await findProjectRole(projectId, userId);
   assertProjectRole(role, "ADMIN");
   const updated = await updateProjectRow(projectId, values);
@@ -100,7 +123,11 @@ export async function archiveProject(userId: string, projectId: string) {
   assertProjectRole(role, "OWNER");
   const updated = await archiveProjectRow(projectId);
   if (!updated) throw new AppError("NOT_FOUND", 404, "Project not found.");
-  await createActivityEvent({ actorId: userId, projectId, eventType: "PROJECT_ARCHIVED" });
+  await createActivityEvent({
+    actorId: userId,
+    projectId,
+    eventType: "PROJECT_ARCHIVED",
+  });
   return updated;
 }
 
@@ -123,6 +150,7 @@ export async function getProjectMembers(userId: string, projectId: string) {
  * Side effects: Reads invitations.
  */
 export async function getProjectInvitations(userId: string, projectId: string) {
+  await expirePendingInvitations();
   const role = await findProjectRole(projectId, userId);
   assertProjectRole(role, "ADMIN");
   return listProjectInvitations(projectId);
@@ -139,6 +167,7 @@ export async function inviteProjectMember(
   projectId: string,
   payload: { invitedUserId: string; role: Exclude<ProjectRole, "OWNER"> },
 ) {
+  await expirePendingInvitations();
   const role = await findProjectRole(projectId, userId);
   assertProjectRole(role, "ADMIN");
   const invitation = await insertInvitation({
@@ -147,13 +176,14 @@ export async function inviteProjectMember(
     role: payload.role,
     invitedBy: userId,
   });
-  if (!invitation) throw new AppError("CONFLICT", 409, "User is already invited or a member.");
+  if (!invitation)
+    throw new AppError("CONFLICT", 409, "User is already invited or a member.");
   await createNotification({
     recipientId: payload.invitedUserId,
     type: "PROJECT_INVITATION",
     title: "Project invitation",
     body: "You were invited to a Rudo Quest project.",
-    href: `/projects/${projectId}`,
+    href: `/projects/${projectId}?invitation=${invitation.id}`,
   });
   await createActivityEvent({
     actorId: userId,
@@ -176,6 +206,7 @@ export async function changeInvitationStatus(
   invitationId: string,
   status: "ACCEPTED" | "DECLINED" | "REVOKED",
 ) {
+  await expirePendingInvitations();
   const existing = await findProjectInvitation(projectId, invitationId);
   if (!existing) throw new AppError("NOT_FOUND", 404, "Invitation not found.");
   if (status === "REVOKED") {
@@ -187,12 +218,53 @@ export async function changeInvitationStatus(
   if (status === "ACCEPTED" && existing.expiresAt < new Date()) {
     throw new AppError("CONFLICT", 409, "Invitation has expired.");
   }
-  const invitation = await transitionInvitation({ projectId, invitationId, actorId: userId, status });
+  const invitation = await transitionInvitation({
+    projectId,
+    invitationId,
+    actorId: userId,
+    status,
+  });
   if (!invitation) throw new AppError("CONFLICT", 409, "Invitation cannot be changed.");
   if (status === "ACCEPTED") {
     await createActivityEvent({ actorId: userId, projectId, eventType: "MEMBER_JOINED" });
+    const ownerId = await findProjectOwnerId(projectId);
+    if (ownerId && ownerId !== userId) {
+      await createNotification({
+        recipientId: ownerId,
+        type: "INVITATION_ACCEPTED",
+        title: "Invitation accepted",
+        body: "A collaborator joined your project.",
+        href: `/projects/${projectId}`,
+      });
+    }
   }
   return invitation;
+}
+
+/**
+ * Purpose: Transfer project ownership after explicit confirmation.
+ * Inputs: Current owner ID, project ID, and target member ID.
+ * Output: New owner membership.
+ * Side effects: Updates membership roles and logs the project change.
+ * Failure behavior: Throws when the actor is not the owner or target is not a member.
+ */
+export async function transferOwnership(
+  userId: string,
+  projectId: string,
+  targetUserId: string,
+) {
+  const role = await findProjectRole(projectId, userId);
+  assertProjectRole(role, "OWNER");
+  if (targetUserId === userId)
+    throw new AppError("BAD_REQUEST", 400, "Choose another member.");
+  const transferred = await transferProjectOwnership({
+    projectId,
+    currentOwnerId: userId,
+    targetUserId,
+  });
+  if (!transferred) throw new AppError("NOT_FOUND", 404, "Target member not found.");
+  await createActivityEvent({ actorId: userId, projectId, eventType: "PROJECT_UPDATED" });
+  return transferred;
 }
 
 /**
@@ -223,11 +295,16 @@ export async function changeMemberRole(
  * Output: Removed membership.
  * Side effects: Deletes membership and writes activity.
  */
-export async function removeProjectMember(userId: string, projectId: string, targetUserId: string) {
+export async function removeProjectMember(
+  userId: string,
+  projectId: string,
+  targetUserId: string,
+) {
   const actorRole = await findProjectRole(projectId, userId);
   assertProjectRole(actorRole, "ADMIN");
   const removed = await removeMember({ projectId, userId: targetUserId });
-  if (!removed) throw new AppError("NOT_FOUND", 404, "Member not found or cannot be removed.");
+  if (!removed)
+    throw new AppError("NOT_FOUND", 404, "Member not found or cannot be removed.");
   await createActivityEvent({ actorId: userId, projectId, eventType: "MEMBER_REMOVED" });
   return removed;
 }

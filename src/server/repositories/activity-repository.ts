@@ -1,4 +1,5 @@
 import { and, desc, eq, isNotNull, isNull, lt, or } from "drizzle-orm";
+import { AppError } from "@/lib/api/errors";
 import { activityEvents, profiles, projectMemberships, tasks } from "@/db/schema";
 import { getDb } from "@/lib/db/client";
 import { createProfileAssetUrlMap, profileAssetUrl } from "@/server/profile-assets";
@@ -40,9 +41,11 @@ export async function createActivityEvent(input: {
 export async function listActivityForUser(input: {
   userId: string;
   cursor?: string;
+  projectId?: string;
   limit?: number;
 }): Promise<{ items: ActivityEventDto[]; cursor?: string }> {
   const limit = input.limit ?? 30;
+  const cursor = input.cursor ? decodeActivityCursor(input.cursor) : null;
   const rows = await getDb()
     .select({
       id: activityEvents.id,
@@ -71,7 +74,16 @@ export async function listActivityForUser(input: {
     .leftJoin(tasks, eq(activityEvents.taskId, tasks.id))
     .where(
       and(
-        input.cursor ? lt(activityEvents.createdAt, new Date(input.cursor)) : undefined,
+        cursor
+          ? or(
+              lt(activityEvents.createdAt, cursor.createdAt),
+              and(
+                eq(activityEvents.createdAt, cursor.createdAt),
+                lt(activityEvents.id, cursor.id),
+              ),
+            )
+          : undefined,
+        input.projectId ? eq(activityEvents.projectId, input.projectId) : undefined,
         or(
           isNotNull(projectMemberships.userId),
           and(isNull(activityEvents.projectId), eq(activityEvents.actorId, input.userId)),
@@ -82,11 +94,12 @@ export async function listActivityForUser(input: {
         ),
       ),
     )
-    .orderBy(desc(activityEvents.createdAt))
+    .orderBy(desc(activityEvents.createdAt), desc(activityEvents.id))
     .limit(limit + 1);
-  const visibleRows = rows.filter((row) => canViewActivityRow(input.userId, row));
-  const avatarUrls = await createProfileAssetUrlMap(visibleRows.map((row) => row.actorAvatarPath));
-  const items = visibleRows.slice(0, limit).map((row) => ({
+  const avatarUrls = await createProfileAssetUrlMap(
+    rows.map((row) => row.actorAvatarPath),
+  );
+  const items = rows.slice(0, limit).map((row) => ({
     id: row.id,
     actor: row.actorId
       ? {
@@ -102,8 +115,31 @@ export async function listActivityForUser(input: {
     label: humanizeActivity(row.eventType as ActivityEventType),
     createdAt: row.createdAt.toISOString(),
   }));
-  const next = visibleRows.length > limit ? visibleRows[limit]?.createdAt.toISOString() : undefined;
+  const nextRow = rows.length > limit ? rows[limit] : undefined;
+  const next = nextRow ? encodeActivityCursor(nextRow.createdAt, nextRow.id) : undefined;
   return next ? { items, cursor: next } : { items };
+}
+
+function encodeActivityCursor(createdAt: Date, id: string): string {
+  return Buffer.from(
+    JSON.stringify({ createdAt: createdAt.toISOString(), id }),
+    "utf8",
+  ).toString("base64url");
+}
+
+function decodeActivityCursor(value: string): { createdAt: Date; id: string } {
+  try {
+    const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as {
+      createdAt?: string;
+      id?: string;
+    };
+    if (!parsed.createdAt || !parsed.id) throw new Error("missing cursor fields");
+    const date = new Date(parsed.createdAt);
+    if (Number.isNaN(date.getTime())) throw new Error("invalid cursor date");
+    return { createdAt: date, id: parsed.id };
+  } catch {
+    throw new AppError("BAD_REQUEST", 400, "Activity cursor is invalid.");
+  }
 }
 
 export function canViewActivityRow(
@@ -120,8 +156,7 @@ export function canViewActivityRow(
   if (row.viewerUserId === userId) return true;
   if (!row.projectId && row.actorId === userId) return true;
   return (
-    !row.taskProjectId &&
-    (row.taskCreatedBy === userId || row.taskAssigneeId === userId)
+    !row.taskProjectId && (row.taskCreatedBy === userId || row.taskAssigneeId === userId)
   );
 }
 

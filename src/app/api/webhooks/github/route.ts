@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { apiSuccess } from "@/lib/api/response";
-import { withApiHandler } from "@/server/api/handler";
-import { assertRateLimit } from "@/server/security/rate-limit";
+import { readText, withApiHandler } from "@/server/api/handler";
+import { assertRateLimit, requestRateLimitIdentity } from "@/server/security/rate-limit";
 import { handleGitHubWebhook } from "@/server/services/github-service";
 
 /**
@@ -11,11 +11,23 @@ import { handleGitHubWebhook } from "@/server/services/github-service";
  * Side effects: Logs no issue data in V1.
  */
 export async function POST(request: NextRequest) {
-  return withApiHandler(request, async (requestId) => {
-    await assertRateLimit("github-webhook", request.headers.get("x-forwarded-for") ?? "github", 300, 60);
-    const body = await request.text();
-    return apiSuccess(await handleGitHubWebhook(body, request.headers.get("x-hub-signature-256")), {
-      requestId,
-    });
-  });
+  return withApiHandler(
+    request,
+    async (requestId) => {
+      await assertRateLimit(
+        "github-webhook",
+        requestRateLimitIdentity(request.headers),
+        300,
+        60,
+      );
+      const body = await readText(request);
+      return apiSuccess(
+        await handleGitHubWebhook(body, request.headers.get("x-hub-signature-256")),
+        {
+          requestId,
+        },
+      );
+    },
+    { allowMissingOrigin: true },
+  );
 }

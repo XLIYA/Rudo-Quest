@@ -23,11 +23,14 @@ export const profiles = pgTable(
     displayName: text("display_name").notNull(),
     avatarPath: text("avatar_path"),
     bannerPath: text("banner_path"),
+    bannerPresetKey: text("banner_preset_key"),
     themePreference: text("theme_preference").notNull().default("system"),
     timeZone: text("time_zone").notNull(),
     notificationsEnabled: boolean("notifications_enabled").notNull().default(true),
     dailyReminderEnabled: boolean("daily_reminder_enabled").notNull().default(true),
     dailyReminderTime: time("daily_reminder_time"),
+    quietHoursStart: time("quiet_hours_start").notNull().default("22:00:00"),
+    quietHoursEnd: time("quiet_hours_end").notNull().default("07:00:00"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -67,7 +70,10 @@ export const projectMemberships = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("project_memberships_project_user_uidx").on(table.projectId, table.userId),
+    uniqueIndex("project_memberships_project_user_uidx").on(
+      table.projectId,
+      table.userId,
+    ),
     index("project_memberships_project_user_idx").on(table.projectId, table.userId),
   ],
 );
@@ -168,6 +174,7 @@ export const notifications = pgTable(
     title: text("title").notNull(),
     body: text("body"),
     href: text("href"),
+    dedupeKey: text("dedupe_key").unique(),
     readAt: timestamp("read_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -210,12 +217,31 @@ export const notificationDeliveries = pgTable("notification_deliveries", {
   sentAt: timestamp("sent_at", { withTimezone: true }),
   failedAt: timestamp("failed_at", { withTimezone: true }),
   failureReason: text("failure_reason"),
+  nextRetryAt: timestamp("next_retry_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const githubInstallationStates = pgTable(
+  "github_installation_states",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    nonce: text("nonce").notNull().unique(),
+    encryptedUserToken: text("encrypted_user_token"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("github_installation_states_user_idx").on(table.userId)],
+);
+
 export const githubInstallations = pgTable("github_installations", {
   id: uuid("id").primaryKey().defaultRandom(),
-  githubInstallationId: bigint("github_installation_id", { mode: "number" }).notNull().unique(),
+  githubInstallationId: bigint("github_installation_id", { mode: "number" })
+    .notNull()
+    .unique(),
   githubAccountLogin: text("github_account_login").notNull(),
   githubAccountType: text("github_account_type").notNull(),
   installedBy: uuid("installed_by")
@@ -258,3 +284,4 @@ export type ProjectInvitation = typeof projectInvitations.$inferSelect;
 export type Task = typeof tasks.$inferSelect;
 export type ActivityEvent = typeof activityEvents.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
+export type GitHubInstallationState = typeof githubInstallationStates.$inferSelect;

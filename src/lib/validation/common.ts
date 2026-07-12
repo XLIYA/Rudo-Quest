@@ -14,7 +14,9 @@ export const dateSchema = z.iso.date();
 export const timeSchema = z
   .string()
   .regex(/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/, "Use HH:mm or HH:mm:ss.");
-export const timeZoneSchema = z.string().refine(isValidTimeZone, "Use a valid IANA timezone.");
+export const timeZoneSchema = z
+  .string()
+  .refine(isValidTimeZone, "Use a valid IANA timezone.");
 export const handleSchema = z
   .string()
   .min(3)

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { EmailRecoveryActions } from "@/features/auth/email-recovery";
 
 /**
  * Purpose: Explain email verification after signup.
@@ -12,11 +13,16 @@ export default function VerifyEmailPage() {
       <section className="w-full max-w-sm rounded-lg border border-border bg-surface p-6 text-center shadow-[var(--shadow-raised)]">
         <h1 className="font-display text-4xl">Check email</h1>
         <p className="mt-3 text-sm leading-6 text-text-secondary">
-          Supabase sent a verification link. After verification, sign in to open Rudo Quest.
+          Supabase sent a verification link. After verification, sign in to open Rudo
+          Quest.
         </p>
-        <Link className="mt-6 inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-white" href="/login">
+        <Link
+          className="mt-6 inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-white"
+          href="/login"
+        >
           Back to sign in
         </Link>
+        <EmailRecoveryActions initialKind="verification" />
       </section>
     </main>
   );

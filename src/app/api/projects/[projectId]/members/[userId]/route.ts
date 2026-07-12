@@ -42,7 +42,11 @@ export async function DELETE(request: NextRequest, context: Context) {
     const actor = await requireCurrentUser();
     const params = await context.params;
     return apiSuccess(
-      await removeProjectMember(actor.id, uuidSchema.parse(params.projectId), uuidSchema.parse(params.userId)),
+      await removeProjectMember(
+        actor.id,
+        uuidSchema.parse(params.projectId),
+        uuidSchema.parse(params.userId),
+      ),
       { requestId },
     );
   });

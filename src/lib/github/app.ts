@@ -15,10 +15,11 @@ export type GitHubInstallationInfo = {
   githubAccountType: string;
 };
 
-type GitHubInstallationState = {
+export type GitHubInstallationState = {
   v: 1;
   userId: string;
   nonce: string;
+  projectId?: string;
   exp: number;
 };
 
@@ -27,13 +28,20 @@ const installationStateTtlSeconds = 10 * 60;
 function getStateSecret(): string {
   const secret = getServerEnv().GITHUB_APP_CLIENT_SECRET;
   if (!secret) {
-    throw new AppError("INTEGRATION_NOT_CONFIGURED", 503, "GitHub App is not configured.");
+    throw new AppError(
+      "INTEGRATION_NOT_CONFIGURED",
+      503,
+      "GitHub App is not configured.",
+    );
   }
   return secret;
 }
 
 function signStatePayload(payload: string): string {
-  return crypto.createHmac("sha256", getStateSecret()).update(payload).digest("base64url");
+  return crypto
+    .createHmac("sha256", getStateSecret())
+    .update(payload)
+    .digest("base64url");
 }
 
 function timingSafeStringEqual(a: string, b: string): boolean {
@@ -50,11 +58,15 @@ function timingSafeStringEqual(a: string, b: string): boolean {
  * Side effects: None.
  * Failure behavior: Throws integration error when GitHub App credentials are missing.
  */
-export function createGitHubInstallationState(userId: string): string {
+export function createGitHubInstallationState(
+  userId: string,
+  projectId?: string,
+): string {
   const payload: GitHubInstallationState = {
     v: 1,
     userId,
     nonce: crypto.randomUUID(),
+    ...(projectId ? { projectId } : {}),
     exp: Math.floor(Date.now() / 1000) + installationStateTtlSeconds,
   };
   const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
@@ -84,7 +96,9 @@ export function verifyGitHubInstallationState(
   }
   let parsed: GitHubInstallationState;
   try {
-    parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as GitHubInstallationState;
+    parsed = JSON.parse(
+      Buffer.from(payload, "base64url").toString("utf8"),
+    ) as GitHubInstallationState;
   } catch {
     throw new AppError("FORBIDDEN", 403, "GitHub installation state is invalid.");
   }
@@ -109,15 +123,165 @@ export function verifyGitHubInstallationState(
 export function getGitHubInstallUrl(state: string): string {
   const env = getServerEnv();
   if (!hasGitHubEnv(env)) {
-    throw new AppError("INTEGRATION_NOT_CONFIGURED", 503, "GitHub App is not configured.");
+    throw new AppError(
+      "INTEGRATION_NOT_CONFIGURED",
+      503,
+      "GitHub App is not configured.",
+    );
   }
   const appSlug = env.GITHUB_APP_SLUG;
   if (!appSlug) {
-    throw new AppError("INTEGRATION_NOT_CONFIGURED", 503, "GitHub App is not configured.");
+    throw new AppError(
+      "INTEGRATION_NOT_CONFIGURED",
+      503,
+      "GitHub App is not configured.",
+    );
   }
-  const url = new URL(`https://github.com/apps/${encodeURIComponent(appSlug)}/installations/new`);
+  const url = new URL(
+    `https://github.com/apps/${encodeURIComponent(appSlug)}/installations/new`,
+  );
   url.searchParams.set("state", state);
   return url.toString();
+}
+
+/**
+ * Purpose: Start the GitHub App user authorization leg used to prove installation ownership.
+ * Inputs: One-time signed state token.
+ * Output: GitHub OAuth authorization URL.
+ * Side effects: None.
+ * Failure behavior: Throws integration error when the app callback configuration is missing.
+ */
+export function getGitHubAuthorizationUrl(state: string): string {
+  const env = getServerEnv();
+  if (!hasGitHubEnv(env) || !env.NEXT_PUBLIC_APP_URL) {
+    throw new AppError(
+      "INTEGRATION_NOT_CONFIGURED",
+      503,
+      "GitHub App is not configured.",
+    );
+  }
+  const url = new URL("https://github.com/login/oauth/authorize");
+  url.searchParams.set("client_id", env.GITHUB_APP_CLIENT_ID ?? "");
+  url.searchParams.set(
+    "redirect_uri",
+    new URL("/api/github/installations/callback", env.NEXT_PUBLIC_APP_URL).toString(),
+  );
+  url.searchParams.set("state", state);
+  url.searchParams.set("scope", "read:user");
+  return url.toString();
+}
+
+function getGitHubCallbackUrl(): string {
+  const appUrl = getServerEnv().NEXT_PUBLIC_APP_URL;
+  if (!appUrl) {
+    throw new AppError(
+      "INTEGRATION_NOT_CONFIGURED",
+      503,
+      "GitHub App is not configured.",
+    );
+  }
+  return new URL("/api/github/installations/callback", appUrl).toString();
+}
+
+/**
+ * Purpose: Encrypt a short-lived GitHub user token while the installation flow is in progress.
+ * Inputs: GitHub user access token.
+ * Output: Authenticated AES-GCM payload safe for server-side database storage.
+ * Side effects: None.
+ * Failure behavior: Throws integration error when the app secret is unavailable.
+ */
+export function encryptGitHubUserToken(token: string): string {
+  const key = crypto.createHash("sha256").update(getStateSecret()).digest();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([cipher.update(token, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return [iv, tag, ciphertext].map((part) => part.toString("base64url")).join(".");
+}
+
+/**
+ * Purpose: Decrypt a pending GitHub user token for installation ownership verification.
+ * Inputs: Server-side encrypted token payload.
+ * Output: Original GitHub user access token.
+ * Side effects: None.
+ * Failure behavior: Throws FORBIDDEN when the payload is malformed or tampered.
+ */
+export function decryptGitHubUserToken(value: string): string {
+  try {
+    const [ivValue, tagValue, ciphertextValue] = value.split(".");
+    if (!ivValue || !tagValue || !ciphertextValue) throw new Error("invalid token");
+    const decipher = crypto.createDecipheriv(
+      "aes-256-gcm",
+      crypto.createHash("sha256").update(getStateSecret()).digest(),
+      Buffer.from(ivValue, "base64url"),
+    );
+    decipher.setAuthTag(Buffer.from(tagValue, "base64url"));
+    return Buffer.concat([
+      decipher.update(Buffer.from(ciphertextValue, "base64url")),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch {
+    throw new AppError("FORBIDDEN", 403, "GitHub authorization state is invalid.");
+  }
+}
+
+/**
+ * Purpose: Exchange a GitHub OAuth authorization code for a user access token.
+ * Inputs: One-time GitHub authorization code.
+ * Output: Short-lived flow token held only on the server.
+ * Side effects: Calls GitHub's OAuth token endpoint.
+ * Failure behavior: Throws a sanitized upstream error without exposing the token response.
+ */
+export async function exchangeGitHubUserCode(code: string): Promise<string> {
+  const env = getServerEnv();
+  if (!env.GITHUB_APP_CLIENT_ID || !env.GITHUB_APP_CLIENT_SECRET) {
+    throw new AppError(
+      "INTEGRATION_NOT_CONFIGURED",
+      503,
+      "GitHub App is not configured.",
+    );
+  }
+  const response = await fetch("https://github.com/login/oauth/access_token", {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: env.GITHUB_APP_CLIENT_ID,
+      client_secret: env.GITHUB_APP_CLIENT_SECRET,
+      code,
+      redirect_uri: getGitHubCallbackUrl(),
+    }),
+    cache: "no-store",
+  });
+  if (!response.ok)
+    throw new AppError("INTERNAL_ERROR", 502, "GitHub authorization failed.");
+  const payload = (await response.json()) as { access_token?: string };
+  if (!payload.access_token)
+    throw new AppError("FORBIDDEN", 403, "GitHub authorization failed.");
+  return payload.access_token;
+}
+
+/**
+ * Purpose: List GitHub App installations visible to the authorized GitHub user.
+ * Inputs: GitHub user access token.
+ * Output: Numeric installation IDs.
+ * Side effects: Calls GitHub's user installations endpoint.
+ * Failure behavior: Throws a sanitized upstream error.
+ */
+export async function listUserInstallationIds(userToken: string): Promise<number[]> {
+  const response = await fetch("https://api.github.com/user/installations?per_page=100", {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${userToken}`,
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+    cache: "no-store",
+  });
+  if (!response.ok)
+    throw new AppError("FORBIDDEN", 403, "GitHub installation authorization failed.");
+  const payload = (await response.json()) as { installations?: { id?: number }[] };
+  return (payload.installations ?? [])
+    .map((installation) => installation.id)
+    .filter((id): id is number => typeof id === "number" && Number.isSafeInteger(id));
 }
 
 /**
@@ -130,10 +294,16 @@ export function getGitHubInstallUrl(state: string): string {
 export function createGitHubAppJwt(): string {
   const env = getServerEnv();
   if (!env.GITHUB_APP_ID || !env.GITHUB_APP_PRIVATE_KEY) {
-    throw new AppError("INTEGRATION_NOT_CONFIGURED", 503, "GitHub App is not configured.");
+    throw new AppError(
+      "INTEGRATION_NOT_CONFIGURED",
+      503,
+      "GitHub App is not configured.",
+    );
   }
   const now = Math.floor(Date.now() / 1000);
-  const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
+  const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString(
+    "base64url",
+  );
   const payload = Buffer.from(
     JSON.stringify({ iat: now - 60, exp: now + 540, iss: env.GITHUB_APP_ID }),
   ).toString("base64url");
@@ -152,7 +322,9 @@ export function createGitHubAppJwt(): string {
  * Side effects: Calls GitHub's REST API.
  * Failure behavior: Throws integration or upstream failure without exposing secrets.
  */
-export async function createInstallationToken(githubInstallationId: number): Promise<string> {
+export async function createInstallationToken(
+  githubInstallationId: number,
+): Promise<string> {
   const response = await fetch(
     `https://api.github.com/app/installations/${githubInstallationId}/access_tokens`,
     {
@@ -166,10 +338,15 @@ export async function createInstallationToken(githubInstallationId: number): Pro
     },
   );
   if (!response.ok) {
-    throw new AppError("INTERNAL_ERROR", 502, "GitHub installation token request failed.");
+    throw new AppError(
+      "INTERNAL_ERROR",
+      502,
+      "GitHub installation token request failed.",
+    );
   }
   const payload = (await response.json()) as { token?: string };
-  if (!payload.token) throw new AppError("INTERNAL_ERROR", 502, "GitHub token response was invalid.");
+  if (!payload.token)
+    throw new AppError("INTERNAL_ERROR", 502, "GitHub token response was invalid.");
   return payload.token;
 }
 
@@ -182,14 +359,17 @@ export async function createInstallationToken(githubInstallationId: number): Pro
 export async function getGitHubInstallationInfo(
   githubInstallationId: number,
 ): Promise<GitHubInstallationInfo> {
-  const response = await fetch(`https://api.github.com/app/installations/${githubInstallationId}`, {
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${createGitHubAppJwt()}`,
-      "X-GitHub-Api-Version": "2022-11-28",
+  const response = await fetch(
+    `https://api.github.com/app/installations/${githubInstallationId}`,
+    {
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${createGitHubAppJwt()}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      cache: "no-store",
     },
-    cache: "no-store",
-  });
+  );
   if (!response.ok) {
     throw new AppError("INTERNAL_ERROR", 502, "GitHub installation lookup failed.");
   }
@@ -201,7 +381,11 @@ export async function getGitHubInstallationInfo(
     } | null;
   };
   if (!payload.id || !payload.account?.login || !payload.account.type) {
-    throw new AppError("INTERNAL_ERROR", 502, "GitHub installation response was invalid.");
+    throw new AppError(
+      "INTERNAL_ERROR",
+      502,
+      "GitHub installation response was invalid.",
+    );
   }
   return {
     githubInstallationId: payload.id,
@@ -216,7 +400,10 @@ export async function getGitHubInstallationInfo(
  * Output: True when the signature matches.
  * Side effects: None.
  */
-export function verifyGitHubWebhookSignature(body: string, signature: string | null): boolean {
+export function verifyGitHubWebhookSignature(
+  body: string,
+  signature: string | null,
+): boolean {
   const secret = getServerEnv().GITHUB_WEBHOOK_SECRET;
   if (!secret || !signature?.startsWith("sha256=")) return false;
   const expected = `sha256=${crypto.createHmac("sha256", secret).update(body).digest("hex")}`;
@@ -233,9 +420,15 @@ export function verifyGitHubWebhookSignature(body: string, signature: string | n
  * Side effects: Would call GitHub when credentials are present.
  * Failure behavior: Returns integration-not-configured rather than exposing tokens.
  */
-export async function listInstallationRepositories(githubInstallationId: number): Promise<GitHubRepository[]> {
+export async function listInstallationRepositories(
+  githubInstallationId: number,
+): Promise<GitHubRepository[]> {
   if (!hasGitHubEnv()) {
-    throw new AppError("INTEGRATION_NOT_CONFIGURED", 503, "GitHub App is not configured.");
+    throw new AppError(
+      "INTEGRATION_NOT_CONFIGURED",
+      503,
+      "GitHub App is not configured.",
+    );
   }
   if (!Number.isSafeInteger(githubInstallationId)) {
     throw new AppError("BAD_REQUEST", 400, "Installation ID is invalid.");
@@ -254,7 +447,8 @@ export async function listInstallationRepositories(githubInstallationId: number)
       },
       cache: "no-store",
     });
-    if (!response.ok) throw new AppError("INTERNAL_ERROR", 502, "GitHub repository listing failed.");
+    if (!response.ok)
+      throw new AppError("INTERNAL_ERROR", 502, "GitHub repository listing failed.");
     const payload = (await response.json()) as {
       repositories?: {
         id: number;

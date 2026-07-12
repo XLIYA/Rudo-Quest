@@ -10,25 +10,29 @@ let db: NodePgDatabase<typeof schema> | null = null;
 /**
  * Purpose: Choose pg SSL settings from the database connection URL.
  * Inputs: PostgreSQL connection URL.
- * Output: SSL disabled for local loopback databases, permissive SSL for hosted databases.
+ * Output: SSL disabled for local loopback databases and certificate-verified SSL for hosted databases.
  * Side effects: None.
  */
 export function getPgSslConfig(
   databaseUrl: string,
-): false | { rejectUnauthorized: false } {
+): false | { rejectUnauthorized: true } {
   try {
     const url = new URL(databaseUrl);
     const sslMode = url.searchParams.get("sslmode");
     if (sslMode === "disable") return false;
-    if (sslMode === "require" || sslMode === "no-verify")
-      return { rejectUnauthorized: false };
+    if (sslMode === "no-verify") {
+      throw new Error(
+        "sslmode=no-verify is not permitted for application database connections.",
+      );
+    }
+    if (sslMode === "require") return { rejectUnauthorized: true };
     const hostname = url.hostname.replace(/^\[|\]$/g, "");
     if (["localhost", "127.0.0.1", "::1"].includes(hostname)) return false;
   } catch {
     if (databaseUrl.includes("localhost") || databaseUrl.includes("127.0.0.1"))
       return false;
   }
-  return { rejectUnauthorized: false };
+  return { rejectUnauthorized: true };
 }
 
 /**

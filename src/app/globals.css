@@ -38,8 +38,11 @@
   --brand-hover: #e84a12;
   --brand-soft: #fff0ea;
   --success: #198754;
+  --success-soft: #e6f4ed;
   --warning: #b7791f;
+  --warning-soft: #fff4d8;
   --error: #b00020;
+  --error-soft: #ffebee;
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
@@ -64,8 +67,11 @@
   --brand-hover: #ff835c;
   --brand-soft: #482217;
   --success: #6ed7a5;
+  --success-soft: #214735;
   --warning: #f4c76e;
+  --warning-soft: #4b3a1d;
   --error: #ffb4ab;
+  --error-soft: #4b2220;
   color-scheme: dark;
 }
 
@@ -83,8 +89,11 @@
   --color-brand-hover: var(--brand-hover);
   --color-brand-soft: var(--brand-soft);
   --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
   --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
   --color-error: var(--error);
+  --color-error-soft: var(--error-soft);
   --font-sans: var(--font-fjord-one);
   --font-mono: var(--font-fjord-one);
   --font-display: var(--font-bitcount-ink);

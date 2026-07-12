@@ -30,9 +30,7 @@ export function TaskRow({
 }: TaskRowProps) {
   const color = task.project ? getProjectColor(task.project.colorKey) : null;
   return (
-    <article
-      className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] gap-3 rounded-md border border-border bg-surface p-3 shadow-[var(--shadow-surface)]"
-    >
+    <article className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] gap-3 rounded-md border border-border bg-surface p-3 shadow-[var(--shadow-surface)]">
       <TaskCheckbox
         checked={task.status === "DONE"}
         disabled={disabled}

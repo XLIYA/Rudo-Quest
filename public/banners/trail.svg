@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" role="img" aria-label="Trail map banner">
+  <rect width="1200" height="420" fill="#d7efe8"/>
+  <path d="M0 50c160 100 245-90 430 40s260 150 410 40 240-100 360-30" fill="none" stroke="#198754" stroke-opacity=".35" stroke-width="70"/>
+  <path d="M-20 360c170-150 320 70 520-80s320-120 720 30" fill="none" stroke="#ff5a1f" stroke-opacity=".85" stroke-width="14" stroke-dasharray="3 26" stroke-linecap="round"/>
+  <circle cx="430" cy="190" r="28" fill="#ff5a1f"/><circle cx="430" cy="190" r="10" fill="#fff"/>
+  <circle cx="880" cy="280" r="18" fill="#198754"/><circle cx="880" cy="280" r="7" fill="#fff"/>
+</svg>

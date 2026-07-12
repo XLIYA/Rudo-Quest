@@ -9,3 +9,7 @@ Project colors use fixed keys instead of arbitrary hex values. The Rudo mark is 
 Client state is TanStack Query only. No global task/project/profile store is used.
 
 Route Handlers are used for browser mutations because the client uses Axios. Server-side code calls services and repositories directly.
+
+The existing dashboard heatmap and font configuration are intentionally
+preserved. Audit remediation does not reinterpret or regenerate those two
+surfaces.

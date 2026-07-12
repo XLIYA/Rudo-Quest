@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" role="img" aria-label="Sunrise route banner">
+  <defs><linearGradient id="a" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#ff5a1f"/><stop offset=".55" stop-color="#ffb36b"/><stop offset="1" stop-color="#fff0ea"/></linearGradient></defs>
+  <rect width="1200" height="420" fill="url(#a)"/>
+  <circle cx="930" cy="120" r="150" fill="#fff" fill-opacity=".32"/>
+  <path d="M0 340c180-80 300 60 500-20s340-70 700 10v90H0z" fill="#482217" fill-opacity=".22"/>
+  <path d="M110 300l120-100 100 74 150-128 175 154" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

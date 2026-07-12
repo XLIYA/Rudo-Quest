@@ -13,6 +13,30 @@ function limiterCacheKey(key: string, limit: number, windowSeconds: number): str
 }
 
 /**
+ * Purpose: Resolve a rate-limit identity from platform-controlled request metadata.
+ * Inputs: NextRequest-like headers and deployment environment.
+ * Output: Stable client identity that never trusts a browser-supplied forwarded header in production.
+ * Side effects: None.
+ * Failure behavior: Returns an anonymous bucket when no trusted identity is available.
+ */
+export function requestRateLimitIdentity(
+  headers: Headers,
+  environment: "development" | "test" | "production" = getServerEnv().NODE_ENV,
+): string {
+  const trusted =
+    environment === "production"
+      ? headers.get("x-vercel-forwarded-for")
+      : (headers.get("x-forwarded-for") ?? headers.get("x-vercel-forwarded-for"));
+  const values =
+    trusted
+      ?.split(",")
+      .map((value) => value.trim())
+      .filter(Boolean) ?? [];
+  const candidate = environment === "production" ? values.at(-1) : values[0];
+  return candidate || "anonymous";
+}
+
+/**
  * Purpose: Rate-limit sensitive routes with Upstash in production and a bounded local fallback in development.
  * Inputs: Limit key, request identity, count, and time window in seconds.
  * Output: Resolves when the caller may continue.

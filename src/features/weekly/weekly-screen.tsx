@@ -4,7 +4,7 @@ import { addDays, format, parseISO } from "date-fns";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { toast } from "sonner";
+import { AppToast } from "@/components/ui/app-toast";
 import { AppButton } from "@/components/ui/app-button";
 import { AppEmptyState } from "@/components/ui/app-empty-state";
 import { AppIconButton } from "@/components/ui/app-icon-button";
@@ -13,7 +13,6 @@ import { AppSkeleton } from "@/components/ui/app-skeleton";
 import { TaskDetailSheet } from "@/components/ui/task-detail-sheet";
 import { TaskRow } from "@/components/ui/task-row";
 import { PageHeader } from "@/components/shared/page-header";
-import { OfflineStatusToast } from "@/components/shared/offline-status-toast";
 import { useOnline } from "@/hooks/use-online";
 import { getMondayWeekStart, getWeekDates } from "@/lib/utils/dates";
 import type { TaskDto } from "@/types/domain";
@@ -37,7 +36,6 @@ export function WeeklyScreen() {
   const selectedDate =
     searchParams.get("date") ??
     (getWeekDates(weekStart).includes(today) ? today : weekStart);
-  const [expandedDate, setExpandedDate] = useState(selectedDate);
   const [selectedTask, setSelectedTask] = useState<TaskDto | null>(null);
   const [quickDate, setQuickDate] = useState<string | null>(
     searchParams.get("quickAdd") ? selectedDate : null,
@@ -48,6 +46,7 @@ export function WeeklyScreen() {
   const createTask = useCreateTask(weekStart);
   const mutateTask = useTaskMutation(weekStart);
   const dates = useMemo(() => getWeekDates(weekStart), [weekStart]);
+  const expandedDate = dates.includes(selectedDate) ? selectedDate : (dates[0] ?? "");
 
   const navigateWeek = (direction: -1 | 1) => {
     const next = format(addDays(parseISO(weekStart), direction * 7), "yyyy-MM-dd");
@@ -55,7 +54,7 @@ export function WeeklyScreen() {
   };
 
   const submitQuick = async (date: string) => {
-    if (!online) return toast.error("Offline. Task creation is disabled.");
+    if (!online) return AppToast("Offline. Task creation is disabled.", "error");
     if (!quickTitle.trim()) return;
     try {
       await createTask.mutateAsync({
@@ -72,7 +71,6 @@ export function WeeklyScreen() {
 
   return (
     <main className="mx-auto grid max-w-5xl gap-5 p-5 md:p-8">
-      <OfflineStatusToast />
       <PageHeader
         title="Weekly"
         description={`${format(parseISO(weekStart), "MMM d")} - ${format(addDays(parseISO(weekStart), 6), "MMM d, yyyy")}`}
@@ -113,7 +111,10 @@ export function WeeklyScreen() {
               <article key={date} className="rounded-lg border border-border bg-surface">
                 <button
                   type="button"
-                  onClick={() => setExpandedDate(open ? "" : date)}
+                  onClick={() => {
+                    const nextDate = open ? date : date;
+                    router.push(`/weekly?weekStart=${weekStart}&date=${nextDate}`);
+                  }}
                   className="grid w-full grid-cols-[1fr_auto] items-center gap-3 p-4 text-left"
                 >
                   <span>
@@ -187,7 +188,11 @@ export function WeeklyScreen() {
         open={Boolean(selectedTask)}
         offline={!online}
         onOpenChange={(open) => !open && setSelectedTask(null)}
-        onArchive={(task) => mutateTask.mutate({ task, action: "archive" })}
+        onAction={(task, action) => mutateTask.mutate({ task, action })}
+        onArchive={(task) => {
+          mutateTask.mutate({ task, action: "archive" });
+          setSelectedTask(null);
+        }}
         onSave={(task, values) =>
           mutateTask.mutate({ task, action: "update", body: values })
         }

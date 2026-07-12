@@ -33,7 +33,9 @@ export async function PATCH(request: NextRequest, context: Context) {
     const user = await requireCurrentUser();
     const { taskId } = await context.params;
     const body = updateTaskSchema.parse(await readJson(request));
-    return apiSuccess(await updateTask(user.id, uuidSchema.parse(taskId), body), { requestId });
+    return apiSuccess(await updateTask(user.id, uuidSchema.parse(taskId), body), {
+      requestId,
+    });
   });
 }
 
@@ -48,6 +50,9 @@ export async function DELETE(request: NextRequest, context: Context) {
     const user = await requireCurrentUser();
     const { taskId } = await context.params;
     const body = updateTaskSchema.pick({ version: true }).parse(await readJson(request));
-    return apiSuccess(await archiveTask(user.id, uuidSchema.parse(taskId), body.version), { requestId });
+    return apiSuccess(
+      await archiveTask(user.id, uuidSchema.parse(taskId), body.version),
+      { requestId },
+    );
   });
 }

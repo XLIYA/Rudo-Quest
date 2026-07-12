@@ -252,6 +252,12 @@ source map upload, then revoke the old token.
 
 ## Post-deployment Verification
 
+The project is configured with a fifteen-minute Vercel Cron schedule because
+the notification worker must evaluate each user's local reminder time and quiet
+hours. Vercel Hobby projects reject schedules that run more than once per day;
+use a Vercel Pro (or higher) project for this configuration instead of
+weakening the schedule and losing reminders.
+
 After deployment, verify the environment from Vercel Project Settings or
 `vercel env ls`. Confirm that every production variable is present in the
 Production environment and that preview-only credentials are not assigned to

@@ -15,7 +15,12 @@ export function AppAvatarStack({ users }: AppAvatarStackProps) {
   return (
     <div className="flex -space-x-2" aria-label={`${users.length} members`}>
       {users.slice(0, 5).map((user) => (
-        <AppAvatar key={user.id} name={user.displayName} src={user.avatarUrl} className="ring-2 ring-surface" />
+        <AppAvatar
+          key={user.id}
+          name={user.displayName}
+          src={user.avatarUrl}
+          className="ring-2 ring-surface"
+        />
       ))}
     </div>
   );

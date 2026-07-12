@@ -1,6 +1,7 @@
 import { AppError } from "@/lib/api/errors";
 import { createSupabaseAdminClient } from "@/lib/auth/supabase";
 import { getServerEnv, getSupabaseAdminKey } from "@/lib/env/server";
+import sharp, { type Metadata } from "sharp";
 
 const bucketName = "profile-assets";
 const signedUrlTtlSeconds = 60 * 60;
@@ -61,6 +62,56 @@ export async function assertProfileAssetExists(
     .list(folder, { limit: 1, search: fileName });
   if (error || !data?.some((item) => item.name === fileName)) {
     throw new AppError("BAD_REQUEST", 400, "Uploaded asset was not found.");
+  }
+}
+
+/**
+ * Purpose: Validate the actual uploaded profile image bytes after signed upload completion.
+ * Inputs: User ID, asset kind, and storage path.
+ * Output: Void when MIME, byte size, and dimensions are safe.
+ * Side effects: Downloads one private object through the server-only Supabase client.
+ * Failure behavior: Throws BAD_REQUEST for missing, oversized, malformed, or disallowed images.
+ */
+export async function assertProfileAssetBytes(
+  userId: string,
+  kind: "avatar" | "banner",
+  path: string,
+): Promise<void> {
+  await assertProfileAssetExists(userId, kind, path);
+  const { data, error } = await createSupabaseAdminClient()
+    .storage.from(bucketName)
+    .download(path);
+  if (error || !data)
+    throw new AppError("BAD_REQUEST", 400, "Uploaded asset could not be read.");
+  const buffer = Buffer.from(await data.arrayBuffer());
+  if (buffer.byteLength > 4_000_000) {
+    throw new AppError("BAD_REQUEST", 400, "Uploaded asset is too large.");
+  }
+  let metadata: Metadata;
+  try {
+    metadata = await sharp(buffer).metadata();
+  } catch {
+    throw new AppError("BAD_REQUEST", 400, "Uploaded asset is not a valid image.");
+  }
+  const format = metadata.format;
+  const allowedFormats = new Set(["jpeg", "png", "webp"]);
+  const minimumWidth = kind === "avatar" ? 128 : 256;
+  const minimumHeight = kind === "avatar" ? 128 : 128;
+  if (
+    !format ||
+    !allowedFormats.has(format) ||
+    !metadata.width ||
+    !metadata.height ||
+    metadata.width < minimumWidth ||
+    metadata.height < minimumHeight ||
+    metadata.width > 4096 ||
+    metadata.height > 4096
+  ) {
+    throw new AppError(
+      "BAD_REQUEST",
+      400,
+      "Uploaded image dimensions or format are not supported.",
+    );
   }
 }
 

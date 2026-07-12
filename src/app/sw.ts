@@ -1,6 +1,11 @@
-import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { NetworkFirst, NetworkOnly, Serwist } from "serwist";
+import {
+  CacheFirst,
+  ExpirationPlugin,
+  NetworkFirst,
+  NetworkOnly,
+  Serwist,
+} from "serwist";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -17,11 +22,21 @@ const serwist = new Serwist({
   navigationPreload: true,
   runtimeCaching: [
     {
-      matcher: ({ sameOrigin, url }) =>
-        sameOrigin && url.pathname.startsWith("/_next/static/"),
+      matcher: ({ sameOrigin, url }) => sameOrigin && url.pathname.startsWith("/api/"),
       handler: new NetworkOnly(),
     },
-    ...defaultCache,
+    {
+      matcher: ({ sameOrigin, url }) =>
+        sameOrigin &&
+        (url.pathname.startsWith("/_next/static/") ||
+          /\.(?:svg|png|ico|webp)$/.test(url.pathname)),
+      handler: new CacheFirst({
+        cacheName: "rudo-static-assets",
+        plugins: [
+          new ExpirationPlugin({ maxEntries: 80, maxAgeSeconds: 7 * 24 * 60 * 60 }),
+        ],
+      }),
+    },
     {
       matcher: ({ request, url }) =>
         request.mode === "navigate" && !url.pathname.startsWith("/api"),

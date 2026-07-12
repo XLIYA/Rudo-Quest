@@ -17,7 +17,9 @@ const dashboardQuerySchema = z.object({ from: dateSchema, to: dateSchema });
 export async function GET(request: NextRequest) {
   return withApiHandler(request, async (requestId) => {
     const user = await requireCurrentUser();
-    const query = dashboardQuerySchema.parse(Object.fromEntries(request.nextUrl.searchParams));
+    const query = dashboardQuerySchema.parse(
+      Object.fromEntries(request.nextUrl.searchParams),
+    );
     return apiSuccess(await getDashboard(user.id, query.from, query.to), { requestId });
   });
 }

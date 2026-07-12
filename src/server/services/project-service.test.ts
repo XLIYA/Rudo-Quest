@@ -6,8 +6,9 @@ const projectRepository = vi.hoisted(() => ({
   findProjectInvitation: vi.fn(),
   findProjectRole: vi.fn(),
   findProjectSummary: vi.fn(),
+  expirePendingInvitations: vi.fn(),
+  findProjectOwnerId: vi.fn(),
   insertInvitation: vi.fn(),
-  insertProject: vi.fn(),
   listProjectInvitations: vi.fn(),
   listProjectMembers: vi.fn(),
   listProjectSummaries: vi.fn(),
@@ -50,6 +51,7 @@ function pendingInvitation() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  projectRepository.expirePendingInvitations.mockResolvedValue(0);
   projectRepository.findProjectInvitation.mockResolvedValue(pendingInvitation());
   projectRepository.transitionInvitation.mockResolvedValue(pendingInvitation());
 });

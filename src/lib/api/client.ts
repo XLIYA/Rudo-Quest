@@ -35,7 +35,8 @@ export function normalizeApiClientError(error: unknown): ApiClientError {
     const normalized: ApiClientError = {
       code: data?.error.code ?? "NETWORK_ERROR",
       message: data?.error.message ?? "Network request failed.",
-      requestId: data?.requestId ?? error.response?.headers["x-request-id"] ?? crypto.randomUUID(),
+      requestId:
+        data?.requestId ?? error.response?.headers["x-request-id"] ?? crypto.randomUUID(),
       status: error.response?.status ?? 0,
     };
     if (data?.error.fieldErrors) normalized.fieldErrors = data.error.fieldErrors;
@@ -81,7 +82,10 @@ export const apiClient = createApiClient();
  * Side effects: Performs same-origin HTTP GET.
  */
 export async function apiGet<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const response = await apiClient.get<ApiSuccess<T>>(url, signal ? { signal } : undefined);
+  const response = await apiClient.get<ApiSuccess<T>>(
+    url,
+    signal ? { signal } : undefined,
+  );
   return response.data.data;
 }
 
@@ -97,6 +101,14 @@ export async function apiMutation<T>(
   body?: unknown,
   signal?: AbortSignal,
 ): Promise<T> {
+  if (typeof window !== "undefined" && !navigator.onLine) {
+    throw {
+      code: "OFFLINE",
+      message: "This action is unavailable while offline.",
+      requestId: crypto.randomUUID(),
+      status: 0,
+    } satisfies ApiClientError;
+  }
   const config = {
     method,
     url,

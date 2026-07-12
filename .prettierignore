@@ -3,3 +3,11 @@ coverage
 node_modules
 public/sw.js
 package-lock.json
+.agents
+.codex
+AGENTS.md
+CLAUDE.md
+src/app/layout.tsx
+src/features/dashboard/dashboard-screen.tsx
+src/app/globals.css
+test-results

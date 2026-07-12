@@ -19,7 +19,13 @@ export type AppDialogProps = {
  * Output: Accessible Radix dialog.
  * Side effects: Locks focus while open.
  */
-export function AppDialog({ open, onOpenChange, title, description, children }: AppDialogProps) {
+export function AppDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  children,
+}: AppDialogProps) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -28,7 +34,11 @@ export function AppDialog({ open, onOpenChange, title, description, children }: 
           <div className="mb-4 flex items-center justify-between gap-4">
             <div>
               <Dialog.Title className="text-lg font-semibold">{title}</Dialog.Title>
-              {description && <Dialog.Description className="mt-1 text-sm text-text-secondary">{description}</Dialog.Description>}
+              {description && (
+                <Dialog.Description className="mt-1 text-sm text-text-secondary">
+                  {description}
+                </Dialog.Description>
+              )}
             </div>
             <Dialog.Close asChild>
               <AppIconButton label="Close dialog">

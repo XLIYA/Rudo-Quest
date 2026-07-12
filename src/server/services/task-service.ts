@@ -2,9 +2,15 @@ import { addDays } from "date-fns";
 import { AppError } from "@/lib/api/errors";
 import { getWeekDates } from "@/lib/utils/dates";
 import type { TaskDto } from "@/types/domain";
-import { assertCanMutateTask, toggleCompletionState } from "@/server/policies/project-policy";
+import {
+  assertCanMutateTask,
+  toggleCompletionState,
+} from "@/server/policies/project-policy";
 import { createActivityEvent } from "@/server/repositories/activity-repository";
-import { findProjectRole, isProjectMember } from "@/server/repositories/project-repository";
+import {
+  findProjectRole,
+  isProjectMember,
+} from "@/server/repositories/project-repository";
 import {
   findTaskDto,
   insertTask,
@@ -33,9 +39,18 @@ export async function getTask(userId: string, taskId: string): Promise<TaskDto> 
  * Output: Task DTOs.
  * Side effects: Reads tasks.
  */
-export async function getWeekTasks(userId: string, weekStart: string): Promise<TaskDto[]> {
+export async function getWeekTasks(
+  userId: string,
+  weekStart: string,
+  projectId?: string,
+): Promise<TaskDto[]> {
   const dates = getWeekDates(weekStart);
-  return listWeekTasks({ userId, from: dates[0] ?? weekStart, to: dates[6] ?? weekStart });
+  return listWeekTasks({
+    userId,
+    from: dates[0] ?? weekStart,
+    to: dates[6] ?? weekStart,
+    projectId,
+  });
 }
 
 /**
@@ -48,10 +63,11 @@ export async function createTask(
   userId: string,
   payload: Omit<Parameters<typeof insertTask>[0], "createdBy">,
 ): Promise<TaskDto> {
-  const assigneeId = payload.projectId ? payload.assigneeId : userId;
+  const assigneeId = payload.projectId ? (payload.assigneeId ?? userId) : userId;
   if (payload.projectId) {
     const role = await findProjectRole(payload.projectId, userId);
-    if (role === "VIEWER" || !role) throw new AppError("FORBIDDEN", 403, "Cannot create task.");
+    if (role === "VIEWER" || !role)
+      throw new AppError("FORBIDDEN", 403, "Cannot create task.");
     if (assigneeId && !(await isProjectMember(payload.projectId, assigneeId))) {
       throw new AppError("BAD_REQUEST", 400, "Assignee must be a project member.");
     }
@@ -85,34 +101,63 @@ export async function createTask(
 export async function updateTask(
   userId: string,
   taskId: string,
-  payload: Partial<Omit<Parameters<typeof updateTaskRow>[2], "completedAt" | "archivedAt">> & {
+  payload: Partial<
+    Omit<Parameters<typeof updateTaskRow>[2], "completedAt" | "archivedAt">
+  > & {
     version: number;
   },
 ): Promise<TaskDto> {
   const task = await getTask(userId, taskId);
-  await assertCanEditTask(userId, task, true);
-  if (payload.projectId === null && task.projectId !== null) {
-    payload.assigneeId = userId;
+  const { version, ...changes } = payload;
+  const changedKeys = Object.keys(changes);
+  const assignmentOnly =
+    changedKeys.length > 0 && changedKeys.every((key) => key === "assigneeId");
+  await assertCanEditTask(userId, task, false, assignmentOnly);
+  if (changes.projectId === null && task.projectId !== null) {
+    if (task.createdBy.id !== userId) {
+      throw new AppError(
+        "FORBIDDEN",
+        403,
+        "Only the task creator can make this a personal task.",
+      );
+    }
+    changes.assigneeId = userId;
   }
-  const targetProjectId = payload.projectId === undefined ? task.projectId : payload.projectId;
-  const targetAssignee = payload.assigneeId === undefined ? task.assignee?.id ?? null : payload.assigneeId;
+  const targetProjectId =
+    changes.projectId === undefined ? task.projectId : changes.projectId;
+  const targetAssignee =
+    changes.assigneeId === undefined ? (task.assignee?.id ?? null) : changes.assigneeId;
   if (targetProjectId && targetProjectId !== task.projectId) {
     const targetRole = await findProjectRole(targetProjectId, userId);
     if (targetRole === "VIEWER" || !targetRole) {
       throw new AppError("FORBIDDEN", 403, "Cannot move task into this project.");
     }
   }
-  if (targetProjectId && targetAssignee && !(await isProjectMember(targetProjectId, targetAssignee))) {
+  if (
+    targetProjectId &&
+    targetAssignee &&
+    !(await isProjectMember(targetProjectId, targetAssignee))
+  ) {
     throw new AppError("BAD_REQUEST", 400, "Assignee must be a project member.");
   }
   if (!targetProjectId && targetAssignee !== userId) {
     throw new AppError("BAD_REQUEST", 400, "Personal tasks cannot be reassigned.");
   }
-  const updated = await updateTaskRow(taskId, payload.version, payload);
+  const updated = await updateTaskRow(taskId, version, changes);
   if (!updated) throw new AppError("CONFLICT", 409, "Task changed on another device.");
-  const eventType = task.assignee?.id !== updated.assignee?.id ? "TASK_ASSIGNED" : "TASK_UPDATED";
-  await createActivityEvent({ actorId: userId, projectId: updated.projectId, taskId, eventType });
-  if (eventType === "TASK_ASSIGNED" && updated.assignee && updated.assignee.id !== userId) {
+  const eventType =
+    task.assignee?.id !== updated.assignee?.id ? "TASK_ASSIGNED" : "TASK_UPDATED";
+  await createActivityEvent({
+    actorId: userId,
+    projectId: updated.projectId,
+    taskId,
+    eventType,
+  });
+  if (
+    eventType === "TASK_ASSIGNED" &&
+    updated.assignee &&
+    updated.assignee.id !== userId
+  ) {
     await createNotification({
       recipientId: updated.assignee.id,
       type: "TASK_ASSIGNED",
@@ -130,13 +175,25 @@ export async function updateTask(
  * Output: Updated task DTO.
  * Side effects: Writes task state and activity.
  */
-export async function startTask(userId: string, taskId: string, version: number): Promise<TaskDto> {
+export async function startTask(
+  userId: string,
+  taskId: string,
+  version: number,
+): Promise<TaskDto> {
   const task = await getTask(userId, taskId);
   await assertCanEditTask(userId, task, false);
   if (task.status !== "TODO") return task;
-  const updated = await updateTaskRow(taskId, version, { status: "IN_PROGRESS", previousStatus: null });
+  const updated = await updateTaskRow(taskId, version, {
+    status: "IN_PROGRESS",
+    previousStatus: null,
+  });
   if (!updated) throw new AppError("CONFLICT", 409, "Task changed on another device.");
-  await createActivityEvent({ actorId: userId, projectId: updated.projectId, taskId, eventType: "TASK_STARTED" });
+  await createActivityEvent({
+    actorId: userId,
+    projectId: updated.projectId,
+    taskId,
+    eventType: "TASK_STARTED",
+  });
   return updated;
 }
 
@@ -146,7 +203,11 @@ export async function startTask(userId: string, taskId: string, version: number)
  * Output: Updated task DTO.
  * Side effects: Writes task completion timestamp and activity.
  */
-export async function completeTask(userId: string, taskId: string, version: number): Promise<TaskDto> {
+export async function completeTask(
+  userId: string,
+  taskId: string,
+  version: number,
+): Promise<TaskDto> {
   const task = await getTask(userId, taskId);
   await assertCanEditTask(userId, task, false);
   if (task.status === "DONE") return task;
@@ -156,7 +217,12 @@ export async function completeTask(userId: string, taskId: string, version: numb
     completedAt: new Date(),
   });
   if (!updated) throw new AppError("CONFLICT", 409, "Task changed on another device.");
-  await createActivityEvent({ actorId: userId, projectId: updated.projectId, taskId, eventType: "TASK_COMPLETED" });
+  await createActivityEvent({
+    actorId: userId,
+    projectId: updated.projectId,
+    taskId,
+    eventType: "TASK_COMPLETED",
+  });
   return updated;
 }
 
@@ -166,14 +232,23 @@ export async function completeTask(userId: string, taskId: string, version: numb
  * Output: Updated task DTO.
  * Side effects: Writes task status and activity.
  */
-export async function reopenTask(userId: string, taskId: string, version: number): Promise<TaskDto> {
+export async function reopenTask(
+  userId: string,
+  taskId: string,
+  version: number,
+): Promise<TaskDto> {
   const task = await getTask(userId, taskId);
   await assertCanEditTask(userId, task, false);
   const next = toggleCompletionState(task.status, task.previousStatus, new Date());
   if (task.status !== "DONE") return task;
   const updated = await updateTaskRow(taskId, version, next);
   if (!updated) throw new AppError("CONFLICT", 409, "Task changed on another device.");
-  await createActivityEvent({ actorId: userId, projectId: updated.projectId, taskId, eventType: "TASK_REOPENED" });
+  await createActivityEvent({
+    actorId: userId,
+    projectId: updated.projectId,
+    taskId,
+    eventType: "TASK_REOPENED",
+  });
   return updated;
 }
 
@@ -183,12 +258,21 @@ export async function reopenTask(userId: string, taskId: string, version: number
  * Output: Archived task DTO.
  * Side effects: Sets archived_at and writes activity.
  */
-export async function archiveTask(userId: string, taskId: string, version: number): Promise<TaskDto> {
+export async function archiveTask(
+  userId: string,
+  taskId: string,
+  version: number,
+): Promise<TaskDto> {
   const task = await getTask(userId, taskId);
-  await assertCanEditTask(userId, task, true);
+  await assertCanEditTask(userId, task, false);
   const updated = await updateTaskRow(taskId, version, { archivedAt: new Date() });
   if (!updated) throw new AppError("CONFLICT", 409, "Task changed on another device.");
-  await createActivityEvent({ actorId: userId, projectId: updated.projectId, taskId, eventType: "TASK_ARCHIVED" });
+  await createActivityEvent({
+    actorId: userId,
+    projectId: updated.projectId,
+    taskId,
+    eventType: "TASK_ARCHIVED",
+  });
   return updated;
 }
 
@@ -226,12 +310,19 @@ async function assertCanViewTask(userId: string, task: TaskDto): Promise<void> {
  * Output: Void when mutation is permitted.
  * Side effects: Reads role for project tasks.
  */
-async function assertCanEditTask(userId: string, task: TaskDto, editAny: boolean): Promise<void> {
+async function assertCanEditTask(
+  userId: string,
+  task: TaskDto,
+  editAny: boolean,
+  allowMemberAssignment = false,
+): Promise<void> {
   if (!task.projectId) {
-    if (task.createdBy.id !== userId) throw new AppError("FORBIDDEN", 403, "Cannot edit task.");
+    if (task.createdBy.id !== userId)
+      throw new AppError("FORBIDDEN", 403, "Cannot edit task.");
     return;
   }
   const role = await findProjectRole(task.projectId, userId);
+  if (allowMemberAssignment && role === "MEMBER") return;
   assertCanMutateTask(userId, role, task.assignee?.id ?? null, editAny);
 }
 
@@ -242,5 +333,10 @@ async function assertCanEditTask(userId: string, task: TaskDto, editAny: boolean
  * Side effects: None.
  */
 export function dashboardRangeFrom(date: string): { from: string; to: string } {
-  return { from: date, to: addDays(new Date(`${date}T00:00:00.000Z`), 7).toISOString().slice(0, 10) };
+  return {
+    from: date,
+    to: addDays(new Date(`${date}T00:00:00.000Z`), 7)
+      .toISOString()
+      .slice(0, 10),
+  };
 }

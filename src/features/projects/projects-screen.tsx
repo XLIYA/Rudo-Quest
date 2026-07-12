@@ -33,6 +33,7 @@ import {
   ProjectIconPicker,
 } from "./project-pickers";
 import { useCreateProject, useProjects } from "./project-hooks";
+import { useOnline } from "@/hooks/use-online";
 
 const invitationRoles = projectRoles.filter(
   (role): role is Exclude<ProjectRole, "OWNER"> => role !== "OWNER",
@@ -54,6 +55,7 @@ export function ProjectsScreen() {
   const [role, setRole] = useState("all");
   const [archived, setArchived] = useState("active");
   const [createOpen, setCreateOpen] = useState(false);
+  const online = useOnline();
   const params = new URLSearchParams();
   if (search) params.set("q", search);
   if (role !== "all") params.set("role", role);
@@ -65,7 +67,11 @@ export function ProjectsScreen() {
       <PageHeader
         title="Projects"
         description="Small shared spaces for assignment, progress, members, and one GitHub repository."
-        action={<AppButton onClick={() => setCreateOpen(true)}>Create project</AppButton>}
+        action={
+          <AppButton onClick={() => setCreateOpen(true)} disabled={!online}>
+            Create project
+          </AppButton>
+        }
       />
       <section className="grid gap-3 rounded-lg border border-border bg-surface p-4 md:grid-cols-[1fr_12rem_12rem]">
         <AppInput
@@ -93,20 +99,33 @@ export function ProjectsScreen() {
           ]}
         />
       </section>
+      {query.isError ? (
+        <AppEmptyState
+          title="Projects unavailable"
+          description="Rudo Quest could not load your projects. Try again when the connection is available."
+          action={
+            <AppButton variant="secondary" onClick={() => void query.refetch()}>
+              Try again
+            </AppButton>
+          }
+        />
+      ) : null}
       {query.isLoading ? <ProjectGridSkeleton /> : null}
-      {query.data?.length ? (
+      {!query.isError && query.data?.length ? (
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {query.data.map((project) => (
             <ProjectCard key={project.id} project={project} />
           ))}
         </section>
       ) : null}
-      {query.data && !query.data.length ? (
+      {!query.isError && query.data && !query.data.length ? (
         <AppEmptyState
           title="No projects"
           description="Create a project when a task needs a shared owner, member list, or GitHub repository."
           action={
-            <AppButton onClick={() => setCreateOpen(true)}>Create project</AppButton>
+            <AppButton onClick={() => setCreateOpen(true)} disabled={!online}>
+              Create project
+            </AppButton>
           }
         />
       ) : null}
@@ -178,6 +197,7 @@ function CreateProjectDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const createProject = useCreateProject();
+  const online = useOnline();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [iconKey, setIconKey] = useState<ProjectIconKey>("Compass");
@@ -298,7 +318,10 @@ function CreateProjectDialog({
             />
             <ProjectIconPicker value={iconKey} onChange={setIconKey} />
             <ProjectColorPicker value={colorKey} onChange={setColorKey} />
-            <AppButton disabled={title.trim().length < 2} onClick={() => setStep(2)}>
+            <AppButton
+              disabled={!online || title.trim().length < 2}
+              onClick={() => setStep(2)}
+            >
               Next
             </AppButton>
           </>
@@ -408,7 +431,9 @@ function CreateProjectDialog({
               <AppButton variant="secondary" onClick={() => setStep(1)}>
                 Back
               </AppButton>
-              <AppButton onClick={() => setStep(3)}>Next</AppButton>
+              <AppButton disabled={!online} onClick={() => setStep(3)}>
+                Next
+              </AppButton>
             </div>
           </>
         ) : null}
@@ -422,7 +447,7 @@ function CreateProjectDialog({
               <AppButton variant="secondary" onClick={() => setStep(2)}>
                 Back
               </AppButton>
-              <AppButton disabled={createProject.isPending} onClick={submit}>
+              <AppButton disabled={!online || createProject.isPending} onClick={submit}>
                 Create project
               </AppButton>
             </div>

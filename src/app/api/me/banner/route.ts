@@ -17,7 +17,9 @@ export async function PATCH(request: NextRequest) {
   return withApiHandler(request, async (requestId) => {
     const user = await requireCurrentUser();
     const body = assetSchema.parse(await readJson(request));
-    return apiSuccess(await commitProfileAsset(user.id, "banner", body.path), { requestId });
+    return apiSuccess(await commitProfileAsset(user.id, "banner", body.path), {
+      requestId,
+    });
   });
 }
 

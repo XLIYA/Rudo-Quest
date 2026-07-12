@@ -5,7 +5,10 @@ import { createInvitationSchema } from "@/lib/validation/projects";
 import { withApiHandler, readJson } from "@/server/api/handler";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { assertRateLimit } from "@/server/security/rate-limit";
-import { getProjectInvitations, inviteProjectMember } from "@/server/services/project-service";
+import {
+  getProjectInvitations,
+  inviteProjectMember,
+} from "@/server/services/project-service";
 
 type Context = { params: Promise<{ projectId: string }> };
 
@@ -19,7 +22,9 @@ export async function GET(request: NextRequest, context: Context) {
   return withApiHandler(request, async (requestId) => {
     const user = await requireCurrentUser();
     const { projectId } = await context.params;
-    return apiSuccess(await getProjectInvitations(user.id, uuidSchema.parse(projectId)), { requestId });
+    return apiSuccess(await getProjectInvitations(user.id, uuidSchema.parse(projectId)), {
+      requestId,
+    });
   });
 }
 
@@ -35,9 +40,12 @@ export async function POST(request: NextRequest, context: Context) {
     await assertRateLimit("project-invite", user.id, 30, 3600);
     const { projectId } = await context.params;
     const body = createInvitationSchema.parse(await readJson(request));
-    return apiSuccess(await inviteProjectMember(user.id, uuidSchema.parse(projectId), body), {
-      status: 201,
-      requestId,
-    });
+    return apiSuccess(
+      await inviteProjectMember(user.id, uuidSchema.parse(projectId), body),
+      {
+        status: 201,
+        requestId,
+      },
+    );
   });
 }

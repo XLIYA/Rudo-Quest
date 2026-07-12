@@ -1,91 +1,39 @@
-# Audit Fixes
+# Audit remediation record
 
-This document records the root cause, fix, and verification coverage for the July 2026 audit findings.
+This document describes the implemented remediation for the July 2026 audit. It is intentionally limited to behavior that is implemented in the repository and covered by the production checks.
 
-## Task project reassignment
+## Security and data integrity
 
-Root cause: `updateTask` authorized the actor against the source task only. When `projectId` changed, the target project was not checked, and `assigneeId: null` bypassed the only target membership check.
+GitHub installation state is now persisted in `github_installation_states`, signed, short-lived, bound to the authenticated Rudo user, and atomically consumed. The callback exchanges the OAuth code only once, verifies the installation against GitHub's user-installations endpoint, rejects existing ownership by another Rudo user, and never overwrites `installed_by`. Installation and repository tokens remain server-only. GitHub webhook bodies are bounded and HMAC-verified.
 
-Fix: `updateTask` now checks the actor's role in the target project whenever a task moves across project boundaries. Missing roles and viewer roles are rejected before the update is written.
+Hosted PostgreSQL uses certificate verification. Production state-changing requests require an allowed Origin, production request identity uses platform-forwarded address data, and Upstash-backed rate limiting fails closed when production credentials are absent. JSON and webhook bodies are streamed with byte limits. Production CSP uses request nonces and does not allow unsafe inline scripts or eval.
 
-Verification: `src/server/services/task-service.test.ts` covers no-role, viewer, and member target-project moves.
+RLS is enabled on the integration and delivery tables, the recursive membership policy was replaced with security-definer helpers, and policies cover project, task, activity, notification, push, invitation, GitHub, and repository visibility. Migrations add task integrity/version triggers, project-owner membership integrity, delivery uniqueness, and retry columns. Invitation expiry is transitioned to `EXPIRED` before invitation reads and transitions. Activity cursors contain both timestamp and event ID.
 
-## Activity pagination leakage
+## Projects, invitations, and GitHub
 
-Root cause: the activity repository used the access predicate only for the first page. Cursor requests replaced it with `created_at < cursor`, allowing older global activity to be returned.
+Project creation writes the project, owner membership, validated invitation users, and invitations in one database transaction. Project settings now updates title, description, icon, color, and timezone. Member role changes, member removal, invitation revocation, repository disconnect, project archive, and ownership transfer all use confirmation dialogs. Ownership transfer updates both the project owner and membership roles atomically and requires explicit confirmation.
 
-Fix: cursor filtering is now combined with project membership and personal-task visibility predicates. A defensive row-level visibility check also runs before serialization.
+Task assignment search returns project members through a real accessible combobox. Members can edit assigned tasks and assign project-member tasks; viewers cannot mutate project data. Project detail activity is scoped to the selected project, task activity has a dedicated API and sheet view, and project task queries apply project filtering in SQL.
 
-Verification: `src/server/repositories/activity-repository.test.ts` covers project membership and personal activity visibility rules.
+## Tasks and weekly behavior
 
-## GitHub installation validation
+Start, complete, and reopen actions call their dedicated APIs immediately. Optimistic updates snapshot and roll back week/detail caches, preserve task versions, and invalidate affected queries. Generic updates no longer accept arbitrary status changes. Database triggers normalize `completed_at` and `previous_status`; archived tasks and tasks belonging to archived projects are excluded from normal weekly queries. The responsive task detail surface resets draft state by task/version and exposes the full task history.
 
-Root cause: the GitHub repository endpoints trusted caller-provided installation IDs and repository metadata. The callback accepted GitHub query parameters without validating the `state` value or persisting verified installation ownership.
+The weekly date is URL state, so direct links, browser navigation, week navigation, and day selection restore the same expanded day. The dashboard and project task rows open the same task sheet.
 
-Fix: installation start now creates a signed, expiring state token. The callback verifies state against the current user, fetches installation metadata from GitHub, and persists ownership. Repository listing and connection require a stored installation row owned by the actor, and connection metadata is fetched from GitHub instead of accepted from the client.
+## Profile, settings, and notifications
 
-Verification: `src/lib/github/app.test.ts` covers state validation. `src/server/services/github-service.test.ts` covers installation ownership and GitHub-sourced repository metadata.
+Profile now supports signed private avatar/banner uploads, browser-side cropping, server-side byte/MIME/dimension validation, replacement cleanup, preset banners, theme/timezone/reminder/quiet-hour controls, password reset, push opt-in, and activity display. Settings is a dedicated route rather than a profile redirect. Notifications has a dedicated center, unread badge, optimistic read actions, invitation accept/decline actions, invitation-accepted notifications, due-today reminders, daily digest notifications, quiet hours, dedupe keys, retry-aware delivery logs, and dead-subscription cleanup.
 
-## Production rate limiting
+## Offline and deployment
 
-Root cause: the Upstash rate limiter was cached as one global instance, so whichever route initialized it first set the limit and window for every later route.
+Serwist precaches the app shell and offline route but uses `NetworkOnly` for all application API paths. Selected successful TanStack Query reads are persisted in user-scoped IndexedDB with versioning and a seven-day expiry. Cached reads restore only after a server-confirmed user bootstrap or while offline; logout clears the active user's cache. All mutations are blocked offline and no mutation is presented as successful without a server response. Vercel Cron runs every fifteen minutes and requires `CRON_SECRET`.
 
-Fix: Upstash limiters are cached by route key, limit, and window. Redis itself is still shared, but each route policy gets its own limiter instance.
+The linked Vercel project is currently on the Hobby plan, which rejects this required fifteen-minute Cron schedule during deployment. The application build and existing production deployment were verified, but promoting this remediation requires upgrading that project to a plan that supports sub-daily Cron Jobs.
 
-Verification: `src/server/security/rate-limit.test.ts` proves different route policies create distinct limiters.
+The existing heatmap implementation and current font configuration are intentionally unchanged, per the remediation instructions.
 
-## Login open redirect
+## Verification
 
-Root cause: the auth form passed the raw `next` query parameter to `router.push`.
-
-Fix: login redirects now pass through `getSafePostLoginPath`, which only allows internal absolute paths and falls back to `/dashboard` for external, protocol-relative, malformed, or non-path values.
-
-Verification: `src/features/auth/auth-form.test.ts` covers accepted and rejected redirect values.
-
-## Invitation authorization
-
-Root cause: accept checked the invited user and revoke checked admin role, but decline had no actor check.
-
-Fix: invitation transitions now load the invitation before mutation. Accept and decline are limited to the invited user; revoke remains limited to project admins and owners.
-
-Verification: `src/server/services/project-service.test.ts` covers unauthorized decline, invited-user decline, and non-admin revoke.
-
-## Client error normalization
-
-Root cause: Axios interceptors rejected already-normalized API errors, but hooks normalized them again and converted them to a generic "Unexpected client error."
-
-Fix: `normalizeApiClientError` is now idempotent and returns existing `ApiClientError` objects unchanged.
-
-Verification: `src/lib/api/client.test.ts` covers already-normalized errors.
-
-## Signup failure handling
-
-Root cause: the signup route ignored Supabase `signUp` errors and always returned HTTP 201.
-
-Fix: signup now throws a safe `BAD_REQUEST` response when Supabase returns an error or no user.
-
-Verification: covered by `npm run typecheck` and route-level error handling. Add integration coverage when authenticated e2e setup is available.
-
-## Daily reminder count
-
-Root cause: `countDueTasksForDate` claimed to count incomplete tasks but did not exclude `DONE`.
-
-Fix: the repository query now filters out completed tasks before cron notification creation.
-
-Verification: covered by `npm run typecheck`; add database-backed repository coverage when test database fixtures are introduced.
-
-## Task row and form button events
-
-Root cause: the task checkbox bubbled clicks into the row open handler, and `AppButton` defaulted to native submit behavior inside forms.
-
-Fix: `AppButton` defaults to `type="button"` unless overridden, the task detail archive button is explicit, `TaskCheckbox` stops propagation, and `TaskRow` uses a dedicated content button instead of an interactive wrapper with nested controls.
-
-Verification: `src/components/ui/app-button.test.tsx` and `src/components/ui/task-row.test.tsx` cover button type and task row event isolation.
-
-## Profile asset commit and display
-
-Root cause: avatar/banner commit routes accepted any string path. Stored private Supabase Storage paths were also passed to avatar image components as if they were browser-readable URLs.
-
-Fix: commit now enforces the generated `{userId}/{kind}-{uuid}.{jpeg|png|webp}` path pattern, verifies the object exists in the private bucket, and returns signed URLs for profile assets in API DTOs and summaries.
-
-Verification: `src/server/profile-assets.test.ts` covers path ownership and format validation.
+The current repository verification commands are `npm run format`, `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, `npm audit --omit=dev`, `git diff --check`, and `npx playwright test`. The production migration runner has applied migrations `0001_audit_hardening.sql`, `0002_integrity_and_delivery_retries.sql`, and `0003_rls_membership_transitions.sql` to the configured Supabase database. Browser dependency installation is documented in the local setup instructions for environments where Playwright's system libraries are absent.

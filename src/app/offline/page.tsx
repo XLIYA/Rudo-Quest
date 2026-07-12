@@ -12,9 +12,13 @@ export default function OfflinePage() {
       <section className="max-w-sm rounded-lg border border-border bg-surface p-6 text-center">
         <h1 className="font-display text-4xl">Offline</h1>
         <p className="mt-3 text-sm leading-6 text-text-secondary">
-          Rudo Quest can show recently synchronized weekly and dashboard data. Mutations stay disabled until reconnection.
+          Rudo Quest can show recently synchronized weekly and dashboard data. Mutations
+          stay disabled until reconnection.
         </p>
-        <Link href="/dashboard" className="mt-6 inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-white">
+        <Link
+          href="/dashboard"
+          className="mt-6 inline-flex min-h-11 items-center rounded-md bg-brand px-4 text-sm font-semibold text-white"
+        >
           Dashboard
         </Link>
       </section>

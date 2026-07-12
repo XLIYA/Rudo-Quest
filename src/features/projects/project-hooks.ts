@@ -1,10 +1,15 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { AppToast } from "@/components/ui/app-toast";
 import { apiGet, apiMutation, normalizeApiClientError } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
-import type { ProjectColorKey, ProjectIconKey, ProjectRole, ProjectSummary } from "@/types/domain";
+import type {
+  ProjectColorKey,
+  ProjectIconKey,
+  ProjectRole,
+  ProjectSummary,
+} from "@/types/domain";
 
 /**
  * Purpose: Fetch project list data.
@@ -49,7 +54,7 @@ export function useCreateProject() {
       timeZone: string;
       invitations: { userId: string; role: Exclude<ProjectRole, "OWNER"> }[];
     }) => apiMutation<ProjectSummary>("post", "/api/projects", body),
-    onError: (error) => toast.error(normalizeApiClientError(error).message),
+    onError: (error) => AppToast(normalizeApiClientError(error).message, "error"),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.projects }),
   });
 }

@@ -29,7 +29,9 @@ export const AppTextarea = forwardRef<HTMLTextAreaElement, AppTextareaProps>(
           )}
           {...props}
         />
-        {error && inputId ? <span className="text-xs font-medium text-error">{error}</span> : null}
+        {error && inputId ? (
+          <span className="text-xs font-medium text-error">{error}</span>
+        ) : null}
       </label>
     );
   },

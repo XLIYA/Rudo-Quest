@@ -10,7 +10,13 @@ import {
 } from "@/db/schema";
 import { getDb } from "@/lib/db/client";
 import { createProfileAssetUrlMap, profileAssetUrl } from "@/server/profile-assets";
-import type { ProjectColorKey, ProjectIconKey, ProjectRole, ProjectSummary } from "@/types/domain";
+import type {
+  ProjectColorKey,
+  ProjectIconKey,
+  ProjectRole,
+  ProjectSummary,
+} from "@/types/domain";
+import { AppError } from "@/lib/api/errors";
 
 /**
  * Purpose: Find the current user's role in a project.
@@ -25,25 +31,43 @@ export async function findProjectRole(
   const rows = await getDb()
     .select({ role: projectMemberships.role })
     .from(projectMemberships)
-    .where(and(eq(projectMemberships.projectId, projectId), eq(projectMemberships.userId, userId)))
+    .where(
+      and(
+        eq(projectMemberships.projectId, projectId),
+        eq(projectMemberships.userId, userId),
+      ),
+    )
     .limit(1);
   return (rows[0]?.role as ProjectRole | undefined) ?? null;
 }
 
 /**
- * Purpose: Create a project and owner membership atomically.
- * Inputs: Creator ID and validated project fields.
- * Output: Created project row.
- * Side effects: Inserts project and owner membership in a transaction.
+ * Purpose: Create a project, owner membership, and all initial invitations atomically.
+ * Inputs: Owner identity, validated project fields, and unique invitation payloads.
+ * Output: Project row and inserted invitation rows.
+ * Side effects: Writes projects, memberships, and invitations in one transaction.
+ * Failure behavior: Rolls back the entire operation when an invite is invalid or duplicated.
  */
-export async function insertProject(input: {
+export async function insertProjectWithInvitations(input: {
   ownerId: string;
   title: string;
   description?: string | null;
   iconKey: ProjectIconKey;
   colorKey: ProjectColorKey;
   timeZone: string;
+  invitations: { userId: string; role: Exclude<ProjectRole, "OWNER"> }[];
 }) {
+  const invitedUserIds = input.invitations.map((invitation) => invitation.userId);
+  if (
+    invitedUserIds.includes(input.ownerId) ||
+    new Set(invitedUserIds).size !== invitedUserIds.length
+  ) {
+    throw new AppError(
+      "CONFLICT",
+      409,
+      "Project invitations contain a duplicate member.",
+    );
+  }
   return getDb().transaction(async (tx) => {
     const [project] = await tx
       .insert(projects)
@@ -62,7 +86,32 @@ export async function insertProject(input: {
       userId: input.ownerId,
       role: "OWNER",
     });
-    return project;
+
+    if (invitedUserIds.length) {
+      const existingProfiles = await tx
+        .select({ id: profiles.id })
+        .from(profiles)
+        .where(inArray(profiles.id, invitedUserIds));
+      if (existingProfiles.length !== invitedUserIds.length) {
+        throw new AppError("BAD_REQUEST", 400, "One or more invited users do not exist.");
+      }
+    }
+    const createdInvitations = input.invitations.length
+      ? await tx
+          .insert(projectInvitations)
+          .values(
+            input.invitations.map((invitation) => ({
+              projectId: project.id,
+              invitedUserId: invitation.userId,
+              role: invitation.role,
+              status: "PENDING" as const,
+              invitedBy: input.ownerId,
+              expiresAt: addDays(new Date(), 7),
+            })),
+          )
+          .returning()
+      : [];
+    return { project, invitations: createdInvitations };
   });
 }
 
@@ -126,6 +175,7 @@ export async function listProjectSummaries(input: {
       description: projects.description,
       iconKey: projects.iconKey,
       colorKey: projects.colorKey,
+      timeZone: projects.timeZone,
       archivedAt: projects.archivedAt,
       createdAt: projects.createdAt,
       repo: projectRepositories.repositoryFullName,
@@ -161,37 +211,43 @@ export async function listProjectSummaries(input: {
     .innerJoin(profiles, eq(projectMemberships.userId, profiles.id))
     .where(inArray(projectMemberships.projectId, ids));
 
-  const taskRows = await getDb()
+  const taskAggregates = await getDb()
     .select({
       projectId: tasks.projectId,
-      status: tasks.status,
-      scheduledDate: tasks.scheduledDate,
+      openTaskCount: sql<number>`count(*) filter (where ${tasks.status} <> 'DONE')`,
+      completedWeek: sql<number>`count(*) filter (where ${tasks.status} = 'DONE' and ${tasks.scheduledDate} >= ${addDays(new Date(), -7).toISOString().slice(0, 10)})`,
+      weekTotal: sql<number>`count(*) filter (where ${tasks.scheduledDate} >= ${addDays(new Date(), -7).toISOString().slice(0, 10)})`,
     })
     .from(tasks)
-    .where(and(inArray(tasks.projectId, ids), isNull(tasks.archivedAt)));
+    .where(and(inArray(tasks.projectId, ids), isNull(tasks.archivedAt)))
+    .groupBy(tasks.projectId);
 
   const byProject = new Map<string, typeof members>();
   for (const member of members) {
     byProject.set(member.projectId, [...(byProject.get(member.projectId) ?? []), member]);
   }
-  const today = new Date();
-  const weekAgo = addDays(today, -7);
-  const avatarUrls = await createProfileAssetUrlMap(members.map((member) => member.avatarPath));
+  const aggregateByProject = new Map(
+    taskAggregates.map((aggregate) => [aggregate.projectId, aggregate]),
+  );
+  const avatarUrls = await createProfileAssetUrlMap(
+    members.map((member) => member.avatarPath),
+  );
   return membershipRows.map((project) => {
-    const projectTasks = taskRows.filter((task) => task.projectId === project.projectId);
-    const completedWeek = projectTasks.filter(
-      (task) => task.status === "DONE" && new Date(task.scheduledDate) >= weekAgo,
-    ).length;
-    const weekTotal = projectTasks.filter((task) => new Date(task.scheduledDate) >= weekAgo).length;
+    const aggregate = aggregateByProject.get(project.projectId);
+    const completedWeek = Number(aggregate?.completedWeek ?? 0);
+    const weekTotal = Number(aggregate?.weekTotal ?? 0);
     return {
       id: project.projectId,
       title: project.title,
       description: project.description,
       iconKey: project.iconKey as ProjectIconKey,
       colorKey: project.colorKey as ProjectColorKey,
+      timeZone: project.timeZone,
       role: project.role as ProjectRole,
-      openTaskCount: projectTasks.filter((task) => task.status !== "DONE").length,
-      weeklyCompletionPercent: weekTotal ? Math.round((completedWeek / weekTotal) * 100) : 0,
+      openTaskCount: Number(aggregate?.openTaskCount ?? 0),
+      weeklyCompletionPercent: weekTotal
+        ? Math.round((completedWeek / weekTotal) * 100)
+        : 0,
       githubRepositoryFullName: project.repo,
       members: (byProject.get(project.projectId) ?? []).slice(0, 5).map((member) => ({
         id: member.userId,
@@ -214,6 +270,41 @@ export async function listProjectSummaries(input: {
 export async function findProjectSummary(projectId: string, userId: string) {
   const projectsForUser = await listProjectSummaries({ userId, archived: "all" });
   return projectsForUser.find((project) => project.id === projectId) ?? null;
+}
+
+/**
+ * Purpose: Resolve the immutable owner identity for project notifications and transfers.
+ * Inputs: Project ID.
+ * Output: Owner user ID or null.
+ * Side effects: Reads projects.
+ */
+export async function findProjectOwnerId(projectId: string): Promise<string | null> {
+  const rows = await getDb()
+    .select({ ownerId: projects.ownerId })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  return rows[0]?.ownerId ?? null;
+}
+
+/**
+ * Purpose: Expire all pending invitations whose seven-day window has elapsed.
+ * Inputs: None.
+ * Output: Number of invitations transitioned to EXPIRED.
+ * Side effects: Updates project_invitations.
+ */
+export async function expirePendingInvitations(): Promise<number> {
+  const rows = await getDb()
+    .update(projectInvitations)
+    .set({ status: "EXPIRED" })
+    .where(
+      and(
+        eq(projectInvitations.status, "PENDING"),
+        sql`${projectInvitations.expiresAt} <= now()`,
+      ),
+    )
+    .returning({ id: projectInvitations.id });
+  return rows.length;
 }
 
 /**
@@ -333,7 +424,12 @@ export async function findProjectInvitation(projectId: string, invitationId: str
   const rows = await getDb()
     .select()
     .from(projectInvitations)
-    .where(and(eq(projectInvitations.id, invitationId), eq(projectInvitations.projectId, projectId)))
+    .where(
+      and(
+        eq(projectInvitations.id, invitationId),
+        eq(projectInvitations.projectId, projectId),
+      ),
+    )
     .limit(1);
   return rows[0] ?? null;
 }
@@ -363,7 +459,10 @@ export async function transitionInvitation(input: {
       .limit(1);
     if (!invitation || invitation.status !== "PENDING") return null;
     if (input.status === "ACCEPTED") {
-      if (invitation.invitedUserId !== input.actorId || invitation.expiresAt < new Date()) {
+      if (
+        invitation.invitedUserId !== input.actorId ||
+        invitation.expiresAt < new Date()
+      ) {
         return null;
       }
       await tx.insert(projectMemberships).values({
@@ -381,6 +480,61 @@ export async function transitionInvitation(input: {
       .where(eq(projectInvitations.id, invitation.id))
       .returning();
     return updated ?? null;
+  });
+}
+
+/**
+ * Purpose: Transfer project ownership to an existing non-owner member atomically.
+ * Inputs: Project ID and target member ID.
+ * Output: Updated owner and previous-owner memberships.
+ * Side effects: Changes two membership roles in one transaction.
+ * Failure behavior: Returns null when the target is not an active member.
+ */
+export async function transferProjectOwnership(input: {
+  projectId: string;
+  currentOwnerId: string;
+  targetUserId: string;
+}) {
+  return getDb().transaction(async (tx) => {
+    const target = await tx
+      .select({ role: projectMemberships.role })
+      .from(projectMemberships)
+      .where(
+        and(
+          eq(projectMemberships.projectId, input.projectId),
+          eq(projectMemberships.userId, input.targetUserId),
+          ne(projectMemberships.role, "OWNER"),
+        ),
+      )
+      .limit(1);
+    if (!target.length) return null;
+    await tx
+      .update(projectMemberships)
+      .set({ role: "ADMIN" })
+      .where(
+        and(
+          eq(projectMemberships.projectId, input.projectId),
+          eq(projectMemberships.userId, input.currentOwnerId),
+          eq(projectMemberships.role, "OWNER"),
+        ),
+      );
+    await tx
+      .update(projects)
+      .set({ ownerId: input.targetUserId, updatedAt: new Date() })
+      .where(
+        and(eq(projects.id, input.projectId), eq(projects.ownerId, input.currentOwnerId)),
+      );
+    const [newOwner] = await tx
+      .update(projectMemberships)
+      .set({ role: "OWNER" })
+      .where(
+        and(
+          eq(projectMemberships.projectId, input.projectId),
+          eq(projectMemberships.userId, input.targetUserId),
+        ),
+      )
+      .returning();
+    return newOwner ?? null;
   });
 }
 
@@ -435,11 +589,19 @@ export async function removeMember(input: { projectId: string; userId: string })
  * Output: True when a membership exists.
  * Side effects: Reads memberships.
  */
-export async function isProjectMember(projectId: string, userId: string): Promise<boolean> {
+export async function isProjectMember(
+  projectId: string,
+  userId: string,
+): Promise<boolean> {
   const rows = await getDb()
     .select({ id: projectMemberships.id })
     .from(projectMemberships)
-    .where(and(eq(projectMemberships.projectId, projectId), eq(projectMemberships.userId, userId)))
+    .where(
+      and(
+        eq(projectMemberships.projectId, projectId),
+        eq(projectMemberships.userId, userId),
+      ),
+    )
     .limit(1);
   return rows.length > 0;
 }

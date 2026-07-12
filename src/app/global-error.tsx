@@ -25,7 +25,9 @@ export default function GlobalError({
         <main className="flex min-h-screen items-center justify-center bg-background p-6 text-text-primary">
           <section className="max-w-sm rounded-lg border border-border bg-surface p-6 shadow-[var(--shadow-raised)]">
             <h1 className="text-xl font-semibold">Rudo Quest hit a problem</h1>
-            <p className="mt-2 text-sm text-text-secondary">The application failed to render this view.</p>
+            <p className="mt-2 text-sm text-text-secondary">
+              The application failed to render this view.
+            </p>
             <button
               type="button"
               onClick={reset}

@@ -23,8 +23,11 @@ export const createProjectSchema = z.object({
       }),
     )
     .max(20)
+    .refine(
+      (items) => new Set(items.map((item) => item.userId)).size === items.length,
+      "Each collaborator may only be invited once.",
+    )
     .default([]),
-  repositoryId: z.number().int().positive().optional(),
 });
 
 export const updateProjectSchema = createProjectSchema
@@ -50,4 +53,9 @@ export const projectListQuerySchema = z.object({
   q: z.string().trim().max(80).optional(),
   role: projectRoleSchema.optional(),
   archived: z.enum(["active", "archived", "all"]).default("active"),
+});
+
+export const transferOwnershipSchema = z.object({
+  targetUserId: uuidSchema,
+  confirm: z.literal(true),
 });

@@ -42,6 +42,14 @@ export class AppError extends Error {
  */
 export function normalizeAppError(error: unknown): AppError {
   if (error instanceof AppError) return error;
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "23505"
+  ) {
+    return new AppError("CONFLICT", 409, "That resource is already in use.");
+  }
   if (error instanceof Error && error.message.startsWith("INTEGRATION_NOT_CONFIGURED:")) {
     return new AppError(
       "INTEGRATION_NOT_CONFIGURED",

@@ -19,6 +19,8 @@ export async function POST(request: NextRequest, context: Context) {
     const user = await requireCurrentUser();
     const { taskId } = await context.params;
     const body = taskActionSchema.parse(await readJson(request));
-    return apiSuccess(await reopenTask(user.id, uuidSchema.parse(taskId), body.version), { requestId });
+    return apiSuccess(await reopenTask(user.id, uuidSchema.parse(taskId), body.version), {
+      requestId,
+    });
   });
 }

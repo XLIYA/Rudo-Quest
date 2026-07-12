@@ -7,14 +7,17 @@ const dbMock = vi.hoisted(() => {
   const query: {
     select: ReturnType<typeof vi.fn>;
     from: ReturnType<typeof vi.fn>;
+    leftJoin: ReturnType<typeof vi.fn>;
     where: ReturnType<typeof vi.fn>;
   } = {
     select: vi.fn(),
     from: vi.fn(),
+    leftJoin: vi.fn(),
     where: vi.fn(),
   };
   query.select.mockReturnValue(query);
   query.from.mockReturnValue(query);
+  query.leftJoin.mockReturnValue(query);
   query.where.mockImplementation((predicate: unknown) => {
     captured.wherePredicate = predicate;
     return Promise.resolve([{ id: "task-1" }]);

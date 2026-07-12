@@ -23,6 +23,9 @@ npm run lint
 npm run typecheck
 npm run test
 npm run build
+npm run format
+npm audit --omit=dev
+git diff --check
 npx playwright test
 ```
 
@@ -32,7 +35,7 @@ All variables are listed in `.env.example`. Supabase and `DATABASE_URL` are requ
 
 ## Database
 
-Schema lives in `src/db/schema/index.ts`. The initial SQL migration with indexes and RLS defense-in-depth policies is `src/db/migrations/0000_initial.sql`. Drizzle Kit is configured in `drizzle.config.ts`.
+Schema lives in `src/db/schema/index.ts`. Migrations `0000_initial.sql`, `0001_audit_hardening.sql`, `0002_integrity_and_delivery_retries.sql`, and `0003_rls_membership_transitions.sql` are applied by `npm run db:migrate`. Drizzle Kit is configured in `drizzle.config.ts`.
 
 ## Application
 
@@ -40,7 +43,7 @@ Browser mutations go through Route Handlers via `src/lib/api/client.ts`, the sin
 
 ## PWA
 
-Serwist builds `public/sw.js` from `src/app/sw.ts`. The app manifest is `src/app/manifest.ts`; generated icons are in `public/icons`.
+Serwist builds `public/sw.js` from `src/app/sw.ts`. The service worker precaches the app shell and offline route, never caches authenticated API responses, and uses IndexedDB-backed, user-scoped TanStack Query persistence for selected reads. Mutations are blocked offline; no mutation queue exists in V1. The app manifest is `src/app/manifest.ts`; icons are in `public/icons`.
 
 ## Documentation
 

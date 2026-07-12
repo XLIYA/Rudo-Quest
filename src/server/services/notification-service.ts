@@ -3,11 +3,14 @@ import { AppError } from "@/lib/api/errors";
 import { getServerEnv, hasPushEnv } from "@/lib/env/server";
 import { pushSubscriptionSchema } from "@/lib/validation/common";
 import type { NotificationDto, NotificationType } from "@/types/domain";
+import { findProfileById } from "@/server/repositories/profile-repository";
 import {
   deletePushSubscription,
   deletePushSubscriptionById,
   insertNotification,
   listNotifications,
+  listNotificationDeliveryStatuses,
+  listRetryableNotificationDeliveries,
   listPushSubscriptions,
   markAllNotificationsRead,
   markNotificationRead,
@@ -27,6 +30,7 @@ export async function createNotification(input: {
   title: string;
   body?: string | null;
   href?: string | null;
+  dedupeKey?: string | null;
 }): Promise<NotificationDto> {
   return insertNotification(input);
 }
@@ -107,17 +111,29 @@ export async function unsubscribeFromPush(userId: string, payload: unknown) {
 export async function sendPushForNotification(
   notification: NotificationDto,
   userId: string,
+  selectedSubscriptions?: Awaited<ReturnType<typeof listPushSubscriptions>>,
 ) {
   const env = getServerEnv();
   if (!hasPushEnv(env)) return { sent: 0 };
+  const profile = await findProfileById(userId);
+  if (!profile?.notificationsEnabled) return { sent: 0 };
   webPush.setVapidDetails(
     env.VAPID_SUBJECT ?? "mailto:admin@example.com",
     env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "",
     env.VAPID_PRIVATE_KEY ?? "",
   );
   let sent = 0;
-  const subscriptions = await listPushSubscriptions(userId);
+  const subscriptions = selectedSubscriptions ?? (await listPushSubscriptions(userId));
+  const deliveryStatuses = await listNotificationDeliveryStatuses(notification.id);
   for (const subscription of subscriptions) {
+    const delivery = deliveryStatuses.get(subscription.id);
+    if (delivery?.status === "SENT") continue;
+    if (
+      delivery?.status === "FAILED" &&
+      (delivery.attemptCount >= 3 ||
+        (delivery.nextRetryAt && delivery.nextRetryAt > new Date()))
+    )
+      continue;
     try {
       await webPush.sendNotification(
         {
@@ -153,4 +169,24 @@ export async function sendPushForNotification(
     }
   }
   return { sent };
+}
+
+/**
+ * Purpose: Retry failed push deliveries whose exponential backoff has elapsed.
+ * Inputs: Current clock and optional bounded batch size.
+ * Output: Number of retry attempts started and successful sends.
+ * Side effects: Sends push requests and updates delivery logs; removes dead subscriptions.
+ */
+export async function retryPushDeliveries(now = new Date(), limit = 100) {
+  const deliveries = await listRetryableNotificationDeliveries(now, limit);
+  let sent = 0;
+  for (const delivery of deliveries) {
+    const result = await sendPushForNotification(
+      delivery.notification,
+      delivery.recipientId,
+      [delivery.subscription],
+    );
+    sent += result.sent;
+  }
+  return { attempted: deliveries.length, sent };
 }

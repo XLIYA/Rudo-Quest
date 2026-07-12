@@ -139,6 +139,34 @@ export function getRedisRestCredentials(
 }
 
 /**
+ * Purpose: Verify the non-optional production runtime configuration at process startup.
+ * Inputs: Parsed server environment, normally from process.env.
+ * Output: Void when the application can safely start.
+ * Side effects: None.
+ * Failure behavior: Throws a descriptive startup error for missing base infrastructure.
+ */
+export function assertProductionEnv(env: ServerEnv = getServerEnv()): void {
+  if (env.NODE_ENV !== "production") return;
+  const missing = [
+    ["NEXT_PUBLIC_APP_URL", env.NEXT_PUBLIC_APP_URL],
+    ["NEXT_PUBLIC_SUPABASE_URL", env.NEXT_PUBLIC_SUPABASE_URL],
+    [
+      "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      getSupabasePublicKey(env),
+    ],
+    ["SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY", getSupabaseAdminKey(env)],
+    ["DATABASE_URL", env.DATABASE_URL],
+  ]
+    .filter(([, value]) => !value)
+    .map(([name]) => name);
+  if (missing.length) {
+    throw new Error(
+      `Missing required production environment variables: ${missing.join(", ")}`,
+    );
+  }
+}
+
+/**
  * Purpose: Read a required integration value at runtime.
  * Inputs: Integration name and candidate value.
  * Output: The candidate value when present.

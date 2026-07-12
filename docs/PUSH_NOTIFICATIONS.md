@@ -17,3 +17,11 @@ The scheduled endpoint is `POST /api/cron/notifications` and requires:
 ```text
 Authorization: Bearer CRON_SECRET
 ```
+
+Vercel invokes the endpoint every 15 minutes. Each user is evaluated in their
+configured IANA timezone, quiet hours are respected, and due-today plus daily
+digest notifications use database unique dedupe keys. Delivery rows enforce
+one notification/subscription pair, track attempts, use exponential backoff,
+and remove subscriptions that return HTTP 404 or 410. Invitation acceptance
+creates an owner notification. Browser permission is requested only from an
+explicit Profile or Settings action.

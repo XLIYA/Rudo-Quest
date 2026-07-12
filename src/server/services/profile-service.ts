@@ -2,9 +2,9 @@ import { AppError } from "@/lib/api/errors";
 import { createSupabaseAdminClient } from "@/lib/auth/supabase";
 import { getServerEnv, getSupabaseAdminKey } from "@/lib/env/server";
 import { uploadMetadataSchema } from "@/lib/validation/common";
-import type { ProfileSummary } from "@/types/domain";
+import type { BannerPresetKey, ProfileSummary } from "@/types/domain";
 import {
-  assertProfileAssetExists,
+  assertProfileAssetBytes,
   createProfileAssetUrlMap,
   profileAssetUrl,
 } from "@/server/profile-assets";
@@ -114,6 +114,7 @@ export async function updateMyPreferences(
 export async function searchUserSuggestions(input: {
   q: string;
   excludeProjectId?: string;
+  memberProjectId?: string;
 }): Promise<ProfileSummary[]> {
   return suggestUsers(input);
 }
@@ -152,17 +153,42 @@ export async function commitProfileAsset(
   kind: "avatar" | "banner",
   path: string | null,
 ) {
-  if (path) await assertProfileAssetExists(userId, kind, path);
+  if (path) await assertProfileAssetBytes(userId, kind, path);
   const current = await findProfileById(userId);
   if (!current) throw new AppError("NOT_FOUND", 404, "Profile not found.");
   const oldPath = kind === "avatar" ? current.avatarPath : current.bannerPath;
   const updated = await updateProfileAssets(userId, {
-    [kind === "avatar" ? "avatarPath" : "bannerPath"]: path,
+    ...(kind === "avatar"
+      ? { avatarPath: path }
+      : { bannerPath: path, bannerPresetKey: null }),
   });
   if (!updated) throw new AppError("NOT_FOUND", 404, "Profile not found.");
   const env = getServerEnv();
   if (oldPath && oldPath !== path && getSupabaseAdminKey(env)) {
     await createSupabaseAdminClient().storage.from("profile-assets").remove([oldPath]);
+  }
+  return serializeProfile(updated);
+}
+
+/**
+ * Purpose: Select a curated banner preset and retire any uploaded banner asset.
+ * Inputs: Current user ID and allowlisted preset key.
+ * Output: Updated profile with the preset selected.
+ * Side effects: Clears the uploaded banner path and removes the old private object.
+ * Failure behavior: Throws NOT_FOUND when the profile is missing.
+ */
+export async function setProfileBannerPreset(userId: string, presetKey: BannerPresetKey) {
+  const current = await findProfileById(userId);
+  if (!current) throw new AppError("NOT_FOUND", 404, "Profile not found.");
+  const updated = await updateProfileAssets(userId, {
+    bannerPath: null,
+    bannerPresetKey: presetKey,
+  });
+  if (!updated) throw new AppError("NOT_FOUND", 404, "Profile not found.");
+  if (current.bannerPath && getSupabaseAdminKey(getServerEnv())) {
+    await createSupabaseAdminClient()
+      .storage.from("profile-assets")
+      .remove([current.bannerPath]);
   }
   return serializeProfile(updated);
 }

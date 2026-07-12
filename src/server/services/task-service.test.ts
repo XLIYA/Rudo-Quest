@@ -105,7 +105,7 @@ describe("updateTask project reassignment authorization", () => {
     expect(taskRepository.updateTaskRow).toHaveBeenCalledWith(
       "00000000-0000-4000-8000-000000000010",
       1,
-      { version: 1, projectId: targetProjectId, assigneeId: null },
+      { projectId: targetProjectId, assigneeId: null },
     );
   });
 });

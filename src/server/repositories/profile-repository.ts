@@ -2,7 +2,7 @@ import { and, eq, ilike, ne, or, sql } from "drizzle-orm";
 import { profiles, projectMemberships } from "@/db/schema";
 import { getDb } from "@/lib/db/client";
 import { createProfileAssetUrlMap, profileAssetUrl } from "@/server/profile-assets";
-import type { ProfileSummary, ThemePreference } from "@/types/domain";
+import type { BannerPresetKey, ProfileSummary, ThemePreference } from "@/types/domain";
 
 /**
  * Purpose: Find a profile by user ID.
@@ -75,6 +75,8 @@ export async function updateProfilePreferences(
     notificationsEnabled?: boolean;
     dailyReminderEnabled?: boolean;
     dailyReminderTime?: string | null;
+    quietHoursStart?: string;
+    quietHoursEnd?: string;
   },
 ) {
   const [updated] = await getDb()
@@ -93,7 +95,11 @@ export async function updateProfilePreferences(
  */
 export async function updateProfileAssets(
   userId: string,
-  values: { avatarPath?: string | null; bannerPath?: string | null },
+  values: {
+    avatarPath?: string | null;
+    bannerPath?: string | null;
+    bannerPresetKey?: BannerPresetKey | null;
+  },
 ) {
   const [updated] = await getDb()
     .update(profiles)
@@ -113,6 +119,7 @@ export async function updateProfileAssets(
 export async function suggestUsers(input: {
   q: string;
   excludeProjectId?: string;
+  memberProjectId?: string;
 }): Promise<ProfileSummary[]> {
   const query = `%${input.q}%`;
   const db = getDb();
@@ -121,6 +128,12 @@ export async function suggestUsers(input: {
         .select({ userId: projectMemberships.userId })
         .from(projectMemberships)
         .where(eq(projectMemberships.projectId, input.excludeProjectId))
+    : null;
+  const members = input.memberProjectId
+    ? db
+        .select({ userId: projectMemberships.userId })
+        .from(projectMemberships)
+        .where(eq(projectMemberships.projectId, input.memberProjectId))
     : null;
   const rows = await db
     .select({
@@ -134,6 +147,7 @@ export async function suggestUsers(input: {
       and(
         or(ilike(profiles.handle, query), ilike(profiles.displayName, query)),
         excluded ? sql`${profiles.id} not in ${excluded}` : undefined,
+        members ? sql`${profiles.id} in ${members}` : undefined,
       ),
     )
     .orderBy(profiles.handle)
@@ -153,7 +167,10 @@ export async function suggestUsers(input: {
  * Output: True when no other profile uses the handle.
  * Side effects: Reads profiles.
  */
-export async function isHandleAvailable(handle: string, userId: string): Promise<boolean> {
+export async function isHandleAvailable(
+  handle: string,
+  userId: string,
+): Promise<boolean> {
   const rows = await getDb()
     .select({ id: profiles.id })
     .from(profiles)

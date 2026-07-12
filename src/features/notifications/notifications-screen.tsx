@@ -7,6 +7,12 @@ import { AppEmptyState } from "@/components/ui/app-empty-state";
 import { AppSkeleton } from "@/components/ui/app-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { useNotifications, useReadNotifications } from "./notification-hooks";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiMutation, normalizeApiClientError } from "@/lib/api/client";
+import { queryKeys } from "@/lib/api/query-keys";
+import { AppToast } from "@/components/ui/app-toast";
+import type { NotificationDto } from "@/types/domain";
+import { useOnline } from "@/hooks/use-online";
 
 /**
  * Purpose: Render notification center content with optimistic read actions.
@@ -16,7 +22,32 @@ import { useNotifications, useReadNotifications } from "./notification-hooks";
  */
 export function NotificationsPanel({ compact = false }: { compact?: boolean }) {
   const query = useNotifications();
+  const online = useOnline();
   const read = useReadNotifications();
+  const queryClient = useQueryClient();
+  const invitation = useMutation({
+    mutationFn: (input: {
+      projectId: string;
+      invitationId: string;
+      action: "accept" | "decline";
+    }) =>
+      apiMutation(
+        "post",
+        `/api/projects/${input.projectId}/invitations/${input.invitationId}/${input.action}`,
+      ),
+    onSuccess: (_data, input) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notifications });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.project(input.projectId),
+      });
+      AppToast(
+        input.action === "accept" ? "Invitation accepted." : "Invitation declined.",
+        "success",
+      );
+    },
+    onError: (error) => AppToast(normalizeApiClientError(error).message, "error"),
+  });
   return (
     <section
       id="notifications"
@@ -34,7 +65,7 @@ export function NotificationsPanel({ compact = false }: { compact?: boolean }) {
         <AppButton
           variant="secondary"
           onClick={() => read.mutate({ all: true })}
-          disabled={read.isPending || !query.data?.length}
+          disabled={!online || read.isPending || !query.data?.length}
         >
           Mark all read
         </AppButton>
@@ -64,11 +95,22 @@ export function NotificationsPanel({ compact = false }: { compact?: boolean }) {
                     size="sm"
                     variant="secondary"
                     onClick={() => read.mutate({ id: notification.id })}
+                    disabled={!online || read.isPending}
                   >
                     Read
                   </AppButton>
                 ) : null}
               </div>
+              {notification.type === "PROJECT_INVITATION" ? (
+                <InvitationActions
+                  notification={notification}
+                  disabled={!online || invitation.isPending}
+                  onAction={(input) => {
+                    read.mutate({ id: notification.id });
+                    invitation.mutate(input);
+                  }}
+                />
+              ) : null}
               {notification.href ? (
                 <Link
                   className="mt-3 inline-flex text-sm font-semibold text-brand"
@@ -88,6 +130,46 @@ export function NotificationsPanel({ compact = false }: { compact?: boolean }) {
         />
       ) : null}
     </section>
+  );
+}
+
+function InvitationActions({
+  notification,
+  disabled,
+  onAction,
+}: {
+  notification: NotificationDto;
+  disabled: boolean;
+  onAction: (input: {
+    projectId: string;
+    invitationId: string;
+    action: "accept" | "decline";
+  }) => void;
+}) {
+  const match = notification.href?.match(/^\/projects\/([^?]+)\?invitation=([^&]+)/);
+  if (!match?.[1] || !match[2]) return null;
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      <AppButton
+        size="sm"
+        disabled={disabled}
+        onClick={() =>
+          onAction({ projectId: match[1]!, invitationId: match[2]!, action: "accept" })
+        }
+      >
+        Accept invitation
+      </AppButton>
+      <AppButton
+        size="sm"
+        variant="secondary"
+        disabled={disabled}
+        onClick={() =>
+          onAction({ projectId: match[1]!, invitationId: match[2]!, action: "decline" })
+        }
+      >
+        Decline
+      </AppButton>
+    </div>
   );
 }
 

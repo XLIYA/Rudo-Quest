@@ -4,9 +4,7 @@ const constructedLimiters = vi.hoisted(
   () => [] as { limiter: { limit: number; window: string }; prefix: string }[],
 );
 const limitCalls = vi.hoisted(() => [] as string[]);
-const constructedRedis = vi.hoisted(
-  () => [] as { url: string; token: string }[],
-);
+const constructedRedis = vi.hoisted(() => [] as { url: string; token: string }[]);
 
 vi.mock("@upstash/ratelimit", () => {
   class Ratelimit {
@@ -79,5 +77,22 @@ describe("assertRateLimit", () => {
       { url: "https://vercel-kv.example", token: "vercel-token" },
     ]);
     expect(limitCalls).toEqual(["auth-signup:ip"]);
+  });
+
+  it("does not trust browser-controlled forwarded addresses in production", async () => {
+    const { requestRateLimitIdentity } = await import("./rate-limit");
+
+    expect(
+      requestRateLimitIdentity(
+        new Headers({ "x-forwarded-for": "spoofed" }),
+        "production",
+      ),
+    ).toBe("anonymous");
+    expect(
+      requestRateLimitIdentity(
+        new Headers({ "x-vercel-forwarded-for": "203.0.113.10" }),
+        "production",
+      ),
+    ).toBe("203.0.113.10");
   });
 });

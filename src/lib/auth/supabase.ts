@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { createBrowserClient, createServerClient } from "@supabase/ssr";
+import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { AppError } from "@/lib/api/errors";
 import {
@@ -7,22 +7,6 @@ import {
   getSupabaseAdminKey,
   getSupabasePublicKey,
 } from "@/lib/env/server";
-
-/**
- * Purpose: Create a Supabase browser client for client-side auth calls.
- * Inputs: Public Supabase environment variables.
- * Output: Supabase browser client.
- * Side effects: Reads public environment variables.
- * Failure behavior: Throws integration error if Supabase is missing.
- */
-export function createSupabaseBrowserClient(): SupabaseClient {
-  const env = getServerEnv();
-  const publishableKey = getSupabasePublicKey(env);
-  if (!env.NEXT_PUBLIC_SUPABASE_URL || !publishableKey) {
-    throw new AppError("INTEGRATION_NOT_CONFIGURED", 503, "Supabase is not configured.");
-  }
-  return createBrowserClient(env.NEXT_PUBLIC_SUPABASE_URL, publishableKey);
-}
 
 /**
  * Purpose: Create a cookie-aware Supabase client for Server Components and Route Handlers.

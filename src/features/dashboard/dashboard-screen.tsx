@@ -10,10 +10,17 @@ import type { ProjectSummary, TaskDto } from "@/types/domain";
 import { AppEmptyState } from "@/components/ui/app-empty-state";
 import { AppSkeleton } from "@/components/ui/app-skeleton";
 import { AppTooltip } from "@/components/ui/app-tooltip";
+import { AppAvatarStack } from "@/components/ui/app-avatar-stack";
 import { PageHeader } from "@/components/shared/page-header";
 import { TaskRow } from "@/components/ui/task-row";
 import { useTaskMutation } from "@/features/tasks/task-hooks";
 import { getMondayWeekStart } from "@/lib/utils/dates";
+import { TaskDetailSheet } from "@/components/ui/task-detail-sheet";
+import { useOnline } from "@/hooks/use-online";
+import { useState } from "react";
+import Link from "next/link";
+import { ProjectIconGlyph } from "@/features/projects/project-pickers";
+import { getProjectColor } from "@/lib/theme/project-colors";
 
 type DashboardData = {
   today: { overdue: TaskDto[]; tasks: TaskDto[] };
@@ -42,6 +49,8 @@ export function DashboardScreen() {
       apiGet<DashboardData>(`/api/dashboard?from=${from}&to=${to}`, signal),
   });
   const taskMutation = useTaskMutation(from);
+  const online = useOnline();
+  const [selectedTask, setSelectedTask] = useState<TaskDto | null>(null);
 
   if (query.isLoading) return <DashboardSkeleton />;
   if (query.isError || !query.data) {
@@ -53,6 +62,16 @@ export function DashboardScreen() {
     );
   }
   const todayTasks = [...query.data.today.overdue, ...query.data.today.tasks];
+  const todayDate = format(new Date(), "yyyy-MM-dd");
+  const todayGroups = Array.from(
+    todayTasks.reduce((groups, task) => {
+      const key = task.project?.id ?? "personal";
+      const current = groups.get(key) ?? { title: task.project?.title ?? "Personal", tasks: [] as TaskDto[] };
+      current.tasks.push(task);
+      groups.set(key, current);
+      return groups;
+    }, new Map<string, { title: string; tasks: TaskDto[] }>()),
+  );
   const heatmapCounts = new Map(
     query.data.heatmap.days.map((day) => [day.date, day.count]),
   );
@@ -70,22 +89,24 @@ export function DashboardScreen() {
       <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
         <Widget title="Today" description="Overdue and scheduled work for the day.">
           {todayTasks.length ? (
-            <div className="grid min-w-0 gap-2">
-              {todayTasks.map((task) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  onOpen={() => undefined}
-                  onStart={(target) =>
-                    taskMutation.mutate({ task: target, action: "start" })
-                  }
-                  onCompleteToggle={(target) =>
-                    taskMutation.mutate({
-                      task: target,
-                      action: target.status === "DONE" ? "reopen" : "complete",
-                    })
-                  }
-                />
+            <div className="grid min-w-0 gap-4">
+              {todayGroups.map(([key, group]) => (
+                <section key={key} className="grid gap-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-sm font-semibold">{group.title}</h3>
+                    <Link href={`/weekly?date=${todayDate}`} className="text-xs font-semibold text-brand hover:underline">Open in Weekly</Link>
+                  </div>
+                  {group.tasks.map((task) => (
+                    <TaskRow
+                      key={task.id}
+                      task={task}
+                      disabled={!online}
+                      onOpen={(target) => setSelectedTask(target)}
+                      onStart={(target) => taskMutation.mutate({ task: target, action: "start" })}
+                      onCompleteToggle={(target) => taskMutation.mutate({ task: target, action: target.status === "DONE" ? "reopen" : "complete" })}
+                    />
+                  ))}
+                </section>
               ))}
             </div>
           ) : (
@@ -129,6 +150,18 @@ export function DashboardScreen() {
           </div>
         </Widget>
       </section>
+      <TaskDetailSheet
+        task={selectedTask}
+        open={Boolean(selectedTask)}
+        offline={!online}
+        onOpenChange={(open) => !open && setSelectedTask(null)}
+        onAction={(task, action) => taskMutation.mutate({ task, action })}
+        onArchive={(task) => {
+          taskMutation.mutate({ task, action: "archive" });
+          setSelectedTask(null);
+        }}
+        onSave={(task, values) => taskMutation.mutate({ task, action: "update", body: values })}
+      />
       <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
         <Widget
           title="Activity"
@@ -154,13 +187,18 @@ export function DashboardScreen() {
           {query.data.projects.length ? (
             <div className="grid min-w-0 gap-3">
               {query.data.projects.map((project) => (
-                <a
+                <Link
                   key={project.id}
                   href={`/projects/${project.id}` as Route}
                   className="block min-w-0 rounded-md border border-border p-3 hover:bg-surface-muted"
                 >
                   <div className="flex min-w-0 items-center justify-between gap-3">
-                    <h3 className="min-w-0 truncate font-semibold">{project.title}</h3>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-md" style={{ background: getProjectColor(project.colorKey).soft, color: getProjectColor(project.colorKey).text }}>
+                        <ProjectIconGlyph iconKey={project.iconKey} className="size-4" />
+                      </span>
+                      <h3 className="min-w-0 truncate font-semibold">{project.title}</h3>
+                    </div>
                     <span className="shrink-0 font-mono text-sm text-text-secondary">
                       {project.openTaskCount} open
                     </span>
@@ -168,7 +206,8 @@ export function DashboardScreen() {
                   <p className="mt-1 text-sm text-text-secondary">
                     {project.weeklyCompletionPercent}% complete this week
                   </p>
-                </a>
+                  <div className="mt-2"><AppAvatarStack users={project.members} /></div>
+                </Link>
               ))}
             </div>
           ) : (

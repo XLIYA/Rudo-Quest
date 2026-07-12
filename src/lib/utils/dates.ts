@@ -26,7 +26,9 @@ export function getMondayWeekStart(date: Date): string {
  */
 export function getWeekDates(weekStart: string): string[] {
   const start = parseISO(weekStart);
-  return Array.from({ length: 7 }, (_, index) => format(addDays(start, index), "yyyy-MM-dd"));
+  return Array.from({ length: 7 }, (_, index) =>
+    format(addDays(start, index), "yyyy-MM-dd"),
+  );
 }
 
 /**
@@ -45,12 +47,44 @@ export function isValidTimeZone(timeZone: string): boolean {
 }
 
 /**
+ * Purpose: Return the calendar date represented by an instant in an IANA timezone.
+ * Inputs: Instant and validated timezone name.
+ * Output: ISO yyyy-MM-dd calendar date.
+ * Side effects: None.
+ * Failure behavior: Falls back to UTC when a legacy or malformed timezone reaches this boundary.
+ */
+export function getDateInTimeZone(value: Date, timeZone: string): string {
+  let formatter: Intl.DateTimeFormat;
+  try {
+    formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+  } catch {
+    formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "UTC",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+  }
+  const parts = formatter.formatToParts(value);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "00";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+/**
  * Purpose: Calculate the current completion streak from a daily completion series.
  * Inputs: Day/count pairs sorted or unsorted.
  * Output: Number of consecutive days ending today or yesterday with at least one completion.
  * Side effects: None.
  */
-export function calculateCompletionStreak(days: { date: string; count: number }[]): number {
+export function calculateCompletionStreak(
+  days: { date: string; count: number }[],
+): number {
   const byDate = new Map(days.map((day) => [day.date, day.count]));
   let cursor = new Date();
   if ((byDate.get(format(cursor, "yyyy-MM-dd")) ?? 0) === 0) {
