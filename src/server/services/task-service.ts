@@ -19,7 +19,10 @@ import {
   listWeekTasks,
   updateTaskRow,
 } from "@/server/repositories/task-repository";
-import { createNotification } from "@/server/services/notification-service";
+import {
+  createNotification,
+  deliverPushBestEffort,
+} from "@/server/services/notification-service";
 
 /**
  * Purpose: Validate visibility and return a task.
@@ -62,9 +65,15 @@ export async function getWeekTasks(
  */
 export async function createTask(
   userId: string,
-  payload: Omit<Parameters<typeof insertTask>[0], "createdBy">,
+  payload: Omit<Parameters<typeof insertTask>[0], "createdBy" | "assigneeId"> & {
+    assigneeId?: string | null;
+  },
 ): Promise<TaskDto> {
-  const assigneeId = payload.projectId ? (payload.assigneeId ?? userId) : userId;
+  const assigneeId = payload.projectId
+    ? payload.assigneeId === undefined
+      ? userId
+      : payload.assigneeId
+    : userId;
   if (payload.projectId) {
     const access = await findProjectAccess(payload.projectId, userId);
     if (access?.archivedAt)
@@ -75,7 +84,7 @@ export async function createTask(
       throw new AppError("BAD_REQUEST", 400, "Assignee must be a project member.");
     }
   }
-  return runDbTransaction(async (tx) => {
+  const result = await runDbTransaction(async (tx) => {
     const task = await insertTask({ ...payload, createdBy: userId, assigneeId }, tx);
     await createActivityEvent(
       {
@@ -87,20 +96,25 @@ export async function createTask(
       },
       tx,
     );
-    if (task.assignee && task.assignee.id !== userId) {
-      await createNotification(
-        {
-          recipientId: task.assignee.id,
-          type: "TASK_ASSIGNED",
-          title: "Task assigned",
-          body: task.title,
-          href: `/weekly?date=${task.scheduledDate}&task=${task.id}`,
-        },
-        tx,
-      );
-    }
-    return task;
+    const assignmentNotification =
+      task.assignee && task.assignee.id !== userId
+        ? await createNotification(
+            {
+              recipientId: task.assignee.id,
+              type: "TASK_ASSIGNED",
+              title: "Task assigned",
+              body: task.title,
+              href: `/weekly?date=${task.scheduledDate}&task=${task.id}`,
+            },
+            tx,
+          )
+        : null;
+    return { task, assignmentNotification };
   });
+  if (result.assignmentNotification && result.task.assignee) {
+    await deliverPushBestEffort(result.assignmentNotification, result.task.assignee.id);
+  }
+  return result.task;
 }
 
 /**
@@ -157,7 +171,7 @@ export async function updateTask(
   if (!targetProjectId && targetAssignee !== userId) {
     throw new AppError("BAD_REQUEST", 400, "Personal tasks cannot be reassigned.");
   }
-  return runDbTransaction(async (tx) => {
+  const result = await runDbTransaction(async (tx) => {
     const updated = await updateTaskRow(taskId, version, changes, userId, tx);
     if (!updated) throw new AppError("CONFLICT", 409, "Task changed on another device.");
     const eventType =
@@ -166,24 +180,28 @@ export async function updateTask(
       { actorId: userId, projectId: updated.projectId, taskId, eventType },
       tx,
     );
-    if (
-      eventType === "TASK_ASSIGNED" &&
-      updated.assignee &&
-      updated.assignee.id !== userId
-    ) {
-      await createNotification(
-        {
-          recipientId: updated.assignee.id,
-          type: "TASK_ASSIGNED",
-          title: "Task assigned",
-          body: updated.title,
-          href: `/weekly?date=${updated.scheduledDate}&task=${updated.id}`,
-        },
-        tx,
-      );
-    }
-    return updated;
+    const assignmentNotification =
+      eventType === "TASK_ASSIGNED" && updated.assignee && updated.assignee.id !== userId
+        ? await createNotification(
+            {
+              recipientId: updated.assignee.id,
+              type: "TASK_ASSIGNED",
+              title: "Task assigned",
+              body: updated.title,
+              href: `/weekly?date=${updated.scheduledDate}&task=${updated.id}`,
+            },
+            tx,
+          )
+        : null;
+    return { updated, assignmentNotification };
   });
+  if (result.assignmentNotification && result.updated.assignee) {
+    await deliverPushBestEffort(
+      result.assignmentNotification,
+      result.updated.assignee.id,
+    );
+  }
+  return result.updated;
 }
 
 /**
@@ -199,6 +217,7 @@ export async function startTask(
 ): Promise<TaskDto> {
   const task = await getTask(userId, taskId);
   await assertCanEditTask(userId, task, false);
+  assertTaskVersion(task, version);
   if (task.status !== "TODO") return task;
   return commitTaskTransition(
     userId,
@@ -225,6 +244,7 @@ export async function completeTask(
 ): Promise<TaskDto> {
   const task = await getTask(userId, taskId);
   await assertCanEditTask(userId, task, false);
+  assertTaskVersion(task, version);
   if (task.status === "DONE") return task;
   return commitTaskTransition(
     userId,
@@ -252,6 +272,7 @@ export async function reopenTask(
 ): Promise<TaskDto> {
   const task = await getTask(userId, taskId);
   await assertCanEditTask(userId, task, false);
+  assertTaskVersion(task, version);
   const next = toggleCompletionState(task.status, task.previousStatus, new Date());
   if (task.status !== "DONE") return task;
   return commitTaskTransition(userId, taskId, version, next, "TASK_REOPENED");
@@ -279,6 +300,13 @@ export async function archiveTask(
   );
 }
 
+/**
+ * Purpose: Atomically commit a versioned task transition and its activity event.
+ * Inputs: Actor, task, expected version, validated changes, and activity type.
+ * Output: Updated task DTO.
+ * Side effects: Updates the task and inserts activity in one transaction.
+ * Failure behavior: Throws conflict when optimistic concurrency detects a stale version.
+ */
 async function commitTaskTransition(
   userId: string,
   taskId: string,
@@ -295,6 +323,19 @@ async function commitTaskTransition(
     );
     return updated;
   });
+}
+
+/**
+ * Purpose: Reject stale task actions even when the requested transition is already applied.
+ * Inputs: Current task DTO and client-expected version.
+ * Output: Void for a current version.
+ * Side effects: None.
+ * Failure behavior: Throws CONFLICT so clients refetch instead of accepting a stale no-op.
+ */
+function assertTaskVersion(task: TaskDto, expectedVersion: number): void {
+  if (task.version !== expectedVersion) {
+    throw new AppError("CONFLICT", 409, "Task changed on another device.");
+  }
 }
 
 /**

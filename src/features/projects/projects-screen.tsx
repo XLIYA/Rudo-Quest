@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { AppAvatar } from "@/components/ui/app-avatar";
 import { AppAvatarStack } from "@/components/ui/app-avatar-stack";
@@ -12,6 +13,8 @@ import { AppDialog } from "@/components/ui/app-dialog";
 import { AppEmptyState } from "@/components/ui/app-empty-state";
 import { AppIconButton } from "@/components/ui/app-icon-button";
 import { AppInput } from "@/components/ui/app-input";
+import { AppTextarea } from "@/components/ui/app-textarea";
+import { AppTimeZoneInput } from "@/components/ui/app-time-zone-input";
 import { AppProgress } from "@/components/ui/app-progress";
 import { AppSelect } from "@/components/ui/app-select";
 import { AppSkeleton } from "@/components/ui/app-skeleton";
@@ -52,15 +55,21 @@ type PendingInvitation = {
  */
 export function ProjectsScreen() {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [role, setRole] = useState("all");
   const [archived, setArchived] = useState("active");
   const [createOpen, setCreateOpen] = useState(false);
   const online = useOnline();
   const params = new URLSearchParams();
-  if (search) params.set("q", search);
+  if (debouncedSearch) params.set("q", debouncedSearch);
   if (role !== "all") params.set("role", role);
   params.set("archived", archived);
   const query = useProjects(`?${params.toString()}`);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedSearch(search.trim()), 200);
+    return () => window.clearTimeout(timeout);
+  }, [search]);
 
   return (
     <main className="mx-auto grid max-w-7xl gap-5 p-5 md:p-8">
@@ -155,7 +164,7 @@ function ProjectCard({ project }: { project: ProjectSummary }) {
           <ProjectIconGlyph iconKey={project.iconKey} className="size-5" />
         </span>
         <span className="rounded-sm bg-surface-muted px-2 py-1 font-mono text-xs text-text-secondary">
-          {project.role}
+          {project.archivedAt ? "ARCHIVED" : project.role}
         </span>
       </div>
       <h2 className="mt-4 text-lg font-semibold">{project.title}</h2>
@@ -169,7 +178,9 @@ function ProjectCard({ project }: { project: ProjectSummary }) {
         </span>
       </div>
       <div className="mt-3 flex items-center justify-between gap-3 text-xs text-text-secondary">
-        <span>{project.weeklyCompletionPercent}% this week</span>
+        <span>
+          {project.completedThisWeek} done · {project.weeklyCompletionPercent}% scheduled
+        </span>
         <span>
           {project.githubRepositoryFullName ? "GitHub connected" : "No repository"}
         </span>
@@ -197,20 +208,21 @@ function CreateProjectDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const createProject = useCreateProject();
+  const router = useRouter();
   const online = useOnline();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [iconKey, setIconKey] = useState<ProjectIconKey>("Compass");
   const [colorKey, setColorKey] = useState<ProjectColorKey>("orange");
+  const [timeZone, setTimeZone] = useState("");
   const [memberSearch, setMemberSearch] = useState("");
   const [debouncedMemberSearch, setDebouncedMemberSearch] = useState("");
   const [inviteRole, setInviteRole] = useState<Exclude<ProjectRole, "OWNER">>("MEMBER");
   const [pendingInvitations, setPendingInvitations] = useState<PendingInvitation[]>([]);
   const [step, setStep] = useState(1);
-  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const me = useQuery({
     queryKey: queryKeys.me,
-    queryFn: ({ signal }) => apiGet<{ id: string }>("/api/me", signal),
+    queryFn: ({ signal }) => apiGet<{ id: string; timeZone: string }>("/api/me", signal),
     enabled: open,
   });
   const selectedUserIds = useMemo(
@@ -233,6 +245,11 @@ function CreateProjectDialog({
       ),
     [me.data?.id, selectedUserIds, suggestions.data],
   );
+  const effectiveTimeZone =
+    timeZone ||
+    me.data?.timeZone ||
+    Intl.DateTimeFormat().resolvedOptions().timeZone ||
+    "UTC";
 
   useEffect(() => {
     const timeout = window.setTimeout(
@@ -242,14 +259,40 @@ function CreateProjectDialog({
     return () => window.clearTimeout(timeout);
   }, [memberSearch]);
 
-  const submit = async () => {
+  /**
+   * Purpose: Return the multi-step project dialog to clean defaults.
+   * Inputs: None.
+   * Output: Void.
+   * Side effects: Clears local form, search, invitation, and step state.
+   */
+  const resetDraft = () => {
+    setTitle("");
+    setDescription("");
+    setIconKey("Compass");
+    setColorKey("orange");
+    setTimeZone("");
+    setMemberSearch("");
+    setDebouncedMemberSearch("");
+    setPendingInvitations([]);
+    setInviteRole("MEMBER");
+    setStep(1);
+  };
+
+  /**
+   * Purpose: Create the project and optionally continue into GitHub connection.
+   * Inputs: Whether the final step requested GitHub setup.
+   * Output: Promise resolving after success or handled failure.
+   * Side effects: Calls project creation, closes/reset dialog, and may navigate.
+   */
+  const submit = async (connectGithub: boolean) => {
+    let created: ProjectSummary;
     try {
-      await createProject.mutateAsync({
+      created = await createProject.mutateAsync({
         title,
         description: description || null,
         iconKey,
         colorKey,
-        timeZone,
+        timeZone: effectiveTimeZone,
         invitations: pendingInvitations.map((invitation) => ({
           userId: invitation.user.id,
           role: invitation.role,
@@ -258,16 +301,19 @@ function CreateProjectDialog({
     } catch {
       return;
     }
-    setTitle("");
-    setDescription("");
-    setMemberSearch("");
-    setDebouncedMemberSearch("");
-    setPendingInvitations([]);
-    setInviteRole("MEMBER");
-    setStep(1);
+    resetDraft();
     onOpenChange(false);
+    if (connectGithub) {
+      router.push(`/projects/${created.id}/settings?connectGithub=1` as Route);
+    }
   };
 
+  /**
+   * Purpose: Add one unique collaborator to the pending invitation draft.
+   * Inputs: Public user suggestion.
+   * Output: Void.
+   * Side effects: Updates selected invitations and clears the search field.
+   */
   const addInvitation = (user: ProfileSummary) => {
     if (selectedUserIds.has(user.id) || user.id === me.data?.id) return;
     setPendingInvitations((current) => [...current, { user, role: inviteRole }]);
@@ -275,6 +321,12 @@ function CreateProjectDialog({
     setDebouncedMemberSearch("");
   };
 
+  /**
+   * Purpose: Change a pending invitation to an allowed non-owner role.
+   * Inputs: Selected user ID and new role.
+   * Output: Void.
+   * Side effects: Updates local invitation draft state.
+   */
   const updateInvitationRole = (userId: string, role: Exclude<ProjectRole, "OWNER">) => {
     setPendingInvitations((current) =>
       current.map((invitation) =>
@@ -283,6 +335,12 @@ function CreateProjectDialog({
     );
   };
 
+  /**
+   * Purpose: Remove a collaborator before project creation.
+   * Inputs: Selected user ID.
+   * Output: Void.
+   * Side effects: Updates local invitation draft state.
+   */
   const removeInvitation = (userId: string) => {
     setPendingInvitations((current) =>
       current.filter((invitation) => invitation.user.id !== userId),
@@ -290,7 +348,14 @@ function CreateProjectDialog({
   };
 
   return (
-    <AppDialog open={open} onOpenChange={onOpenChange} title="Create project">
+    <AppDialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) resetDraft();
+        onOpenChange(nextOpen);
+      }}
+      title="Create project"
+    >
       <div className="grid gap-4">
         <div className="grid gap-2">
           <div className="flex justify-between gap-2 text-xs font-semibold text-text-secondary">
@@ -308,16 +373,23 @@ function CreateProjectDialog({
           <>
             <AppInput
               label="Title"
+              maxLength={60}
               value={title}
               onChange={(event) => setTitle(event.currentTarget.value)}
             />
-            <AppInput
+            <AppTextarea
               label="Description"
+              maxLength={500}
+              rows={4}
               value={description}
               onChange={(event) => setDescription(event.currentTarget.value)}
             />
             <ProjectIconPicker value={iconKey} onChange={setIconKey} />
             <ProjectColorPicker value={colorKey} onChange={setColorKey} />
+            <AppTimeZoneInput
+              value={effectiveTimeZone}
+              onChange={(event) => setTimeZone(event.currentTarget.value)}
+            />
             <AppButton
               disabled={!online || title.trim().length < 2}
               onClick={() => setStep(2)}
@@ -350,6 +422,12 @@ function CreateProjectDialog({
               {debouncedMemberSearch.length >= 2 ? (
                 <div className="grid gap-2" aria-live="polite">
                   {suggestions.isLoading ? <AppSkeleton className="h-14" /> : null}
+                  {suggestions.isError ? (
+                    <p role="alert" className="text-sm text-error">
+                      Collaborators could not be loaded. Check the connection and try
+                      again.
+                    </p>
+                  ) : null}
                   {visibleSuggestions.map((user) => (
                     <button
                       type="button"
@@ -368,7 +446,9 @@ function CreateProjectDialog({
                       </span>
                     </button>
                   ))}
-                  {!suggestions.isLoading && !visibleSuggestions.length ? (
+                  {!suggestions.isLoading &&
+                  !suggestions.isError &&
+                  !visibleSuggestions.length ? (
                     <p className="rounded-md border border-border bg-surface p-3 text-sm text-text-secondary">
                       No matching users found.
                     </p>
@@ -440,16 +520,29 @@ function CreateProjectDialog({
         {step === 3 ? (
           <>
             <p className="text-sm leading-6 text-text-secondary">
-              GitHub can be connected from project settings after creation. Project
-              creation does not require a repository.
+              A repository is optional. If you connect one, Rudo will open project
+              settings after creation so you can authorize the GitHub App and choose an
+              available repository.
             </p>
-            <div className="flex justify-between">
+            <div className="flex flex-wrap justify-between gap-2">
               <AppButton variant="secondary" onClick={() => setStep(2)}>
                 Back
               </AppButton>
-              <AppButton disabled={!online || createProject.isPending} onClick={submit}>
-                Create project
-              </AppButton>
+              <div className="flex flex-wrap gap-2">
+                <AppButton
+                  variant="secondary"
+                  disabled={!online || createProject.isPending}
+                  onClick={() => void submit(false)}
+                >
+                  Create without GitHub
+                </AppButton>
+                <AppButton
+                  disabled={!online || createProject.isPending}
+                  onClick={() => void submit(true)}
+                >
+                  Create and connect GitHub
+                </AppButton>
+              </div>
             </div>
           </>
         ) : null}

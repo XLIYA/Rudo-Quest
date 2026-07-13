@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
         id: data.user.id,
         email: data.user.email,
         displayName: data.user.user_metadata.name,
+        timeZone: data.user.user_metadata.time_zone,
       });
     } catch {
       await supabase.auth.signOut({ scope: "local" });

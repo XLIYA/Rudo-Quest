@@ -1,8 +1,9 @@
 "use client";
 
 import { addDays, format, isValid, parseISO } from "date-fns";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppToast } from "@/components/ui/app-toast";
 import { AppButton } from "@/components/ui/app-button";
@@ -14,8 +15,10 @@ import { TaskDetailSheet } from "@/components/ui/task-detail-sheet";
 import { TaskRow } from "@/components/ui/task-row";
 import { PageHeader } from "@/components/shared/page-header";
 import { useOnline } from "@/hooks/use-online";
-import { getMondayWeekStart, getWeekDates } from "@/lib/utils/dates";
-import type { TaskDto } from "@/types/domain";
+import { getDateInTimeZone, getMondayWeekStart, getWeekDates } from "@/lib/utils/dates";
+import type { ProfileDto, TaskDto } from "@/types/domain";
+import { apiGet } from "@/lib/api/client";
+import { queryKeys } from "@/lib/api/query-keys";
 import {
   useCreateTask,
   useTaskMutation,
@@ -31,7 +34,13 @@ import {
 export function WeeklyScreen() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const today = format(new Date(), "yyyy-MM-dd");
+  const profile = useQuery({
+    queryKey: queryKeys.me,
+    queryFn: ({ signal }) => apiGet<ProfileDto>("/api/me", signal),
+  });
+  const timeZone =
+    profile.data?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const today = getDateInTimeZone(new Date(), timeZone);
   const requestedDateValue = searchParams.get("date");
   const requestedDate =
     requestedDateValue === "closed" ||
@@ -40,30 +49,76 @@ export function WeeklyScreen() {
       isValid(parseISO(requestedDateValue)))
       ? requestedDateValue
       : null;
-  const weekStart =
-    searchParams.get("weekStart") ??
-    (requestedDate && requestedDate !== "closed"
+  const requestedWeekStart = validDate(searchParams.get("weekStart"));
+  const weekStart = requestedWeekStart
+    ? getMondayWeekStart(parseISO(requestedWeekStart))
+    : requestedDate && requestedDate !== "closed"
       ? getMondayWeekStart(parseISO(requestedDate))
-      : getMondayWeekStart(new Date()));
+      : getMondayWeekStart(parseISO(today));
+  const dates = getWeekDates(weekStart);
   const selectedDate =
-    requestedDate ?? (getWeekDates(weekStart).includes(today) ? today : weekStart);
-  const [selectedTask, setSelectedTask] = useState<TaskDto | null>(null);
+    requestedDate === "closed"
+      ? "closed"
+      : requestedDate && dates.includes(requestedDate)
+        ? requestedDate
+        : dates.includes(today)
+          ? today
+          : weekStart;
   const [quickDate, setQuickDate] = useState<string | null>(
-    searchParams.get("quickAdd") ? selectedDate : null,
+    searchParams.get("quickAdd") && selectedDate !== "closed" ? selectedDate : null,
   );
   const [quickTitle, setQuickTitle] = useState("");
   const online = useOnline();
   const query = useWeekTasks(weekStart);
   const createTask = useCreateTask(weekStart);
   const mutateTask = useTaskMutation(weekStart);
-  const dates = useMemo(() => getWeekDates(weekStart), [weekStart]);
   const expandedDate = dates.includes(selectedDate) ? selectedDate : "";
+  const linkedTaskId = searchParams.get("task");
+  const linkedTask = query.data?.find((task) => task.id === linkedTaskId) ?? null;
 
+  /**
+   * Purpose: Open a task detail deep link without losing week/day URL state.
+   * Inputs: Selected task.
+   * Output: Void.
+   * Side effects: Replaces the current route query.
+   */
+  const openTask = (task: TaskDto) => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("task", task.id);
+    router.replace(`/weekly?${next.toString()}`);
+  };
+
+  /**
+   * Purpose: Close task detail while preserving the current planner location.
+   * Inputs: None.
+   * Output: Void.
+   * Side effects: Removes the task query parameter.
+   */
+  const closeTask = () => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("task");
+    const queryString = next.toString();
+    router.replace(queryString ? `/weekly?${queryString}` : "/weekly");
+  };
+
+  /**
+   * Purpose: Navigate exactly one Monday-Sunday interval.
+   * Inputs: Previous or next direction.
+   * Output: Void.
+   * Side effects: Pushes restorable week/day URL state.
+   */
   const navigateWeek = (direction: -1 | 1) => {
     const next = format(addDays(parseISO(weekStart), direction * 7), "yyyy-MM-dd");
     router.push(`/weekly?weekStart=${next}&date=${next}`);
   };
 
+  /**
+   * Purpose: Create a personal task for the expanded day from the inline input.
+   * Inputs: Target ISO date.
+   * Output: Promise resolving after optimistic creation settles.
+   * Side effects: Starts a mutation and clears quick-add state on success.
+   * Failure behavior: Blocks offline and retains input after API failure.
+   */
   const submitQuick = async (date: string) => {
     if (!online) return AppToast("Offline. Task creation is disabled.", "error");
     if (!quickTitle.trim()) return;
@@ -71,7 +126,7 @@ export function WeeklyScreen() {
       await createTask.mutateAsync({
         title: quickTitle.trim(),
         scheduledDate: date,
-        scheduledTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        scheduledTimeZone: timeZone,
       });
     } catch {
       return;
@@ -94,7 +149,7 @@ export function WeeklyScreen() {
               variant="secondary"
               onClick={() =>
                 router.push(
-                  `/weekly?weekStart=${getMondayWeekStart(new Date())}&date=${today}`,
+                  `/weekly?weekStart=${getMondayWeekStart(parseISO(today))}&date=${today}`,
                 )
               }
             >
@@ -126,11 +181,15 @@ export function WeeklyScreen() {
             );
             const done = tasks.filter((task) => task.status === "DONE").length;
             const open = expandedDate === date;
+            const currentDay = date === today;
             const ordered = [...tasks].sort(
               (a, b) => Number(a.status === "DONE") - Number(b.status === "DONE"),
             );
             return (
-              <article key={date} className="rounded-lg border border-border bg-surface">
+              <article
+                key={date}
+                className={`rounded-lg border bg-surface ${currentDay ? "border-brand shadow-[0_0_0_1px_var(--brand-soft)]" : "border-border"}`}
+              >
                 <button
                   type="button"
                   aria-expanded={open}
@@ -138,7 +197,7 @@ export function WeeklyScreen() {
                     const nextDate = open ? "closed" : date;
                     router.push(`/weekly?weekStart=${weekStart}&date=${nextDate}`);
                   }}
-                  className="grid w-full grid-cols-[1fr_auto] items-center gap-3 p-4 text-left"
+                  className="grid min-h-20 w-full grid-cols-[1fr_auto] items-center gap-3 rounded-lg p-4 text-left"
                 >
                   <span>
                     <span className="font-display text-3xl uppercase leading-none">
@@ -147,10 +206,25 @@ export function WeeklyScreen() {
                     <span className="mt-1 block font-mono text-xs text-text-secondary">
                       {format(parseISO(date), "MMMM d, yyyy")} - {done} / {tasks.length}{" "}
                       completed
+                      {currentDay ? " · Today" : ""}
                     </span>
                   </span>
-                  <span className="font-mono text-sm text-text-secondary">
-                    {open ? "Close" : "Open"}
+                  <span className="flex items-center gap-2">
+                    {tasks.length ? (
+                      <span
+                        aria-hidden="true"
+                        className="hidden h-1.5 w-12 overflow-hidden rounded-full bg-surface-muted sm:block"
+                      >
+                        <span
+                          className="block h-full rounded-full bg-brand"
+                          style={{ width: `${Math.round((done / tasks.length) * 100)}%` }}
+                        />
+                      </span>
+                    ) : null}
+                    <ChevronDown
+                      className={`size-5 text-text-secondary transition-transform ${open ? "rotate-180" : ""}`}
+                      aria-hidden="true"
+                    />
                   </span>
                 </button>
                 {open ? (
@@ -160,7 +234,7 @@ export function WeeklyScreen() {
                         key={task.id}
                         task={task}
                         disabled={!online}
-                        onOpen={(target) => setSelectedTask(target)}
+                        onOpen={openTask}
                         onStart={(target) =>
                           mutateTask.mutate({ task: target, action: "start" })
                         }
@@ -177,10 +251,17 @@ export function WeeklyScreen() {
                         autoFocus
                         label="Add a task"
                         value={quickTitle}
+                        disabled={createTask.isPending}
                         onChange={(event) => setQuickTitle(event.currentTarget.value)}
                         onKeyDown={(event) => {
-                          if (event.key === "Enter") void submitQuick(date);
-                          if (event.key === "Escape") setQuickDate(null);
+                          if (event.key === "Enter" && !createTask.isPending) {
+                            event.preventDefault();
+                            void submitQuick(date);
+                          }
+                          if (event.key === "Escape") {
+                            setQuickTitle("");
+                            setQuickDate(null);
+                          }
                         }}
                       />
                     ) : (
@@ -207,14 +288,22 @@ export function WeeklyScreen() {
         </section>
       ) : null}
       <TaskDetailSheet
-        task={selectedTask}
-        open={Boolean(selectedTask)}
+        task={linkedTask}
+        open={Boolean(linkedTask)}
         offline={!online}
-        onOpenChange={(open) => !open && setSelectedTask(null)}
+        pending={mutateTask.isPending}
+        conflict={
+          mutateTask.isError &&
+          typeof mutateTask.error === "object" &&
+          mutateTask.error !== null &&
+          "status" in mutateTask.error &&
+          mutateTask.error.status === 409
+        }
+        onOpenChange={(open) => !open && closeTask()}
         onAction={(task, action) => mutateTask.mutate({ task, action })}
         onArchive={(task) => {
           mutateTask.mutate({ task, action: "archive" });
-          setSelectedTask(null);
+          closeTask();
         }}
         onSave={(task, values) =>
           mutateTask.mutate({ task, action: "update", body: values })
@@ -222,4 +311,16 @@ export function WeeklyScreen() {
       />
     </main>
   );
+}
+
+/**
+ * Purpose: Accept only real ISO calendar dates from weekly URL state.
+ * Inputs: Candidate URL parameter.
+ * Output: Valid date string or null.
+ * Side effects: None.
+ */
+function validDate(value: string | null): string | null {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) && isValid(parseISO(value))
+    ? value
+    : null;
 }

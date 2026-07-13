@@ -28,12 +28,17 @@ export function TaskCheckbox({ checked, label, disabled, onChange }: TaskCheckbo
         event.stopPropagation();
         onChange();
       }}
-      className={cn(
-        "flex size-6 shrink-0 items-center justify-center rounded-sm border border-border-strong",
-        checked ? "border-brand bg-brand text-white" : "bg-surface",
-      )}
+      className={cn("flex size-11 shrink-0 items-center justify-center rounded-md")}
     >
-      {checked ? <Check className="size-4" aria-hidden="true" /> : null}
+      <span
+        aria-hidden="true"
+        className={cn(
+          "flex size-6 items-center justify-center rounded-sm border border-border-strong",
+          checked ? "border-brand bg-brand text-white" : "bg-surface",
+        )}
+      >
+        {checked ? <Check className="size-4" /> : null}
+      </span>
     </button>
   );
 }

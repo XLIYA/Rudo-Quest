@@ -15,6 +15,7 @@ npm run db:seed
 ```
 
 Use the seeded account from `.env.local` to sign in after migrations complete.
+Local Supabase also auto-confirms newly created development accounts, so the signup flow does not depend on an external mail provider. Hosted Supabase environments continue to require their configured email-verification flow.
 
 Required commands:
 

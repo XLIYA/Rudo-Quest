@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskDto } from "@/types/domain";
-import { updateTask } from "./task-service";
+import { createTask, updateTask } from "./task-service";
 
 const taskRepository = vi.hoisted(() => ({
   findTaskDto: vi.fn(),
@@ -29,6 +29,7 @@ const activityRepository = vi.hoisted(() => ({
 
 const notificationService = vi.hoisted(() => ({
   createNotification: vi.fn(),
+  deliverPushBestEffort: vi.fn(),
 }));
 
 vi.mock("@/server/repositories/task-repository", () => taskRepository);
@@ -130,6 +131,75 @@ describe("updateTask project reassignment authorization", () => {
       { projectId: targetProjectId, assigneeId: null },
       userId,
       transaction.executor,
+    );
+  });
+});
+
+describe("createTask assignment defaults", () => {
+  const payload = {
+    projectId: targetProjectId,
+    title: "Project task",
+    scheduledDate: "2026-07-10",
+    scheduledTimeZone: "UTC",
+  } as const;
+
+  beforeEach(() => {
+    projectRepository.findProjectAccess.mockResolvedValue({
+      role: "MEMBER",
+      archivedAt: null,
+    });
+    projectRepository.isProjectMember.mockResolvedValue(true);
+    taskRepository.insertTask.mockResolvedValue(task({ projectId: targetProjectId }));
+  });
+
+  it("defaults an omitted project assignee to the creator", async () => {
+    await createTask(userId, payload);
+
+    expect(taskRepository.insertTask).toHaveBeenCalledWith(
+      expect.objectContaining({ assigneeId: userId }),
+      transaction.executor,
+    );
+  });
+
+  it("preserves an explicit unassigned project task", async () => {
+    await createTask(userId, { ...payload, assigneeId: null });
+
+    expect(taskRepository.insertTask).toHaveBeenCalledWith(
+      expect.objectContaining({ assigneeId: null }),
+      transaction.executor,
+    );
+  });
+
+  it("delivers an assignment notification when another member is assigned", async () => {
+    const assignedTask = task({
+      projectId: targetProjectId,
+      assignee: {
+        id: "00000000-0000-4000-8000-000000000099",
+        handle: "collaborator",
+        displayName: "Collaborator",
+        avatarUrl: null,
+      },
+    });
+    const notification = {
+      id: "00000000-0000-4000-8000-000000000020",
+      type: "TASK_ASSIGNED",
+      title: "Task assigned",
+      body: assignedTask.title,
+      href: `/weekly?date=${assignedTask.scheduledDate}&task=${assignedTask.id}`,
+      readAt: null,
+      createdAt: "2026-07-10T00:00:00.000Z",
+    };
+    taskRepository.insertTask.mockResolvedValue(assignedTask);
+    notificationService.createNotification.mockResolvedValue(notification);
+
+    await createTask(userId, {
+      ...payload,
+      assigneeId: assignedTask.assignee?.id,
+    });
+
+    expect(notificationService.deliverPushBestEffort).toHaveBeenCalledWith(
+      notification,
+      assignedTask.assignee?.id,
     );
   });
 });

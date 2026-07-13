@@ -1,10 +1,9 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppToast } from "@/components/ui/app-toast";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   GitBranch,
@@ -26,6 +25,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { AppSelect } from "@/components/ui/app-select";
 import { AppIconButton } from "@/components/ui/app-icon-button";
 import { AppInput } from "@/components/ui/app-input";
+import { AppTimeZoneInput } from "@/components/ui/app-time-zone-input";
 import { AppTextarea } from "@/components/ui/app-textarea";
 import { AppConfirmDialog } from "@/components/ui/app-confirm-dialog";
 import { AppCombobox } from "@/components/ui/app-combobox";
@@ -48,7 +48,7 @@ type GitHubInstallation = {
   githubAccountType: string;
 };
 
-type GitHubRepository = {
+type ProjectRepositoryConnection = {
   id: string;
   githubInstallationId: string;
   repositoryId: number;
@@ -57,8 +57,21 @@ type GitHubRepository = {
   defaultBranch: string | null;
 };
 
+type AvailableGitHubRepository = {
+  id: number;
+  fullName: string;
+  htmlUrl: string;
+  defaultBranch: string | null;
+};
+
 const nonOwnerRoles: Exclude<ProjectRole, "OWNER">[] = ["ADMIN", "MEMBER", "VIEWER"];
 
+/**
+ * Purpose: Render a consistent project-settings section.
+ * Inputs: Section title and content.
+ * Output: Bordered settings section.
+ * Side effects: None.
+ */
 function SettingsSection({
   title,
   children,
@@ -77,6 +90,12 @@ function SettingsSection({
   );
 }
 
+/**
+ * Purpose: Render a project metadata label, description, and value.
+ * Inputs: Row label, optional description, and value content.
+ * Output: Responsive settings row.
+ * Side effects: None.
+ */
 function SettingsRow({
   label,
   description,
@@ -99,6 +118,12 @@ function SettingsRow({
   );
 }
 
+/**
+ * Purpose: Render one clearly destructive project setting.
+ * Inputs: Action label, explanation, and control.
+ * Output: Responsive danger-zone row.
+ * Side effects: None beyond the supplied action control.
+ */
 function DangerZoneItem({
   label,
   description,
@@ -119,10 +144,22 @@ function DangerZoneItem({
   );
 }
 
-export function ProjectSettingsScreen() {
+/**
+ * Purpose: Render authorized project metadata, membership, invitation, repository, and archive controls.
+ * Inputs: Server-derived GitHub integration availability.
+ * Output: Responsive project settings screen.
+ * Side effects: Reads and mutates project resources through typed API hooks.
+ * Failure behavior: Preserves current state and surfaces typed API failures.
+ */
+export function ProjectSettingsScreen({
+  githubConfigured,
+}: {
+  githubConfigured: boolean;
+}) {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId;
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const online = useOnline();
 
@@ -166,14 +203,16 @@ export function ProjectSettingsScreen() {
         }[]
       >(`/api/projects/${projectId}/invitations`, signal),
     enabled: Boolean(
-      projectId && (project.data?.role === "OWNER" || project.data?.role === "ADMIN"),
+      projectId &&
+      !project.data?.archivedAt &&
+      (project.data?.role === "OWNER" || project.data?.role === "ADMIN"),
     ),
   });
 
   const githubRepo = useQuery({
     queryKey: queryKeys.projectGithubRepo(projectId),
     queryFn: ({ signal }) =>
-      apiGet<GitHubRepository | null>(
+      apiGet<ProjectRepositoryConnection | null>(
         `/api/projects/${projectId}/github/repositories`,
         signal,
       ),
@@ -184,7 +223,9 @@ export function ProjectSettingsScreen() {
     queryKey: ["github-installations"],
     queryFn: ({ signal }) =>
       apiGet<GitHubInstallation[]>(`/api/github/installations`, signal),
-    enabled: project.data?.role === "OWNER" || project.data?.role === "ADMIN",
+    enabled:
+      githubConfigured &&
+      (project.data?.role === "OWNER" || project.data?.role === "ADMIN"),
   });
 
   const archiveProject = useMutation({
@@ -212,14 +253,20 @@ export function ProjectSettingsScreen() {
 
   const connectGithub = useMutation({
     mutationFn: (body: { githubInstallationId: string; repositoryId: number }) =>
-      apiMutation<GitHubRepository>(
+      apiMutation<ProjectRepositoryConnection>(
         "post",
         `/api/projects/${projectId}/github/repositories`,
         body,
       ),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.projectGithubRepo(projectId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.project(projectId) });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.projectGithubRepo(projectId),
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.project(projectId) });
+      setShowConnectGithub(false);
+      setSelectedInstallation(null);
+      setSelectedRepo(null);
+      setInstallationRepos([]);
       AppToast("GitHub repository connected", "success");
     },
     onError: (error) => AppToast(normalizeApiClientError(error).message, "error"),
@@ -232,8 +279,10 @@ export function ProjectSettingsScreen() {
         `/api/projects/${projectId}/github/repositories/${repositoryId}`,
       ),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.projectGithubRepo(projectId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.project(projectId) });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.projectGithubRepo(projectId),
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.project(projectId) });
       AppToast("GitHub repository disconnected", "success");
     },
     onError: (error) => AppToast(normalizeApiClientError(error).message, "error"),
@@ -257,7 +306,9 @@ export function ProjectSettingsScreen() {
       role: Exclude<ProjectRole, "OWNER">;
     }) => apiMutation("patch", `/api/projects/${projectId}/members/${userId}`, { role }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.projectMembers(projectId) });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.projectMembers(projectId),
+      });
       AppToast("Member role updated", "success");
     },
     onError: (error) => AppToast(normalizeApiClientError(error).message, "error"),
@@ -267,7 +318,9 @@ export function ProjectSettingsScreen() {
     mutationFn: (userId: string) =>
       apiMutation("delete", `/api/projects/${projectId}/members/${userId}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.projectMembers(projectId) });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.projectMembers(projectId),
+      });
       AppToast("Member removed", "success");
     },
     onError: (error) => AppToast(normalizeApiClientError(error).message, "error"),
@@ -280,7 +333,7 @@ export function ProjectSettingsScreen() {
         `/api/projects/${projectId}/invitations/${invitationId}/revoke`,
       ),
     onSuccess: () => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: queryKeys.projectInvitations(projectId),
       });
       AppToast("Invitation revoked", "success");
@@ -300,15 +353,21 @@ export function ProjectSettingsScreen() {
         queryKey: queryKeys.projectMembers(projectId),
       });
       AppToast("Ownership transferred.", "success");
+      setTransferTarget("");
     },
     onError: (error) => AppToast(normalizeApiClientError(error).message, "error"),
   });
 
   const [showConnectGithub, setShowConnectGithub] = useState(false);
   const [selectedInstallation, setSelectedInstallation] = useState<string | null>(null);
-  const [selectedRepo, setSelectedRepo] = useState<GitHubRepository | null>(null);
-  const [installationRepos, setInstallationRepos] = useState<GitHubRepository[]>([]);
+  const [selectedRepo, setSelectedRepo] = useState<AvailableGitHubRepository | null>(
+    null,
+  );
+  const [installationRepos, setInstallationRepos] = useState<AvailableGitHubRepository[]>(
+    [],
+  );
   const [loadingRepos, setLoadingRepos] = useState(false);
+  const [repositoryLoadError, setRepositoryLoadError] = useState<string | null>(null);
   type ProjectDraft = {
     title: string;
     description: string;
@@ -345,6 +404,12 @@ export function ProjectSettingsScreen() {
           timeZone: project.data.timeZone,
         }
     : null;
+  /**
+   * Purpose: Merge edits into the current project-version draft.
+   * Inputs: Partial editable project values.
+   * Output: Void.
+   * Side effects: Updates local form state without mutating query data.
+   */
   const updateEditDraft = (values: Partial<ProjectDraft>) => {
     if (!projectDraftKey || !editDraft) return;
     setEditDraftState({ key: projectDraftKey, value: { ...editDraft, ...values } });
@@ -357,6 +422,15 @@ export function ProjectSettingsScreen() {
     );
     return () => window.clearTimeout(timeout);
   }, [inviteSearch]);
+
+  useEffect(() => {
+    if (
+      searchParams.get("connectGithub") === "1" &&
+      (project.data?.role === "OWNER" || project.data?.role === "ADMIN")
+    ) {
+      setShowConnectGithub(true);
+    }
+  }, [project.data?.role, searchParams]);
 
   const inviteSuggestions = useQuery({
     queryKey: ["user-suggestions", projectId, debouncedInviteSearch],
@@ -398,15 +472,26 @@ export function ProjectSettingsScreen() {
     onError: (error) => AppToast(normalizeApiClientError(error).message, "error"),
   });
 
+  /**
+   * Purpose: Load repositories authorized for one selected GitHub App installation.
+   * Inputs: Installation database ID.
+   * Output: Promise resolved after picker state is updated.
+   * Side effects: Performs a typed API read and updates dialog state.
+   * Failure behavior: Preserves the selected installation and exposes a retry action.
+   */
   const fetchInstallationRepositories = async (installationId: string) => {
     setLoadingRepos(true);
+    setRepositoryLoadError(null);
+    setInstallationRepos([]);
     try {
-      const repos = await apiGet<GitHubRepository[]>(
+      const repos = await apiGet<AvailableGitHubRepository[]>(
         `/api/projects/${projectId}/github/repositories?installationId=${installationId}`,
       );
       setInstallationRepos(repos);
-    } catch {
-      AppToast("Failed to load repositories", "error");
+    } catch (error) {
+      const normalized = normalizeApiClientError(error);
+      setRepositoryLoadError(normalized.message);
+      AppToast(normalized.message, "error");
     } finally {
       setLoadingRepos(false);
     }
@@ -444,7 +529,7 @@ export function ProjectSettingsScreen() {
         action={
           <Link
             href={`/projects/${projectId}`}
-            className="text-sm font-medium text-brand hover:underline"
+            className="inline-flex min-h-11 items-center text-sm font-medium text-brand hover:underline"
           >
             ← Back to project
           </Link>
@@ -468,7 +553,7 @@ export function ProjectSettingsScreen() {
               label="Project ID"
               description="Unique identifier for this project"
             >
-              <code className="font-mono text-sm text-text-secondary bg-surface-muted px-2 py-1 rounded">
+              <code className="max-w-full break-all rounded bg-surface-muted px-2 py-1 font-mono text-xs text-text-secondary">
                 {projectData.id}
               </code>
             </SettingsRow>
@@ -497,6 +582,7 @@ export function ProjectSettingsScreen() {
             <div className="grid gap-4">
               <AppInput
                 label="Title"
+                maxLength={60}
                 value={editDraft?.title ?? ""}
                 onChange={(event) =>
                   updateEditDraft({ title: event.currentTarget.value })
@@ -504,6 +590,7 @@ export function ProjectSettingsScreen() {
               />
               <AppTextarea
                 label="Description"
+                maxLength={500}
                 value={editDraft?.description ?? ""}
                 onChange={(event) =>
                   updateEditDraft({ description: event.currentTarget.value })
@@ -518,8 +605,7 @@ export function ProjectSettingsScreen() {
                 value={editDraft?.colorKey ?? "orange"}
                 onChange={(value) => updateEditDraft({ colorKey: value })}
               />
-              <AppInput
-                label="Timezone"
+              <AppTimeZoneInput
                 value={editDraft?.timeZone ?? "UTC"}
                 onChange={(event) =>
                   updateEditDraft({ timeZone: event.currentTarget.value })
@@ -527,7 +613,9 @@ export function ProjectSettingsScreen() {
               />
               <AppButton
                 className="w-fit"
-                disabled={updateProject.isPending}
+                disabled={
+                  updateProject.isPending || (editDraft?.title.trim().length ?? 0) < 2
+                }
                 onClick={() =>
                   editDraft &&
                   updateProject.mutate({
@@ -546,8 +634,35 @@ export function ProjectSettingsScreen() {
         ) : null}
 
         {/* GitHub Integration */}
-        <SettingsSection title="GitHub Integration">
-          {githubRepo.data ? (
+        <SettingsSection title="GitHub integration">
+          {!githubConfigured && isAdmin ? (
+            <p
+              role="status"
+              className="mb-3 rounded-md border border-warning bg-warning-soft p-3 text-sm"
+            >
+              GitHub App is not configured for this deployment. Add the documented GitHub
+              environment variables before connecting a repository.
+            </p>
+          ) : null}
+          {githubInstallations.isError && isAdmin ? (
+            <p
+              role="alert"
+              className="mb-3 rounded-md border border-warning bg-warning-soft p-3 text-sm"
+            >
+              {normalizeApiClientError(githubInstallations.error).code ===
+              "INTEGRATION_NOT_CONFIGURED"
+                ? "GitHub App is not configured for this deployment. Add the documented GitHub environment variables before connecting a repository."
+                : "GitHub installations could not be loaded. Try again when the connection is available."}
+            </p>
+          ) : null}
+          {githubRepo.isLoading ? (
+            <AppSkeleton className="h-24" />
+          ) : githubRepo.isError ? (
+            <AppEmptyState
+              title="Repository status unavailable"
+              description="The GitHub connection status could not be loaded."
+            />
+          ) : githubRepo.data ? (
             <>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-md border border-border bg-surface-muted">
                 <div className="flex items-center gap-3">
@@ -561,35 +676,37 @@ export function ProjectSettingsScreen() {
                     </span>
                   </div>
                 </div>
-                <AppButton
-                  variant="danger"
-                  size="sm"
-                  disabled={disconnectGithub.isPending}
-                  onClick={() =>
-                    setConfirmAction({
-                      type: "disconnect",
-                      id: String(githubRepo.data!.repositoryId),
-                      label: githubRepo.data!.repositoryFullName,
-                    })
-                  }
-                >
-                  {disconnectGithub.isPending ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin mr-2" />
-                      Disconnecting...
-                    </>
-                  ) : (
-                    "Disconnect Repository"
-                  )}
-                </AppButton>
+                {isAdmin ? (
+                  <AppButton
+                    variant="danger"
+                    size="sm"
+                    disabled={disconnectGithub.isPending}
+                    onClick={() =>
+                      setConfirmAction({
+                        type: "disconnect",
+                        id: String(githubRepo.data!.repositoryId),
+                        label: githubRepo.data!.repositoryFullName,
+                      })
+                    }
+                  >
+                    {disconnectGithub.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 size-4 animate-spin" />
+                        Disconnecting…
+                      </>
+                    ) : (
+                      "Disconnect repository"
+                    )}
+                  </AppButton>
+                ) : null}
               </div>
-              <p className="mt-2 text-sm text-text-secondary">
+              <p className="mt-1 text-sm text-text-secondary">
                 <ExternalLink className="size-3 inline mr-1" />
                 <a
                   href={githubRepo.data.repositoryUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-brand hover:underline"
+                  className="inline-flex min-h-11 items-center text-brand hover:underline"
                 >
                   View on GitHub
                 </a>
@@ -602,13 +719,18 @@ export function ProjectSettingsScreen() {
                 <div>
                   <span className="font-medium">No repository connected</span>
                   <span className="block text-sm text-text-secondary">
-                    Link a GitHub repository to track issues and PRs
+                    Link one authorized repository for project context and ownership.
                   </span>
                 </div>
               </div>
               <AppButton
                 onClick={() => setShowConnectGithub(true)}
-                disabled={githubInstallations.isLoading || !isAdmin}
+                disabled={
+                  !githubConfigured ||
+                  githubInstallations.isLoading ||
+                  githubInstallations.isError ||
+                  !isAdmin
+                }
               >
                 Connect Repository
               </AppButton>
@@ -619,12 +741,22 @@ export function ProjectSettingsScreen() {
         {/* Members */}
         {isAdmin && (
           <SettingsSection title="Members">
+            {members.isLoading ? <AppSkeleton className="h-32" /> : null}
+            {members.isError ? (
+              <AppEmptyState
+                title="Members unavailable"
+                description="The active member list could not be loaded."
+              />
+            ) : null}
             {members.data?.length ? (
               <div className="grid gap-3">
                 {members.data.map((member) => {
                   const isCurrentUser = member.id === me.data?.id;
                   const canChangeRole =
-                    canManageMembers && !isCurrentUser && member.role !== "OWNER";
+                    canManageMembers &&
+                    !isCurrentUser &&
+                    member.role !== "OWNER" &&
+                    (isOwner || member.role !== "ADMIN");
                   const canRemove =
                     canManageMembers && !isCurrentUser && member.role !== "OWNER";
                   return (
@@ -656,6 +788,7 @@ export function ProjectSettingsScreen() {
                               value: role,
                               label: role,
                             }))}
+                            disabled={changeMemberRole.isPending}
                           />
                         ) : (
                           <span className="rounded-sm bg-surface-muted px-2 py-1 font-mono text-xs text-text-secondary">
@@ -682,12 +815,12 @@ export function ProjectSettingsScreen() {
                   );
                 })}
               </div>
-            ) : (
+            ) : !members.isLoading && !members.isError ? (
               <AppEmptyState
                 title="No members"
                 description="Invite collaborators to this project."
               />
-            )}
+            ) : null}
           </SettingsSection>
         )}
 
@@ -749,6 +882,11 @@ export function ProjectSettingsScreen() {
                 placeholder="Search by name or handle"
                 disabled={!online || invite.isPending}
               />
+              {inviteSuggestions.isError ? (
+                <p role="alert" className="text-sm text-error sm:col-span-3">
+                  Collaborator suggestions could not be loaded.
+                </p>
+              ) : null}
               <AppSelect
                 label="Role"
                 value={inviteRole}
@@ -765,6 +903,13 @@ export function ProjectSettingsScreen() {
                 {invite.isPending ? "Sending…" : "Invite"}
               </AppButton>
             </div>
+            {invitations.isLoading ? <AppSkeleton className="h-28" /> : null}
+            {invitations.isError ? (
+              <AppEmptyState
+                title="Invitations unavailable"
+                description="Pending invitations could not be loaded."
+              />
+            ) : null}
             {invitations.data?.length ? (
               <div className="grid gap-3">
                 {invitations.data.map((invitation) => (
@@ -804,57 +949,81 @@ export function ProjectSettingsScreen() {
                   </div>
                 ))}
               </div>
-            ) : (
+            ) : !invitations.isLoading && !invitations.isError ? (
               <AppEmptyState
                 title="No pending invitations"
                 description="Invited users will appear here."
               />
-            )}
+            ) : null}
           </SettingsSection>
         )}
 
-        {/* Danger Zone */}
-        <SettingsSection title="Danger Zone">
-          {projectData.archivedAt ? (
-            <AppEmptyState
-              title="Project archived"
-              description="This project has been archived. Archived projects are hidden from lists but their data is preserved."
-            />
-          ) : (
-            <DangerZoneItem
-              label="Archive project"
-              description="Archive this project to hide it from lists. All tasks and data will be preserved. Only the project owner can archive."
-              action={
-                <AppButton
-                  variant="danger"
-                  disabled={archiveProject.isPending}
-                  onClick={() =>
-                    setConfirmAction({ type: "archive", label: projectData.title })
-                  }
-                >
-                  {archiveProject.isPending ? "Archiving..." : "Archive Project"}
-                </AppButton>
-              }
-            />
-          )}
-        </SettingsSection>
+        {isOwner ? (
+          <SettingsSection title="Danger zone">
+            {projectData.archivedAt ? (
+              <AppEmptyState
+                title="Project archived"
+                description="This project is hidden from active lists while its tasks and history remain preserved."
+              />
+            ) : (
+              <DangerZoneItem
+                label="Archive project"
+                description="Hide this project from active lists while preserving its tasks and history."
+                action={
+                  <AppButton
+                    variant="danger"
+                    disabled={archiveProject.isPending}
+                    onClick={() =>
+                      setConfirmAction({ type: "archive", label: projectData.title })
+                    }
+                  >
+                    {archiveProject.isPending ? "Archiving…" : "Archive project"}
+                  </AppButton>
+                }
+              />
+            )}
+          </SettingsSection>
+        ) : null}
       </fieldset>
 
       {/* Connect GitHub Dialog */}
       <AppDialog
         open={showConnectGithub}
-        onOpenChange={setShowConnectGithub}
+        onOpenChange={(open) => {
+          setShowConnectGithub(open);
+          if (!open) {
+            setSelectedInstallation(null);
+            setSelectedRepo(null);
+            setInstallationRepos([]);
+            setRepositoryLoadError(null);
+          }
+        }}
         title="Connect GitHub Repository"
         description="Select a GitHub App installation and repository to link to this project."
       >
         <div className="grid gap-4">
-          {!selectedInstallation ? (
+          {!githubConfigured ? (
+            <AppEmptyState
+              title="GitHub connection unavailable"
+              description="GitHub App is not configured for this deployment. Follow the GitHub setup guide before connecting a repository."
+            />
+          ) : !selectedInstallation ? (
             <>
               <p className="text-sm text-text-secondary">
                 Choose a GitHub App installation that has access to the repository you
                 want to connect.
               </p>
-              {githubInstallations.isLoading ? (
+              {githubInstallations.isError ? (
+                <AppEmptyState
+                  title="GitHub connection unavailable"
+                  description={
+                    normalizeApiClientError(githubInstallations.error).code ===
+                    "INTEGRATION_NOT_CONFIGURED"
+                      ? "GitHub App is not configured for this deployment. Follow the GitHub setup guide before connecting a repository."
+                      : "Installations could not be loaded. Close this dialog and try again."
+                  }
+                />
+              ) : githubInstallations.isLoading ? (
                 <AppSkeleton className="h-32" />
               ) : githubInstallations.data?.length ? (
                 <div className="grid gap-2">
@@ -880,7 +1049,7 @@ export function ProjectSettingsScreen() {
                   action={
                     <AppButton
                       onClick={() => startGithub.mutate()}
-                      disabled={!online || startGithub.isPending}
+                      disabled={!online || !githubConfigured || startGithub.isPending}
                     >
                       {startGithub.isPending ? "Opening GitHub…" : "Install GitHub App"}
                     </AppButton>
@@ -897,6 +1066,7 @@ export function ProjectSettingsScreen() {
                   onClick={() => {
                     setSelectedInstallation(null);
                     setInstallationRepos([]);
+                    setRepositoryLoadError(null);
                   }}
                 >
                   <ChevronLeft className="size-4 mr-1" /> Back
@@ -908,6 +1078,21 @@ export function ProjectSettingsScreen() {
               <div className="grid gap-2 max-h-64 overflow-y-auto">
                 {loadingRepos ? (
                   <AppSkeleton className="h-32" />
+                ) : repositoryLoadError ? (
+                  <AppEmptyState
+                    title="Repositories unavailable"
+                    description={repositoryLoadError}
+                    action={
+                      <AppButton
+                        variant="secondary"
+                        onClick={() =>
+                          void fetchInstallationRepositories(selectedInstallation)
+                        }
+                      >
+                        Try again
+                      </AppButton>
+                    }
+                  />
                 ) : installationRepos.length ? (
                   installationRepos.map((repo) => (
                     <AppButton
@@ -917,7 +1102,7 @@ export function ProjectSettingsScreen() {
                       onClick={() => setSelectedRepo(repo)}
                     >
                       <GitBranch className="size-4 mr-2" />
-                      {repo.repositoryFullName}
+                      {repo.fullName}
                     </AppButton>
                   ))
                 ) : (
@@ -939,14 +1124,14 @@ export function ProjectSettingsScreen() {
                   <ChevronLeft className="size-4 mr-1" /> Back
                 </AppButton>
                 <p className="text-sm text-text-secondary">
-                  Selected: <strong>{selectedRepo.repositoryFullName}</strong>
+                  Selected: <strong>{selectedRepo.fullName}</strong>
                 </p>
               </div>
               <AppButton
                 onClick={() =>
                   connectGithub.mutate({
                     githubInstallationId: selectedInstallation!,
-                    repositoryId: selectedRepo.repositoryId,
+                    repositoryId: selectedRepo.id,
                   })
                 }
                 disabled={connectGithub.isPending}

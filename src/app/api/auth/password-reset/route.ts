@@ -1,11 +1,16 @@
 import type { NextRequest } from "next/server";
+import { z } from "zod";
 import { AppError } from "@/lib/api/errors";
 import { createSupabaseServerClient } from "@/lib/auth/supabase";
 import { apiSuccess } from "@/lib/api/response";
 import { getServerEnv } from "@/lib/env/server";
-import { withApiHandler } from "@/server/api/handler";
+import { readJson, withApiHandler } from "@/server/api/handler";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { assertRateLimit } from "@/server/security/rate-limit";
+
+const passwordUpdateSchema = z.object({
+  password: z.string().min(8).max(128),
+});
 
 /**
  * Purpose: Send a password-reset email to the currently authenticated account.
@@ -31,6 +36,32 @@ export async function POST(request: NextRequest) {
     });
     if (error)
       throw new AppError("INTERNAL_ERROR", 502, "Password reset could not be started.");
+    return apiSuccess({ ok: true }, { requestId });
+  });
+}
+
+/**
+ * Purpose: Complete an authenticated Supabase recovery session with a new password.
+ * Inputs: Validated replacement password and recovery-session cookies.
+ * Output: Generic success envelope.
+ * Side effects: Updates the Supabase Auth password and clears the recovery session.
+ * Failure behavior: Returns a generic authorization error for expired recovery sessions.
+ */
+export async function PATCH(request: NextRequest) {
+  return withApiHandler(request, async (requestId) => {
+    const user = await requireCurrentUser();
+    await assertRateLimit("auth-password-update", user.id, 5, 3600);
+    const body = passwordUpdateSchema.parse(await readJson(request));
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.auth.updateUser({ password: body.password });
+    if (error) {
+      throw new AppError(
+        "UNAUTHORIZED",
+        401,
+        "The password reset link is invalid or expired.",
+      );
+    }
+    await supabase.auth.signOut({ scope: "local" });
     return apiSuccess({ ok: true }, { requestId });
   });
 }

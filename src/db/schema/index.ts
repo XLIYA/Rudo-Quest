@@ -385,12 +385,3 @@ export const projectRepositories = pgTable(
     uniqueIndex("project_repositories_repository_uidx").on(table.repositoryId),
   ],
 );
-
-export type Profile = typeof profiles.$inferSelect;
-export type Project = typeof projects.$inferSelect;
-export type ProjectMembership = typeof projectMemberships.$inferSelect;
-export type ProjectInvitation = typeof projectInvitations.$inferSelect;
-export type Task = typeof tasks.$inferSelect;
-export type ActivityEvent = typeof activityEvents.$inferSelect;
-export type Notification = typeof notifications.$inferSelect;
-export type GitHubInstallationState = typeof githubInstallationStates.$inferSelect;

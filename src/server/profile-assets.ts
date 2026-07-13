@@ -7,6 +7,12 @@ const bucketName = "profile-assets";
 const signedUrlTtlSeconds = 60 * 60;
 const assetExtensions = new Set(["jpeg", "png", "webp"]);
 
+/**
+ * Purpose: Validate UUID filenames before accepting private storage paths.
+ * Inputs: Candidate identifier string.
+ * Output: True for an RFC-compatible UUID shape.
+ * Side effects: None.
+ */
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value,
@@ -141,6 +147,13 @@ export async function createProfileAssetUrlMap(
   return urls;
 }
 
+/**
+ * Purpose: Resolve one private asset path from a pre-signed URL map.
+ * Inputs: Optional stored path and path-to-URL map.
+ * Output: Short-lived URL or null when unavailable.
+ * Side effects: None.
+ * Business rule: Storage paths are never exposed as permanent public URLs.
+ */
 export function profileAssetUrl(
   path: string | null | undefined,
   urls: Map<string, string>,

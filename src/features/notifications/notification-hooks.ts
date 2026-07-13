@@ -13,13 +13,17 @@ import type { NotificationDto, NotificationPageDto } from "@/types/domain";
 
 /**
  * Purpose: Fetch notification center data.
- * Inputs: None.
+ * Inputs: Optional server-fetched first page for hydration-safe protected navigation.
  * Output: TanStack Query result.
  * Side effects: Performs browser HTTP GET.
  */
-export function useNotifications() {
+export function useNotifications(initialPage?: NotificationPageDto) {
   return useInfiniteQuery({
     queryKey: queryKeys.notifications,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
     initialPageParam: "",
     queryFn: ({ signal, pageParam }) =>
       apiGet<NotificationPageDto>(
@@ -27,6 +31,9 @@ export function useNotifications() {
         signal,
       ),
     getNextPageParam: (page) => page.cursor,
+    ...(initialPage
+      ? { initialData: { pages: [initialPage], pageParams: [""] } }
+      : undefined),
   });
 }
 
@@ -54,20 +61,29 @@ export function useReadNotifications() {
       const now = new Date().toISOString();
       queryClient.setQueryData<InfiniteData<NotificationPageDto>>(
         queryKeys.notifications,
-        (current) =>
-          current
-            ? {
-                ...current,
-                pages: current.pages.map((page) => ({
-                  ...page,
-                  items: page.items.map((notification) =>
-                    input.all || notification.id === input.id
-                      ? { ...notification, readAt: notification.readAt ?? now }
-                      : notification,
-                  ),
-                })),
-              }
-            : current,
+        (current) => {
+          if (!current) return current;
+          const targetWasUnread = current.pages.some((page) =>
+            page.items.some(
+              (notification) =>
+                notification.id === input.id && notification.readAt === null,
+            ),
+          );
+          return {
+            ...current,
+            pages: current.pages.map((page) => ({
+              ...page,
+              unreadCount: input.all
+                ? 0
+                : Math.max(0, page.unreadCount - (targetWasUnread ? 1 : 0)),
+              items: page.items.map((notification) =>
+                input.all || notification.id === input.id
+                  ? { ...notification, readAt: notification.readAt ?? now }
+                  : notification,
+              ),
+            })),
+          };
+        },
       );
       return { previous };
     },

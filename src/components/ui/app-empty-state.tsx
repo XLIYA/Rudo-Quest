@@ -17,7 +17,14 @@ export type AppEmptyStateProps = {
 export function AppEmptyState({ title, description, action }: AppEmptyStateProps) {
   return (
     <section className="rounded-lg border border-dashed border-border bg-surface p-6 text-center">
-      <Image src={RudoEmpty} alt="" width={160} height={120} className="mx-auto" />
+      <Image
+        src={RudoEmpty}
+        alt=""
+        width={160}
+        height={120}
+        priority
+        className="mx-auto"
+      />
       <h2 className="mt-4 text-lg font-semibold">{title}</h2>
       <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-text-secondary">
         {description}

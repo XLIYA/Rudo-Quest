@@ -148,18 +148,18 @@ async function findAuthUserByEmail(supabase, email) {
 
 /**
  * Purpose: Create or update the configured verified development admin auth user.
- * Inputs: Supabase admin client, email, password, and display name.
+ * Inputs: Supabase admin client, email, password, display name, and timezone.
  * Output: Supabase Auth user.
  * Side effects: Creates or updates an auth user through Supabase Admin APIs.
  * Failure behavior: Throws when the user cannot be created or located.
  */
-async function ensureAuthUser(supabase, { email, password, displayName }) {
+async function ensureAuthUser(supabase, { email, password, displayName, timeZone }) {
   const normalizedEmail = email.toLowerCase();
   const { data, error } = await supabase.auth.admin.createUser({
     email: normalizedEmail,
     password,
     email_confirm: true,
-    user_metadata: { name: displayName },
+    user_metadata: { name: displayName, time_zone: timeZone },
   });
 
   if (!error && data.user) return data.user;
@@ -172,7 +172,11 @@ async function ensureAuthUser(supabase, { email, password, displayName }) {
     {
       password,
       email_confirm: true,
-      user_metadata: { ...existing.user_metadata, name: displayName },
+      user_metadata: {
+        ...existing.user_metadata,
+        name: displayName,
+        time_zone: timeZone,
+      },
     },
   );
   if (updateError) throw updateError;
@@ -304,7 +308,12 @@ async function main() {
   const pool = createPool(databaseUrl);
 
   try {
-    const user = await ensureAuthUser(supabase, { email, password, displayName });
+    const user = await ensureAuthUser(supabase, {
+      email,
+      password,
+      displayName,
+      timeZone,
+    });
     const profile = await upsertProfile(pool, {
       userId: user.id,
       email,

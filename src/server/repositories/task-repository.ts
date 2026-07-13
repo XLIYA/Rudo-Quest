@@ -1,4 +1,16 @@
-import { and, asc, desc, eq, gte, isNull, isNotNull, lte, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  isNull,
+  isNotNull,
+  lte,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   activityEvents,
@@ -9,12 +21,15 @@ import {
 } from "@/db/schema";
 import { getDb, type DbExecutor } from "@/lib/db/client";
 import { createProfileAssetUrlMap, profileAssetUrl } from "@/server/profile-assets";
+import { humanizeActivity } from "@/server/repositories/activity-repository";
 import type {
   ProjectColorKey,
   ProjectIconKey,
+  TaskActivityDto,
   TaskDto,
   TaskStatus,
 } from "@/types/domain";
+import { getDateInTimeZone } from "@/lib/utils/dates";
 
 /**
  * Purpose: Map a task query row into the public task DTO.
@@ -56,7 +71,9 @@ function toTaskDto(
   viewerUserId?: string,
 ): TaskDto {
   const canEditDetails = row.projectId
-    ? row.viewerRole === "OWNER" || row.viewerRole === "ADMIN"
+    ? row.viewerRole === "OWNER" ||
+      row.viewerRole === "ADMIN" ||
+      (row.viewerRole === "MEMBER" && row.assigneeId === viewerUserId)
     : row.createdById === viewerUserId;
   const canTransition = row.projectId
     ? canEditDetails || (row.viewerRole === "MEMBER" && row.assigneeId === viewerUserId)
@@ -115,9 +132,10 @@ function toTaskDto(
  */
 export async function listWeekTasks(input: {
   userId: string;
-  from: string;
+  from?: string;
   to: string;
   projectId?: string;
+  incompleteOnly?: boolean;
 }): Promise<TaskDto[]> {
   const creator = alias(profiles, "creator_profiles");
   const assignee = alias(profiles, "assignee_profiles");
@@ -164,8 +182,9 @@ export async function listWeekTasks(input: {
     )
     .where(
       and(
-        gte(tasks.scheduledDate, input.from),
+        input.from ? gte(tasks.scheduledDate, input.from) : undefined,
         lte(tasks.scheduledDate, input.to),
+        input.incompleteOnly ? ne(tasks.status, "DONE") : undefined,
         input.projectId ? eq(tasks.projectId, input.projectId) : undefined,
         isNull(tasks.archivedAt),
         or(
@@ -335,7 +354,7 @@ export async function updateTaskRow(
  * Output: Activity rows for a task.
  * Side effects: Reads activity_events.
  */
-export async function listTaskActivity(taskId: string) {
+export async function listTaskActivity(taskId: string): Promise<TaskActivityDto[]> {
   const rows = await getDb()
     .select({
       id: activityEvents.id,
@@ -353,7 +372,6 @@ export async function listTaskActivity(taskId: string) {
   const avatarUrls = await createProfileAssetUrlMap(
     rows.map((row) => row.actorAvatarPath),
   );
-  const { humanizeActivity } = await import("@/server/repositories/activity-repository");
   return rows.map((row) => ({
     id: row.id,
     actor: row.actorId
@@ -364,7 +382,7 @@ export async function listTaskActivity(taskId: string) {
           avatarUrl: profileAssetUrl(row.actorAvatarPath, avatarUrls),
         }
       : null,
-    eventType: row.eventType,
+    eventType: row.eventType as TaskActivityDto["eventType"],
     label: humanizeActivity(row.eventType as Parameters<typeof humanizeActivity>[0]),
     createdAt: row.createdAt.toISOString(),
   }));
@@ -380,25 +398,34 @@ export async function listCompletionCounts(input: {
   userId: string;
   from: string;
   to: string;
+  timeZone: string;
 }) {
+  const rangeStart = new Date(`${input.from}T00:00:00.000Z`);
+  rangeStart.setUTCDate(rangeStart.getUTCDate() - 1);
+  const rangeEnd = new Date(`${input.to}T23:59:59.999Z`);
+  rangeEnd.setUTCDate(rangeEnd.getUTCDate() + 1);
   const rows = await getDb()
     .select({
-      scheduledDate: tasks.scheduledDate,
-      id: tasks.id,
+      completedAt: tasks.completedAt,
     })
     .from(tasks)
     .where(
       and(
         eq(tasks.assigneeId, input.userId),
         eq(tasks.status, "DONE"),
-        gte(tasks.scheduledDate, input.from),
-        lte(tasks.scheduledDate, input.to),
+        isNotNull(tasks.completedAt),
+        gte(tasks.completedAt, rangeStart),
+        lte(tasks.completedAt, rangeEnd),
         isNull(tasks.archivedAt),
       ),
     );
   const counts = new Map<string, number>();
-  for (const row of rows)
-    counts.set(row.scheduledDate, (counts.get(row.scheduledDate) ?? 0) + 1);
+  for (const row of rows) {
+    if (!row.completedAt) continue;
+    const date = getDateInTimeZone(row.completedAt, input.timeZone);
+    if (date < input.from || date > input.to) continue;
+    counts.set(date, (counts.get(date) ?? 0) + 1);
+  }
   return Array.from(counts, ([date, count]) => ({ date, count }));
 }
 
@@ -410,8 +437,9 @@ export async function listCompletionCounts(input: {
  */
 export async function listDashboardTasks(input: {
   userId: string;
-  from: string;
+  from?: string;
   to: string;
+  incompleteOnly?: boolean;
 }) {
   return listWeekTasks(input);
 }

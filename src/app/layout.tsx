@@ -1,16 +1,28 @@
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata, Viewport } from "next";
-import { Fjord_One } from "next/font/google";
+import localFont from "next/font/local";
+import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import { Providers } from "@/components/shared/providers";
 import "./globals.css";
 
-const fjordOne = Fjord_One({
-  variable: "--font-fjord-one",
-  subsets: ["latin"],
-  weight: "400",
+const manrope = localFont({
+  src: "../assets/fonts/manrope-latin.woff2",
+  variable: "--font-manrope",
+  weight: "200 800",
+  style: "normal",
   display: "swap",
+  fallback: ["system-ui", "sans-serif"],
+});
+
+const robotoMono = localFont({
+  src: "../assets/fonts/roboto-mono-latin.woff2",
+  variable: "--font-roboto-mono",
+  weight: "100 700",
+  style: "normal",
+  display: "swap",
+  fallback: ["ui-monospace", "monospace"],
 });
 
 export const metadata: Metadata = {
@@ -41,21 +53,30 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
+/**
+ * Purpose: Define the global document, local font variables, and application providers.
+ * Inputs: Current App Router content.
+ * Output: Root HTML document tree.
+ * Side effects: Reads the request nonce and mounts theme, query, PWA, and Vercel telemetry providers.
+ */
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+  const enableVercelTelemetry = process.env.VERCEL === "1";
+
   return (
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${fjordOne.variable} h-full antialiased`}
+      className={`${manrope.variable} ${robotoMono.variable} h-full antialiased`}
     >
       <body>
-        <Providers>{children}</Providers>
-        <Analytics />
-        <SpeedInsights />
+        <Providers nonce={nonce}>{children}</Providers>
+        {enableVercelTelemetry ? (
+          <>
+            <Analytics />
+            <SpeedInsights />
+          </>
+        ) : null}
       </body>
     </html>
   );

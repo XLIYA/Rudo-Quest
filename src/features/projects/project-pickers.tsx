@@ -1,6 +1,7 @@
 "use client";
 
 import * as Icons from "lucide-react";
+import { createElement } from "react";
 import {
   projectColorKeys,
   projectIconKeys,
@@ -64,57 +65,10 @@ export function ProjectIconGlyph({
   iconKey: ProjectIconKey;
   className?: string;
 }) {
-  switch (iconKey) {
-    case "CheckCircle2":
-      return <Icons.CheckCircle2 className={className} aria-hidden />;
-    case "Rocket":
-      return <Icons.Rocket className={className} aria-hidden />;
-    case "BookOpen":
-      return <Icons.BookOpen className={className} aria-hidden />;
-    case "Code2":
-      return <Icons.Code2 className={className} aria-hidden />;
-    case "Palette":
-      return <Icons.Palette className={className} aria-hidden />;
-    case "BriefcaseBusiness":
-      return <Icons.BriefcaseBusiness className={className} aria-hidden />;
-    case "Megaphone":
-      return <Icons.Megaphone className={className} aria-hidden />;
-    case "Wrench":
-      return <Icons.Wrench className={className} aria-hidden />;
-    case "FlaskConical":
-      return <Icons.FlaskConical className={className} aria-hidden />;
-    case "HeartHandshake":
-      return <Icons.HeartHandshake className={className} aria-hidden />;
-    case "Map":
-      return <Icons.Map className={className} aria-hidden />;
-    case "Target":
-      return <Icons.Target className={className} aria-hidden />;
-    case "CalendarCheck":
-      return <Icons.CalendarCheck className={className} aria-hidden />;
-    case "FileText":
-      return <Icons.FileText className={className} aria-hidden />;
-    case "Bug":
-      return <Icons.Bug className={className} aria-hidden />;
-    case "ShieldCheck":
-      return <Icons.ShieldCheck className={className} aria-hidden />;
-    case "Lightbulb":
-      return <Icons.Lightbulb className={className} aria-hidden />;
-    case "Hammer":
-      return <Icons.Hammer className={className} aria-hidden />;
-    case "Users":
-      return <Icons.Users className={className} aria-hidden />;
-    case "GraduationCap":
-      return <Icons.GraduationCap className={className} aria-hidden />;
-    case "BarChart3":
-      return <Icons.BarChart3 className={className} aria-hidden />;
-    case "Database":
-      return <Icons.Database className={className} aria-hidden />;
-    case "PackageCheck":
-      return <Icons.PackageCheck className={className} aria-hidden />;
-    case "Compass":
-    default:
-      return <Icons.Compass className={className} aria-hidden />;
-  }
+  return createElement(resolveProjectIcon(iconKey), {
+    className,
+    "aria-hidden": true,
+  });
 }
 
 /**

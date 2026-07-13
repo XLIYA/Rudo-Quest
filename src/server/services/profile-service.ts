@@ -1,9 +1,18 @@
+import * as Sentry from "@sentry/nextjs";
 import { AppError } from "@/lib/api/errors";
 import { createSupabaseAdminClient } from "@/lib/auth/supabase";
 import { getServerEnv, getSupabaseAdminKey } from "@/lib/env/server";
-import { uploadMetadataSchema } from "@/lib/validation/common";
-import { displayNameSchema } from "@/lib/validation/common";
-import type { BannerPresetKey, ProfileSummary } from "@/types/domain";
+import {
+  displayNameSchema,
+  timeZoneSchema,
+  uploadMetadataSchema,
+} from "@/lib/validation/common";
+import type {
+  BannerPresetKey,
+  ProfileDto,
+  ProfileSummary,
+  ThemePreference,
+} from "@/types/domain";
 import {
   assertProfileAssetBytes,
   createProfileAssetUrlMap,
@@ -25,6 +34,26 @@ import {
 } from "@/server/repositories/profile-upload-repository";
 import { findProjectRole } from "@/server/repositories/project-repository";
 import { assertProjectRole } from "@/server/policies/project-policy";
+
+/**
+ * Purpose: Retire a replaced private profile object with one immediate retry.
+ * Inputs: Supabase Storage object path.
+ * Output: Promise resolving after deletion or captured failure.
+ * Side effects: Deletes from private storage and reports persistent cleanup failures.
+ * Failure behavior: Does not roll back the already-committed profile update.
+ */
+async function removeRetiredProfileAsset(path: string): Promise<void> {
+  const storage = createSupabaseAdminClient().storage.from("profile-assets");
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const { error } = await storage.remove([path]);
+    if (!error) return;
+    lastError = error;
+  }
+  Sentry.captureException(lastError, {
+    tags: { operation: "retired-profile-asset-cleanup" },
+  });
+}
 
 /**
  * Purpose: Derive a safe default handle from an email address.
@@ -53,18 +82,22 @@ export async function ensureProfileForAuthUser(input: {
   id: string;
   email: string;
   displayName?: unknown;
+  timeZone?: unknown;
 }) {
   const emailName = input.email.split("@")[0]?.slice(0, 60) ?? "";
   const fallbackName = displayNameSchema.safeParse(emailName).success
     ? emailName
     : "Rudo Explorer";
   const parsedDisplayName = displayNameSchema.safeParse(input.displayName);
+  const parsedTimeZone = timeZoneSchema.safeParse(input.timeZone);
   return upsertProfile({
     id: input.id,
     email: input.email,
     handle: deriveHandle(input.email, input.id),
     displayName: parsedDisplayName.success ? parsedDisplayName.data : fallbackName,
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+    timeZone: parsedTimeZone.success
+      ? parsedTimeZone.data
+      : Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
   });
 }
 
@@ -206,7 +239,7 @@ export async function commitProfileAsset(
   if (!updated) throw new AppError("NOT_FOUND", 404, "Profile not found.");
   const env = getServerEnv();
   if (oldPath && oldPath !== path && getSupabaseAdminKey(env)) {
-    await createSupabaseAdminClient().storage.from("profile-assets").remove([oldPath]);
+    await removeRetiredProfileAsset(oldPath);
   }
   return serializeProfile(updated);
 }
@@ -227,20 +260,35 @@ export async function setProfileBannerPreset(userId: string, presetKey: BannerPr
   });
   if (!updated) throw new AppError("NOT_FOUND", 404, "Profile not found.");
   if (current.bannerPath && getSupabaseAdminKey(getServerEnv())) {
-    await createSupabaseAdminClient()
-      .storage.from("profile-assets")
-      .remove([current.bannerPath]);
+    await removeRetiredProfileAsset(current.bannerPath);
   }
   return serializeProfile(updated);
 }
 
+/**
+ * Purpose: Serialize a profile with controlled short-lived URLs for private assets.
+ * Inputs: Persisted profile row.
+ * Output: Profile DTO safe for browser delivery.
+ * Side effects: Requests signed Supabase Storage URLs where configured.
+ */
 async function serializeProfile(
   profile: NonNullable<Awaited<ReturnType<typeof findProfileById>>>,
-) {
+): Promise<ProfileDto> {
   const urls = await createProfileAssetUrlMap([profile.avatarPath, profile.bannerPath]);
   return {
-    ...profile,
+    id: profile.id,
+    email: profile.email,
+    handle: profile.handle,
+    displayName: profile.displayName,
     avatarPath: profileAssetUrl(profile.avatarPath, urls),
     bannerPath: profileAssetUrl(profile.bannerPath, urls),
+    bannerPresetKey: profile.bannerPresetKey as BannerPresetKey | null,
+    themePreference: profile.themePreference as ThemePreference,
+    timeZone: profile.timeZone,
+    notificationsEnabled: profile.notificationsEnabled,
+    dailyReminderEnabled: profile.dailyReminderEnabled,
+    dailyReminderTime: profile.dailyReminderTime,
+    quietHoursStart: profile.quietHoursStart,
+    quietHoursEnd: profile.quietHoursEnd,
   };
 }

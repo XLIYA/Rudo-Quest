@@ -38,7 +38,8 @@ export const updateProjectSchema = createProjectSchema
     colorKey: true,
     timeZone: true,
   })
-  .partial();
+  .partial()
+  .refine((value) => Object.keys(value).length > 0, "Provide a project field to update.");
 
 export const createInvitationSchema = z.object({
   invitedUserId: uuidSchema,

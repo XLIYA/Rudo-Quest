@@ -9,11 +9,14 @@ import { useOnline } from "@/hooks/use-online";
 import { apiGet, apiMutation, normalizeApiClientError } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
 import { AppButton } from "@/components/ui/app-button";
+import { AppCheckbox } from "@/components/ui/app-checkbox";
 import { AppEmptyState } from "@/components/ui/app-empty-state";
 import { AppInput } from "@/components/ui/app-input";
+import { AppTimeZoneInput } from "@/components/ui/app-time-zone-input";
 import { AppSelect } from "@/components/ui/app-select";
 import { AppSkeleton } from "@/components/ui/app-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
+import { PwaInstallControl } from "@/components/shared/pwa-install-control";
 import type { ProfileDto, ThemePreference } from "@/types/domain";
 import {
   getPushBrowserState,
@@ -43,6 +46,7 @@ export function SettingsScreen() {
     permission: "unsupported",
     subscribed: false,
   });
+  const [pushPending, setPushPending] = useState(false);
   type SettingsDraft = Pick<
     ProfileDto,
     "quietHoursStart" | "quietHoursEnd" | "dailyReminderTime" | "timeZone"
@@ -54,11 +58,19 @@ export function SettingsScreen() {
   const preferences = useMutation({
     mutationFn: (values: Partial<ProfileDto>) =>
       apiMutation<ProfileDto>("patch", "/api/me/preferences", values),
+    onMutate: (values) => {
+      const previousTheme = profile.data?.themePreference ?? "system";
+      if (values.themePreference) setTheme(values.themePreference);
+      return { previousTheme };
+    },
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.me, data);
       setTheme(data.themePreference);
     },
-    onError: (error) => AppToast(normalizeApiClientError(error).message, "error"),
+    onError: (error, _values, context) => {
+      setTheme(context?.previousTheme ?? "system");
+      AppToast(normalizeApiClientError(error).message, "error");
+    },
   });
   const resetPassword = useMutation({
     mutationFn: () => apiMutation("post", "/api/auth/password-reset"),
@@ -98,6 +110,12 @@ export function SettingsScreen() {
           dailyReminderTime: current.dailyReminderTime,
           timeZone: current.timeZone,
         };
+  /**
+   * Purpose: Merge edits into the server-version-keyed settings draft.
+   * Inputs: Partial reminder/timezone values.
+   * Output: Void.
+   * Side effects: Updates local form state.
+   */
   const updateDraft = (values: Partial<SettingsDraft>) =>
     setDraftState({ key: draftKey, value: { ...draft, ...values } });
   return (
@@ -125,8 +143,7 @@ export function SettingsScreen() {
         <section className="grid gap-4 rounded-lg border border-border bg-surface p-5">
           <h2 className="text-lg font-semibold">Time and reminders</h2>
           <div className="grid gap-4 md:grid-cols-2">
-            <AppInput
-              label="Timezone"
+            <AppTimeZoneInput
               value={draft.timeZone}
               onChange={(event) => updateDraft({ timeZone: event.currentTarget.value })}
             />
@@ -173,44 +190,75 @@ export function SettingsScreen() {
         <section className="grid gap-4 rounded-lg border border-border bg-surface p-5">
           <h2 className="text-lg font-semibold">Notifications and push</h2>
           <p className="text-sm text-text-secondary">
-            {push.supported
-              ? push.subscribed
-                ? "This device is subscribed."
-                : "This device is not subscribed."
-              : "Push is not supported in this browser."}
+            {!push.supported
+              ? "Push is not supported in this browser."
+              : !push.configured
+                ? "Push is not configured for this deployment."
+                : push.permission === "denied"
+                  ? "Browser permission is blocked for this site."
+                  : push.subscribed
+                    ? "This device is subscribed."
+                    : "This device is not subscribed."}
           </p>
           <div className="flex flex-wrap gap-2">
             <AppButton
               onClick={async () => {
+                setPushPending(true);
                 try {
-                  setPush(await subscribeCurrentBrowserToPush());
-                  preferences.mutate({ notificationsEnabled: true });
+                  const nextState = await subscribeCurrentBrowserToPush();
+                  try {
+                    await preferences.mutateAsync({ notificationsEnabled: true });
+                    setPush(nextState);
+                  } catch {
+                    setPush(await unsubscribeCurrentBrowserFromPush());
+                  }
                 } catch (error) {
-                  AppToast(normalizeApiClientError(error).message, "error");
+                  if (normalizeApiClientError(error).code === "CLIENT_ERROR") {
+                    AppToast(normalizeApiClientError(error).message, "error");
+                  }
+                } finally {
+                  setPushPending(false);
                 }
               }}
-              disabled={!push.supported || push.subscribed || preferences.isPending}
+              disabled={
+                !push.supported ||
+                !push.configured ||
+                push.subscribed ||
+                pushPending ||
+                preferences.isPending
+              }
             >
               Enable push
             </AppButton>
             <AppButton
               variant="secondary"
               onClick={async () => {
+                setPushPending(true);
                 try {
                   setPush(await unsubscribeCurrentBrowserFromPush());
-                  preferences.mutate({
-                    notificationsEnabled: false,
-                    dailyReminderEnabled: false,
-                  });
                 } catch (error) {
                   AppToast(normalizeApiClientError(error).message, "error");
+                } finally {
+                  setPushPending(false);
                 }
               }}
-              disabled={!push.subscribed || preferences.isPending}
+              disabled={!push.subscribed || pushPending}
             >
-              Unsubscribe
+              Unsubscribe this device
             </AppButton>
+            <AppCheckbox
+              label="Account notifications"
+              checked={current.notificationsEnabled}
+              onCheckedChange={(checked) =>
+                preferences.mutate({ notificationsEnabled: checked === true })
+              }
+              disabled={preferences.isPending}
+            />
           </div>
+        </section>
+        <section className="grid gap-4 rounded-lg border border-border bg-surface p-5">
+          <h2 className="text-lg font-semibold">App installation</h2>
+          <PwaInstallControl />
         </section>
         <section className="grid gap-4 rounded-lg border border-border bg-surface p-5">
           <h2 className="text-lg font-semibold">Account and security</h2>
@@ -232,7 +280,7 @@ export function SettingsScreen() {
           </p>
           <Link
             href="/projects"
-            className="w-fit text-sm font-semibold text-brand hover:underline"
+            className="inline-flex min-h-11 w-fit items-center text-sm font-semibold text-brand hover:underline"
           >
             Open project connections
           </Link>

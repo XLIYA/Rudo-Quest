@@ -4,6 +4,12 @@ import { getServerEnv } from "@/lib/env/server";
 
 const stateChangingMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
+/**
+ * Purpose: Normalize a configured URL to its origin for CSRF comparison.
+ * Inputs: Optional URL string.
+ * Output: Origin or null when missing or malformed.
+ * Side effects: None.
+ */
 function toOrigin(value: string | undefined): string | null {
   if (!value) return null;
   try {

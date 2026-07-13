@@ -1,20 +1,20 @@
 "use client";
 
-import { format, subDays } from "date-fns";
+import { addDays, format, parseISO } from "date-fns";
 import type { Route } from "next";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { apiGet } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
 import { useQuery } from "@tanstack/react-query";
-import type { ProjectSummary, TaskDto } from "@/types/domain";
+import type { ProfileDto, ProjectSummary, TaskDto } from "@/types/domain";
 import { AppEmptyState } from "@/components/ui/app-empty-state";
 import { AppSkeleton } from "@/components/ui/app-skeleton";
-import { AppTooltip } from "@/components/ui/app-tooltip";
 import { AppAvatarStack } from "@/components/ui/app-avatar-stack";
+import { ActivityHeatmap } from "@/components/shared/activity-heatmap";
 import { PageHeader } from "@/components/shared/page-header";
 import { TaskRow } from "@/components/ui/task-row";
 import { useTaskMutation } from "@/features/tasks/task-hooks";
-import { getMondayWeekStart } from "@/lib/utils/dates";
+import { getDateInTimeZone, getMondayWeekStart } from "@/lib/utils/dates";
 import { TaskDetailSheet } from "@/components/ui/task-detail-sheet";
 import { useOnline } from "@/hooks/use-online";
 import { useState } from "react";
@@ -41,8 +41,15 @@ type DashboardData = {
  * Side effects: Fetches dashboard data and mutates tasks through hooks.
  */
 export function DashboardScreen() {
-  const from = getMondayWeekStart(new Date());
-  const to = format(subDays(new Date(`${from}T00:00:00Z`), -6), "yyyy-MM-dd");
+  const profile = useQuery({
+    queryKey: queryKeys.me,
+    queryFn: ({ signal }) => apiGet<ProfileDto>("/api/me", signal),
+  });
+  const timeZone =
+    profile.data?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const todayDate = getDateInTimeZone(new Date(), timeZone);
+  const from = getMondayWeekStart(parseISO(todayDate));
+  const to = format(addDays(parseISO(from), 6), "yyyy-MM-dd");
   const query = useQuery({
     queryKey: queryKeys.dashboard(from, to),
     queryFn: ({ signal }) =>
@@ -62,24 +69,18 @@ export function DashboardScreen() {
     );
   }
   const todayTasks = [...query.data.today.overdue, ...query.data.today.tasks];
-  const todayDate = format(new Date(), "yyyy-MM-dd");
   const todayGroups = Array.from(
     todayTasks.reduce((groups, task) => {
       const key = task.project?.id ?? "personal";
-      const current = groups.get(key) ?? { title: task.project?.title ?? "Personal", tasks: [] as TaskDto[] };
+      const current = groups.get(key) ?? {
+        title: task.project?.title ?? "Personal",
+        tasks: [] as TaskDto[],
+      };
       current.tasks.push(task);
       groups.set(key, current);
       return groups;
     }, new Map<string, { title: string; tasks: TaskDto[] }>()),
   );
-  const heatmapCounts = new Map(
-    query.data.heatmap.days.map((day) => [day.date, day.count]),
-  );
-  const heatmapDays = Array.from({ length: 91 }, (_, index) => {
-    const date = format(subDays(new Date(), 90 - index), "yyyy-MM-dd");
-    return { date, count: heatmapCounts.get(date) ?? 0 };
-  });
-
   return (
     <main className="mx-auto grid min-w-0 max-w-7xl gap-4 overflow-x-hidden px-4 py-5 sm:gap-5 sm:px-5 md:gap-6 md:p-8">
       <PageHeader
@@ -94,7 +95,12 @@ export function DashboardScreen() {
                 <section key={key} className="grid gap-2">
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="text-sm font-semibold">{group.title}</h3>
-                    <Link href={`/weekly?date=${todayDate}`} className="text-xs font-semibold text-brand hover:underline">Open in Weekly</Link>
+                    <Link
+                      href={`/weekly?date=${todayDate}`}
+                      className="inline-flex min-h-11 items-center text-xs font-semibold text-brand hover:underline"
+                    >
+                      Open in Weekly
+                    </Link>
                   </div>
                   {group.tasks.map((task) => (
                     <TaskRow
@@ -102,8 +108,15 @@ export function DashboardScreen() {
                       task={task}
                       disabled={!online}
                       onOpen={(target) => setSelectedTask(target)}
-                      onStart={(target) => taskMutation.mutate({ task: target, action: "start" })}
-                      onCompleteToggle={(target) => taskMutation.mutate({ task: target, action: target.status === "DONE" ? "reopen" : "complete" })}
+                      onStart={(target) =>
+                        taskMutation.mutate({ task: target, action: "start" })
+                      }
+                      onCompleteToggle={(target) =>
+                        taskMutation.mutate({
+                          task: target,
+                          action: target.status === "DONE" ? "reopen" : "complete",
+                        })
+                      }
                     />
                   ))}
                 </section>
@@ -128,7 +141,11 @@ export function DashboardScreen() {
               </p>
             </div>
           </div>
-          <div className="mt-5 h-32 min-w-0 overflow-hidden">
+          <div
+            className="mt-5 h-32 min-w-0 overflow-hidden"
+            role="img"
+            aria-label={`Seven-day completion chart. ${query.data.weeklyProgress.completed} of ${query.data.weeklyProgress.total} tasks completed this week.`}
+          >
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={query.data.weeklyProgress.days}
@@ -147,6 +164,14 @@ export function DashboardScreen() {
                 <Bar dataKey="completed" fill="var(--brand)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+            <span className="sr-only">
+              {query.data.weeklyProgress.days
+                .map(
+                  (day) =>
+                    `${format(parseISO(day.date), "EEEE")}: ${day.completed} of ${day.total} completed`,
+                )
+                .join("; ")}
+            </span>
           </div>
         </Widget>
       </section>
@@ -154,36 +179,35 @@ export function DashboardScreen() {
         task={selectedTask}
         open={Boolean(selectedTask)}
         offline={!online}
+        pending={taskMutation.isPending}
+        conflict={
+          taskMutation.isError &&
+          typeof taskMutation.error === "object" &&
+          taskMutation.error !== null &&
+          "status" in taskMutation.error &&
+          taskMutation.error.status === 409
+        }
         onOpenChange={(open) => !open && setSelectedTask(null)}
         onAction={(task, action) => taskMutation.mutate({ task, action })}
         onArchive={(task) => {
           taskMutation.mutate({ task, action: "archive" });
           setSelectedTask(null);
         }}
-        onSave={(task, values) => taskMutation.mutate({ task, action: "update", body: values })}
+        onSave={(task, values) =>
+          taskMutation.mutate({ task, action: "update", body: values })
+        }
       />
       <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
         <Widget
           title="Activity"
           description={`${query.data.heatmap.streak} day current completion streak.`}
         >
-          <div
-            className="grid grid-flow-col grid-rows-7 gap-1 [grid-auto-columns:minmax(0,1fr)]"
-            aria-label="Last 13 weeks task completion heatmap"
-          >
-            {heatmapDays.map((day) => (
-              <AppTooltip key={day.date} label={heatmapLabel(day.date, day.count)}>
-                <span
-                  tabIndex={0}
-                  aria-label={heatmapLabel(day.date, day.count)}
-                  className="aspect-square min-h-2 w-full rounded-[3px] transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-3"
-                  style={{ background: heatmapColor(day.count) }}
-                />
-              </AppTooltip>
-            ))}
-          </div>
+          <ActivityHeatmap days={query.data.heatmap.days} endDate={todayDate} />
         </Widget>
-        <Widget title="Projects" description="Open work and weekly completion by project.">
+        <Widget
+          title="Projects"
+          description="Open work and weekly completion by project."
+        >
           {query.data.projects.length ? (
             <div className="grid min-w-0 gap-3">
               {query.data.projects.map((project) => (
@@ -194,7 +218,13 @@ export function DashboardScreen() {
                 >
                   <div className="flex min-w-0 items-center justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-2">
-                      <span className="flex size-8 shrink-0 items-center justify-center rounded-md" style={{ background: getProjectColor(project.colorKey).soft, color: getProjectColor(project.colorKey).text }}>
+                      <span
+                        className="flex size-8 shrink-0 items-center justify-center rounded-md"
+                        style={{
+                          background: getProjectColor(project.colorKey).soft,
+                          color: getProjectColor(project.colorKey).text,
+                        }}
+                      >
                         <ProjectIconGlyph iconKey={project.iconKey} className="size-4" />
                       </span>
                       <h3 className="min-w-0 truncate font-semibold">{project.title}</h3>
@@ -204,9 +234,12 @@ export function DashboardScreen() {
                     </span>
                   </div>
                   <p className="mt-1 text-sm text-text-secondary">
-                    {project.weeklyCompletionPercent}% complete this week
+                    {project.completedThisWeek} completed ·{" "}
+                    {project.weeklyCompletionPercent}% of scheduled work
                   </p>
-                  <div className="mt-2"><AppAvatarStack users={project.members} /></div>
+                  <div className="mt-2">
+                    <AppAvatarStack users={project.members} />
+                  </div>
                 </Link>
               ))}
             </div>
@@ -240,7 +273,9 @@ function Widget({
   return (
     <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-surface p-4 shadow-[var(--shadow-surface)] md:p-5">
       <div className="mb-4">
-        <h2 className="font-display text-2xl leading-none text-text-primary">{title}</h2>
+        <h2 className="text-xl font-bold tracking-[-0.02em] text-text-primary">
+          {title}
+        </h2>
         {description ? (
           <p className="mt-1 text-sm leading-5 text-text-secondary">{description}</p>
         ) : null}
@@ -248,35 +283,6 @@ function Widget({
       {children}
     </section>
   );
-}
-
-/**
- * Purpose: Render a compact completion-count label for the activity tooltip.
- * Inputs: ISO date and completed task count.
- * Output: Human-readable tooltip text.
- * Side effects: None.
- */
-function heatmapLabel(date: string, count: number): string {
-  if (count === 0) return `${date}: no completed tasks`;
-  return `${date}: ${count} completed task${count === 1 ? "" : "s"}`;
-}
-
-/**
- * Purpose: Map completion count to six brand-orange intensity levels.
- * Inputs: Completion count.
- * Output: CSS color string.
- * Side effects: None.
- */
-function heatmapColor(count: number): string {
-  const colors = [
-    "var(--surface-muted)",
-    "var(--brand-soft)",
-    "color-mix(in srgb, var(--brand) 28%, var(--surface))",
-    "color-mix(in srgb, var(--brand) 48%, var(--surface))",
-    "color-mix(in srgb, var(--brand) 72%, var(--surface))",
-    "var(--brand)",
-  ];
-  return colors[Math.min(count, colors.length - 1)] ?? "var(--surface-muted)";
 }
 
 /**

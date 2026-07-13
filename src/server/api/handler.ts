@@ -60,6 +60,13 @@ export async function readText(request: Request, maxBytes = 1_000_000): Promise<
   return readBoundedText(request, maxBytes);
 }
 
+/**
+ * Purpose: Consume a request body while enforcing a byte limit during streaming.
+ * Inputs: Fetch Request and maximum allowed bytes.
+ * Output: Decoded UTF-8 body text.
+ * Side effects: Consumes and releases the body stream reader.
+ * Failure behavior: Cancels the stream and throws a typed 413 when oversized.
+ */
 async function readBoundedText(request: Request, maxBytes: number): Promise<string> {
   const declaredLength = Number(request.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {

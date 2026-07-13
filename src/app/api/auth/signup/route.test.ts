@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const authMocks = vi.hoisted(() => ({
   signUp: vi.fn(),
+  signOut: vi.fn(),
+  ensureProfile: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/supabase", () => ({
@@ -10,9 +12,14 @@ vi.mock("@/lib/auth/supabase", () => ({
     Promise.resolve({
       auth: {
         signUp: authMocks.signUp,
+        signOut: authMocks.signOut,
       },
     }),
   ),
+}));
+
+vi.mock("@/server/services/profile-service", () => ({
+  ensureProfileForAuthUser: authMocks.ensureProfile,
 }));
 
 vi.mock("@/server/security/rate-limit", () => ({
@@ -28,6 +35,7 @@ function signupRequest(): NextRequest {
       email: "new@example.com",
       password: "password123",
       displayName: "New User",
+      timeZone: "UTC",
     }),
   });
 }
@@ -35,6 +43,8 @@ function signupRequest(): NextRequest {
 describe("signup route", () => {
   beforeEach(() => {
     authMocks.signUp.mockReset();
+    authMocks.signOut.mockReset();
+    authMocks.ensureProfile.mockReset();
     vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://rudo-quest.vercel.app");
   });
 
@@ -44,7 +54,10 @@ describe("signup route", () => {
 
   it("returns created when Supabase creates a user", async () => {
     authMocks.signUp.mockResolvedValue({
-      data: { user: { id: "00000000-0000-4000-8000-000000000001" } },
+      data: {
+        user: { id: "00000000-0000-4000-8000-000000000001" },
+        session: null,
+      },
       error: null,
     });
     const { POST } = await import("./route");
@@ -56,11 +69,40 @@ describe("signup route", () => {
       email: "new@example.com",
       password: "password123",
       options: {
-        data: { name: "New User" },
+        data: { name: "New User", time_zone: "UTC" },
         emailRedirectTo: "https://rudo-quest.vercel.app/auth/callback",
       },
     });
-    await expect(response.json()).resolves.toEqual({ data: { ok: true } });
+    await expect(response.json()).resolves.toEqual({
+      data: { ok: true, requiresEmailVerification: true },
+    });
+  });
+
+  it("bootstraps an autoconfirmed local user without requiring email verification", async () => {
+    authMocks.signUp.mockResolvedValue({
+      data: {
+        user: {
+          id: "00000000-0000-4000-8000-000000000001",
+          email: "new@example.com",
+        },
+        session: { access_token: "local-session" },
+      },
+      error: null,
+    });
+    authMocks.ensureProfile.mockResolvedValue({ id: "profile" });
+    const { POST } = await import("./route");
+
+    const response = await POST(signupRequest());
+
+    expect(authMocks.ensureProfile).toHaveBeenCalledWith({
+      id: "00000000-0000-4000-8000-000000000001",
+      email: "new@example.com",
+      displayName: "New User",
+      timeZone: "UTC",
+    });
+    await expect(response.json()).resolves.toEqual({
+      data: { ok: true, requiresEmailVerification: false },
+    });
   });
 
   it("does not report success when Supabase rejects signup", async () => {

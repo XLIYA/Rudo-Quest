@@ -1,13 +1,13 @@
 "use client";
 
 import { ThemeProvider } from "next-themes";
+import { usePathname } from "next/navigation";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { Toaster } from "sonner";
 import { AppToast } from "@/components/ui/app-toast";
 import { apiGet, normalizeApiClientError } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
-import { AgentationToolbar } from "@/components/shared/agentation-toolbar";
 import { registerSerwist } from "@/lib/pwa/register";
 import {
   clearUserQueryCache,
@@ -20,11 +20,21 @@ type MeProfile = { id: string };
 
 /**
  * Purpose: Provide theme, server-state cache, offline toasts, and PWA update registration.
- * Inputs: React children.
+ * Inputs: React children and the request-scoped Content Security Policy nonce.
  * Output: Application provider tree.
  * Side effects: Registers service worker and browser online/offline listeners.
  */
-export function Providers({ children }: { children: ReactNode }) {
+export function Providers({ children, nonce }: { children: ReactNode; nonce?: string }) {
+  const pathname = usePathname();
+  const shouldBootstrapPrivateCache = [
+    "/dashboard",
+    "/weekly",
+    "/projects",
+    "/profile",
+    "/notifications",
+    "/settings",
+    "/reset-password",
+  ].some((path) => pathname.startsWith(path));
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -51,6 +61,12 @@ export function Providers({ children }: { children: ReactNode }) {
     let activeUserId: string | null = null;
     let unsubscribeCache: (() => void) | null = null;
 
+    /**
+     * Purpose: Debounce persistence of the active user's approved read queries.
+     * Inputs: None.
+     * Output: Void.
+     * Side effects: Schedules a user-scoped IndexedDB write.
+     */
     const persist = () => {
       const userId = activeUserId;
       if (!userId) return;
@@ -60,6 +76,13 @@ export function Providers({ children }: { children: ReactNode }) {
       }, 250);
     };
 
+    /**
+     * Purpose: Verify the server session before restoring private offline data.
+     * Inputs: None.
+     * Output: Promise resolving after cache bootstrap.
+     * Side effects: Reads the profile API and user-scoped IndexedDB cache.
+     * Failure behavior: Clears stale data after an unauthorized or changed account.
+     */
     const bootstrap = async () => {
       const previousUserId = await getActiveCachedUserId();
       let profile: MeProfile | null = null;
@@ -91,12 +114,27 @@ export function Providers({ children }: { children: ReactNode }) {
       else persist();
     };
 
-    void bootstrap();
+    if (shouldBootstrapPrivateCache) void bootstrap();
     registerSerwist({
-      onUpdate: () => AppToast("Rudo Quest updated. Reloading…", "info"),
+      onUpdate: (activateUpdate) =>
+        AppToast("A new Rudo Quest version is available.", "info", {
+          action: { label: "Update", onClick: activateUpdate },
+        }),
     });
+    /**
+     * Purpose: Announce loss of connectivity and the mutation lock.
+     * Inputs: Browser offline event.
+     * Output: Void.
+     * Side effects: Displays an accessible toast.
+     */
     const offline = () =>
       AppToast("Offline. Mutations are disabled until reconnect.", "warning");
+    /**
+     * Purpose: Refresh server state after connectivity returns.
+     * Inputs: Browser online event.
+     * Output: Void.
+     * Side effects: Displays a toast, invalidates queries, and persists refreshed reads.
+     */
     const online = () => {
       AppToast("Back online.", "success");
       void queryClient.invalidateQueries().then(() => persist());
@@ -110,7 +148,7 @@ export function Providers({ children }: { children: ReactNode }) {
       window.removeEventListener("offline", offline);
       window.removeEventListener("online", online);
     };
-  }, [queryClient]);
+  }, [queryClient, shouldBootstrapPrivateCache]);
 
   return (
     <ThemeProvider
@@ -118,11 +156,11 @@ export function Providers({ children }: { children: ReactNode }) {
       defaultTheme="system"
       enableSystem
       disableTransitionOnChange
+      nonce={nonce}
     >
       <QueryClientProvider client={queryClient}>
         {children}
         <Toaster richColors position="top-center" />
-        <AgentationToolbar />
       </QueryClientProvider>
     </ThemeProvider>
   );

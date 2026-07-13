@@ -8,7 +8,9 @@ import { Serwist } from "@serwist/window";
  * Output: Void.
  * Side effects: Registers service worker in production; removes stale workers in development.
  */
-export function registerSerwist(options?: { onUpdate?: () => void }): void {
+export function registerSerwist(options?: {
+  onUpdate?: (activateUpdate: () => void) => void;
+}): void {
   if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
     return;
   }
@@ -30,8 +32,15 @@ export function registerSerwist(options?: { onUpdate?: () => void }): void {
   const serwist = new Serwist("/sw.js");
 
   serwist.addEventListener("waiting", () => {
-    options?.onUpdate?.();
-    serwist.messageSkipWaiting();
+    /**
+     * Purpose: Activate the waiting application version after the user accepts the update.
+     * Inputs: None.
+     * Output: Void.
+     * Side effects: Sends the skip-waiting message to Serwist.
+     */
+    const activateUpdate = () => serwist.messageSkipWaiting();
+    if (options?.onUpdate) options.onUpdate(activateUpdate);
+    else activateUpdate();
   });
 
   serwist.addEventListener("controlling", () => {

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { countDueTasksForDate } from "./notification-repository";
+import { countDueTasksForDate, insertNotification } from "./notification-repository";
 
 const dbMock = vi.hoisted(() => {
   const captured = {
@@ -71,5 +71,38 @@ describe("notification repository", () => {
     const tokens = collectPredicateTokens(dbMock.captured.wherePredicate);
     expect(tokens).toContain(" <> ");
     expect(tokens).toContain("PARAM:DONE");
+  });
+
+  it("uses targetless conflict handling for the partial dedupe index", async () => {
+    const row = {
+      id: "00000000-0000-4000-8000-000000000001",
+      recipientId: "00000000-0000-4000-8000-000000000002",
+      type: "TASK_ASSIGNED",
+      title: "Task assigned",
+      body: "Review the release",
+      href: "/weekly?date=2026-07-10",
+      dedupeKey: null,
+      readAt: null,
+      createdAt: new Date("2026-07-10T00:00:00.000Z"),
+    };
+    const returning = vi.fn().mockResolvedValue([row]);
+    const onConflictDoNothing = vi.fn(() => ({ returning }));
+    const values = vi.fn(() => ({ onConflictDoNothing }));
+    const insert = vi.fn(() => ({ values }));
+
+    await expect(
+      insertNotification(
+        {
+          recipientId: row.recipientId,
+          type: "TASK_ASSIGNED",
+          title: row.title,
+          body: row.body,
+          href: row.href,
+        },
+        { insert } as never,
+      ),
+    ).resolves.toMatchObject({ id: row.id, type: "TASK_ASSIGNED" });
+
+    expect(onConflictDoNothing).toHaveBeenCalledWith();
   });
 });

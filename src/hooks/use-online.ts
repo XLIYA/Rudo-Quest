@@ -11,6 +11,12 @@ import { useEffect, useState } from "react";
 export function useOnline(): boolean {
   const [online, setOnline] = useState(true);
   useEffect(() => {
+    /**
+     * Purpose: Synchronize React state with the browser network indicator.
+     * Inputs: Browser online/offline event.
+     * Output: Void.
+     * Side effects: Updates hook state.
+     */
     const update = () => setOnline(navigator.onLine);
     update();
     window.addEventListener("online", update);

@@ -7,9 +7,9 @@
   font-display: swap;
   src: url("/fonts/bitcount-ink-latin-ext.woff2") format("woff2");
   unicode-range:
-    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
-    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF,
-    U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
+    U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
 @font-face {
@@ -19,9 +19,8 @@
   font-display: swap;
   src: url("/fonts/bitcount-ink-latin.woff2") format("woff2");
   unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
-    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122,
-    U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 :root {
@@ -43,13 +42,67 @@
   --warning-soft: #fff4d8;
   --error: #b00020;
   --error-soft: #ffebee;
+  --error-contrast: #ffffff;
+  --error-50: #ffebee;
+  --error-100: #ffcdd2;
+  --error-200: #ef9a9a;
+  --error-300: #e57373;
+  --error-400: #ef5350;
+  --error-500: #f44336;
+  --error-600: #e53935;
+  --error-700: #d32f2f;
+  --error-800: #c62828;
+  --error-900: #b71c1c;
+  --error-a100: #ff8a80;
+  --error-a200: #ff5252;
+  --error-a400: #ff1744;
+  --project-orange-main: #ff5a1f;
+  --project-orange-soft: #fff0ea;
+  --project-orange-dark: #ff6a35;
+  --project-orange-text: #7a2600;
+  --project-orange-focus: #ff8a5b;
+  --project-red-main: #d94841;
+  --project-red-soft: #fdedec;
+  --project-red-dark: #ff8a80;
+  --project-red-text: #7a1712;
+  --project-red-focus: #ef9a9a;
+  --project-rose-main: #c43c72;
+  --project-rose-soft: #fcecf3;
+  --project-rose-dark: #f48fb1;
+  --project-rose-text: #6f1238;
+  --project-rose-focus: #f06292;
+  --project-violet-main: #7357d8;
+  --project-violet-soft: #f0edff;
+  --project-violet-dark: #b7a8ff;
+  --project-violet-text: #342073;
+  --project-violet-focus: #9b87f5;
+  --project-blue-main: #2563eb;
+  --project-blue-soft: #eaf1ff;
+  --project-blue-dark: #93b4ff;
+  --project-blue-text: #113a8a;
+  --project-blue-focus: #7aa2ff;
+  --project-cyan-main: #008ca8;
+  --project-cyan-soft: #e5f8fb;
+  --project-cyan-dark: #65d9ee;
+  --project-cyan-text: #00505f;
+  --project-cyan-focus: #3bc4de;
+  --project-green-main: #198754;
+  --project-green-soft: #eaf7f0;
+  --project-green-dark: #6ed7a5;
+  --project-green-text: #0b4c2e;
+  --project-green-focus: #54c58f;
+  --project-yellow-main: #b7791f;
+  --project-yellow-soft: #fff6df;
+  --project-yellow-dark: #f4c76e;
+  --project-yellow-text: #674100;
+  --project-yellow-focus: #e9b84e;
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
   --shadow-surface: 0 1px 2px rgb(0 0 0 / 0.06);
   --shadow-raised: 0 10px 30px rgb(0 0 0 / 0.08);
   --shadow-overlay: 0 24px 80px rgb(0 0 0 / 0.18);
-  --font-bitcount-ink: "Bitcount Ink", var(--font-fjord-one), system-ui, sans-serif;
+  --font-bitcount-ink: "Bitcount Ink", var(--font-manrope), system-ui, sans-serif;
   color-scheme: light;
 }
 
@@ -72,6 +125,39 @@
   --warning-soft: #4b3a1d;
   --error: #ffb4ab;
   --error-soft: #4b2220;
+  --error-contrast: #3b0806;
+  --project-orange-main: #ff6a35;
+  --project-orange-soft: #482217;
+  --project-orange-text: #ffe4da;
+  --project-orange-focus: #ff9b79;
+  --project-red-main: #ff8a80;
+  --project-red-soft: #4a2424;
+  --project-red-text: #ffe4e1;
+  --project-red-focus: #ffaba3;
+  --project-rose-main: #f48fb1;
+  --project-rose-soft: #4a2332;
+  --project-rose-text: #ffdce8;
+  --project-rose-focus: #ffadca;
+  --project-violet-main: #b7a8ff;
+  --project-violet-soft: #30294e;
+  --project-violet-text: #e8e2ff;
+  --project-violet-focus: #ccbeff;
+  --project-blue-main: #93b4ff;
+  --project-blue-soft: #223453;
+  --project-blue-text: #e0e9ff;
+  --project-blue-focus: #b0c9ff;
+  --project-cyan-main: #65d9ee;
+  --project-cyan-soft: #173d45;
+  --project-cyan-text: #ddfbff;
+  --project-cyan-focus: #8be5f4;
+  --project-green-main: #6ed7a5;
+  --project-green-soft: #214735;
+  --project-green-text: #dcf8ea;
+  --project-green-focus: #94e5bd;
+  --project-yellow-main: #f4c76e;
+  --project-yellow-soft: #4b3a1d;
+  --project-yellow-text: #fff0cb;
+  --project-yellow-focus: #f8d894;
   color-scheme: dark;
 }
 
@@ -94,8 +180,30 @@
   --color-warning-soft: var(--warning-soft);
   --color-error: var(--error);
   --color-error-soft: var(--error-soft);
-  --font-sans: var(--font-fjord-one);
-  --font-mono: var(--font-fjord-one);
+  --color-error-contrast: var(--error-contrast);
+  --color-error-50: var(--error-50);
+  --color-error-100: var(--error-100);
+  --color-error-200: var(--error-200);
+  --color-error-300: var(--error-300);
+  --color-error-400: var(--error-400);
+  --color-error-500: var(--error-500);
+  --color-error-600: var(--error-600);
+  --color-error-700: var(--error-700);
+  --color-error-800: var(--error-800);
+  --color-error-900: var(--error-900);
+  --color-error-a100: var(--error-a100);
+  --color-error-a200: var(--error-a200);
+  --color-error-a400: var(--error-a400);
+  --color-project-orange: var(--project-orange-main);
+  --color-project-red: var(--project-red-main);
+  --color-project-rose: var(--project-rose-main);
+  --color-project-violet: var(--project-violet-main);
+  --color-project-blue: var(--project-blue-main);
+  --color-project-cyan: var(--project-cyan-main);
+  --color-project-green: var(--project-green-main);
+  --color-project-yellow: var(--project-yellow-main);
+  --font-sans: var(--font-manrope);
+  --font-mono: var(--font-roboto-mono);
   --font-display: var(--font-bitcount-ink);
 }
 
@@ -113,7 +221,7 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--text-primary);
-  font-family: var(--font-fjord-one), system-ui, sans-serif;
+  font-family: var(--font-manrope), system-ui, sans-serif;
   text-rendering: geometricPrecision;
 }
 

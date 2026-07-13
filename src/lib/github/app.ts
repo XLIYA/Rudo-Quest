@@ -26,6 +26,13 @@ export type GitHubInstallationState = {
 const installationStateTtlSeconds = 10 * 60;
 const githubRequestTimeoutMs = 15_000;
 
+/**
+ * Purpose: Send a bounded-duration request to GitHub.
+ * Inputs: GitHub URL and standard fetch options.
+ * Output: The upstream response without exposing credentials to the browser.
+ * Side effects: Performs an outbound network request.
+ * Failure behavior: Converts network and timeout failures into a safe gateway error.
+ */
 async function githubFetch(
   input: string | URL,
   init: RequestInit = {},
@@ -40,6 +47,13 @@ async function githubFetch(
   }
 }
 
+/**
+ * Purpose: Resolve the secret used to authenticate installation state.
+ * Inputs: None.
+ * Output: Configured GitHub App client secret.
+ * Side effects: Reads validated server environment state.
+ * Failure behavior: Throws a typed 503 when GitHub is not configured.
+ */
 function getStateSecret(): string {
   const secret = getServerEnv().GITHUB_APP_CLIENT_SECRET;
   if (!secret) {
@@ -52,6 +66,12 @@ function getStateSecret(): string {
   return secret;
 }
 
+/**
+ * Purpose: Sign an encoded installation-state payload.
+ * Inputs: URL-safe serialized state.
+ * Output: Base64url HMAC signature.
+ * Side effects: Reads the GitHub state secret.
+ */
 function signStatePayload(payload: string): string {
   return crypto
     .createHmac("sha256", getStateSecret())
@@ -59,6 +79,12 @@ function signStatePayload(payload: string): string {
     .digest("base64url");
 }
 
+/**
+ * Purpose: Compare two signatures without leaking matching-prefix timing.
+ * Inputs: Candidate and expected signature strings.
+ * Output: True only when equal in length and contents.
+ * Side effects: None.
+ */
 function timingSafeStringEqual(a: string, b: string): boolean {
   const left = Buffer.from(a);
   const right = Buffer.from(b);
@@ -186,6 +212,13 @@ export function getGitHubAuthorizationUrl(state: string): string {
   return url.toString();
 }
 
+/**
+ * Purpose: Build the configured absolute GitHub callback URL.
+ * Inputs: None.
+ * Output: Same-origin callback URL.
+ * Side effects: Reads validated server environment state.
+ * Failure behavior: Throws a typed 503 when the public app URL is missing.
+ */
 function getGitHubCallbackUrl(): string {
   const appUrl = getServerEnv().NEXT_PUBLIC_APP_URL;
   if (!appUrl) {

@@ -8,7 +8,7 @@ Rate limiting uses Upstash Redis in production and a bounded local fallback in d
 
 Secrets are server-only. The Supabase service role key, GitHub private key, GitHub installation tokens, VAPID private key, Cron secret, and Upstash token are never exposed to the browser.
 
-Content Security Policy with per-request script/style nonces, frame denial, nosniff, strict referrer policy, and a restrictive permissions policy are applied in `src/proxy.ts`. Scripts never permit `unsafe-inline`, and production never permits `unsafe-eval`. React's bounded progress and project-color values use the separately constrained `style-src-attr`; stylesheet injection remains nonce-restricted.
+Content Security Policy with per-request script/style nonces, frame denial, nosniff, strict referrer policy, and a restrictive permissions policy are applied in `src/proxy.ts`. Scripts never permit `unsafe-inline`, and production never permits `unsafe-eval`. React's bounded progress and project-color values use the separately constrained `style-src-attr`. Stylesheets remain nonce-restricted except for Sonner's two version-pinned SHA-256 payloads, because Sonner 2.0.7 does not expose a style nonce option.
 
 Hosted PostgreSQL connections require certificate verification. State-changing requests require a same-origin `Origin` header; cron and GitHub webhooks use their own bearer/HMAC authentication. JSON and webhook request bodies are streamed with hard byte limits, and production rate limiting uses Upstash Redis or fails closed with `INTEGRATION_NOT_CONFIGURED`.
 

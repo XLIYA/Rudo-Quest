@@ -1,7 +1,7 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { AppInput } from "./app-input";
 
 export type AppComboboxProps = {
@@ -29,8 +29,15 @@ export function AppCombobox({
   placeholder,
   disabled,
 }: AppComboboxProps) {
-  const listboxId = `${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-options`;
+  const generatedId = useId().replaceAll(":", "");
+  const listboxId = `${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${generatedId}-options`;
   const [highlightedIndex, setHighlightedIndex] = useState(0);
+  /**
+   * Purpose: Commit the highlighted or clicked suggestion.
+   * Inputs: Option index in the current result set.
+   * Output: Void.
+   * Side effects: Invokes the controlled selection callback.
+   */
   const selectOption = (index: number) => {
     const option = options[index];
     if (option) onOptionSelect?.(option);

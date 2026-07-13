@@ -13,6 +13,9 @@ import {
 import { getDb, type DbExecutor } from "@/lib/db/client";
 import { createProfileAssetUrlMap, profileAssetUrl } from "@/server/profile-assets";
 import type {
+  InvitationStatus,
+  NotificationDto,
+  NotificationType,
   ProjectColorKey,
   ProjectIconKey,
   ProjectRole,
@@ -65,6 +68,12 @@ export async function findProjectAccess(projectId: string, userId: string) {
   return row ? { role: row.role as ProjectRole, archivedAt: row.archivedAt } : null;
 }
 
+/**
+ * Purpose: Resolve whether a project exists and is archived.
+ * Inputs: Project ID.
+ * Output: Archive flag, or null when the project does not exist.
+ * Side effects: Reads the projects table.
+ */
 export async function isProjectArchived(projectId: string): Promise<boolean | null> {
   const rows = await getDb()
     .select({ archivedAt: projects.archivedAt })
@@ -160,16 +169,21 @@ export async function insertProjectWithInvitations(input: {
       eventType: "PROJECT_CREATED",
       metadata: { title: project.title },
     });
+    const createdNotifications = createdInvitations.length
+      ? await tx
+          .insert(notifications)
+          .values(
+            createdInvitations.map((invitation) => ({
+              recipientId: invitation.invitedUserId,
+              type: "PROJECT_INVITATION",
+              title: "Project invitation",
+              body: "You were invited to a Rudo Quest project.",
+              href: `/projects/${project.id}?invitation=${invitation.id}`,
+            })),
+          )
+          .returning()
+      : [];
     if (createdInvitations.length) {
-      await tx.insert(notifications).values(
-        createdInvitations.map((invitation) => ({
-          recipientId: invitation.invitedUserId,
-          type: "PROJECT_INVITATION",
-          title: "Project invitation",
-          body: "You were invited to a Rudo Quest project.",
-          href: `/projects/${project.id}?invitation=${invitation.id}`,
-        })),
-      );
       await tx.insert(activityEvents).values(
         createdInvitations.map((invitation) => ({
           actorId: input.ownerId,
@@ -182,6 +196,18 @@ export async function insertProjectWithInvitations(input: {
     return {
       project,
       invitations: createdInvitations,
+      pushNotifications: createdNotifications.map((notification) => ({
+        recipientId: notification.recipientId,
+        notification: {
+          id: notification.id,
+          type: notification.type as NotificationType,
+          title: notification.title,
+          body: notification.body,
+          href: notification.href,
+          readAt: notification.readAt?.toISOString() ?? null,
+          createdAt: notification.createdAt.toISOString(),
+        } satisfies NotificationDto,
+      })),
       summary: {
         id: project.id,
         title: project.title,
@@ -191,6 +217,7 @@ export async function insertProjectWithInvitations(input: {
         timeZone: project.timeZone,
         role: "OWNER" as const,
         openTaskCount: 0,
+        completedThisWeek: 0,
         weeklyCompletionPercent: 0,
         githubRepositoryFullName: null,
         members: [{ ...ownerProfile, avatarUrl: null }],
@@ -250,6 +277,7 @@ export async function archiveProjectRow(projectId: string, db: DbExecutor = getD
  */
 export async function listProjectSummaries(input: {
   userId: string;
+  projectId?: string;
   q?: string;
   role?: ProjectRole;
   archived?: "active" | "archived" | "all";
@@ -273,6 +301,7 @@ export async function listProjectSummaries(input: {
     .where(
       and(
         eq(projectMemberships.userId, input.userId),
+        input.projectId ? eq(projects.id, input.projectId) : undefined,
         input.role ? eq(projectMemberships.role, input.role) : undefined,
         input.archived === "active"
           ? isNull(projects.archivedAt)
@@ -302,10 +331,15 @@ export async function listProjectSummaries(input: {
     .select({
       projectId: tasks.projectId,
       openTaskCount: sql<number>`count(*) filter (where ${tasks.status} <> 'DONE')`,
-      completedWeek: sql<number>`count(*) filter (
+      completedScheduledWeek: sql<number>`count(*) filter (
         where ${tasks.status} = 'DONE'
           and ${tasks.scheduledDate} >= date_trunc('week', now() at time zone ${projects.timeZone})::date
           and ${tasks.scheduledDate} < date_trunc('week', now() at time zone ${projects.timeZone})::date + 7
+      )`,
+      completedThisWeek: sql<number>`count(*) filter (
+        where ${tasks.status} = 'DONE'
+          and (${tasks.completedAt} at time zone ${projects.timeZone})::date >= date_trunc('week', now() at time zone ${projects.timeZone})::date
+          and (${tasks.completedAt} at time zone ${projects.timeZone})::date < date_trunc('week', now() at time zone ${projects.timeZone})::date + 7
       )`,
       weekTotal: sql<number>`count(*) filter (
         where ${tasks.scheduledDate} >= date_trunc('week', now() at time zone ${projects.timeZone})::date
@@ -329,7 +363,7 @@ export async function listProjectSummaries(input: {
   );
   return membershipRows.map((project) => {
     const aggregate = aggregateByProject.get(project.projectId);
-    const completedWeek = Number(aggregate?.completedWeek ?? 0);
+    const completedScheduledWeek = Number(aggregate?.completedScheduledWeek ?? 0);
     const weekTotal = Number(aggregate?.weekTotal ?? 0);
     return {
       id: project.projectId,
@@ -340,8 +374,9 @@ export async function listProjectSummaries(input: {
       timeZone: project.timeZone,
       role: project.role as ProjectRole,
       openTaskCount: Number(aggregate?.openTaskCount ?? 0),
+      completedThisWeek: Number(aggregate?.completedThisWeek ?? 0),
       weeklyCompletionPercent: weekTotal
-        ? Math.round((completedWeek / weekTotal) * 100)
+        ? Math.round((completedScheduledWeek / weekTotal) * 100)
         : 0,
       githubRepositoryFullName: project.repo,
       members: (byProject.get(project.projectId) ?? []).slice(0, 5).map((member) => ({
@@ -363,23 +398,12 @@ export async function listProjectSummaries(input: {
  * Side effects: Reads project summaries.
  */
 export async function findProjectSummary(projectId: string, userId: string) {
-  const projectsForUser = await listProjectSummaries({ userId, archived: "all" });
+  const projectsForUser = await listProjectSummaries({
+    userId,
+    projectId,
+    archived: "all",
+  });
   return projectsForUser.find((project) => project.id === projectId) ?? null;
-}
-
-/**
- * Purpose: Resolve the immutable owner identity for project notifications and transfers.
- * Inputs: Project ID.
- * Output: Owner user ID or null.
- * Side effects: Reads projects.
- */
-export async function findProjectOwnerId(projectId: string): Promise<string | null> {
-  const rows = await getDb()
-    .select({ ownerId: projects.ownerId })
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .limit(1);
-  return rows[0]?.ownerId ?? null;
 }
 
 /**
@@ -424,8 +448,12 @@ export async function listProjectMembers(projectId: string) {
     .orderBy(projectMemberships.role, profiles.displayName);
   const avatarUrls = await createProfileAssetUrlMap(rows.map((row) => row.avatarPath));
   return rows.map((row) => ({
-    ...row,
-    avatarPath: profileAssetUrl(row.avatarPath, avatarUrls),
+    id: row.userId,
+    handle: row.handle,
+    displayName: row.displayName,
+    avatarUrl: profileAssetUrl(row.avatarPath, avatarUrls),
+    role: row.role as ProjectRole,
+    joinedAt: row.joinedAt.toISOString(),
   }));
 }
 
@@ -503,12 +531,24 @@ export async function listProjectInvitations(projectId: string) {
     })
     .from(projectInvitations)
     .innerJoin(profiles, eq(projectInvitations.invitedUserId, profiles.id))
-    .where(eq(projectInvitations.projectId, projectId))
+    .where(
+      and(
+        eq(projectInvitations.projectId, projectId),
+        eq(projectInvitations.status, "PENDING"),
+      ),
+    )
     .orderBy(desc(projectInvitations.createdAt));
   const avatarUrls = await createProfileAssetUrlMap(rows.map((row) => row.avatarPath));
   return rows.map((row) => ({
-    ...row,
-    avatarPath: profileAssetUrl(row.avatarPath, avatarUrls),
+    id: row.id,
+    invitedUserId: row.invitedUserId,
+    handle: row.handle,
+    displayName: row.displayName,
+    avatarUrl: profileAssetUrl(row.avatarPath, avatarUrls),
+    role: row.role as Exclude<ProjectRole, "OWNER">,
+    status: row.status,
+    expiresAt: row.expiresAt.toISOString(),
+    createdAt: row.createdAt.toISOString(),
   }));
 }
 
@@ -542,27 +582,33 @@ export async function transitionInvitation(input: {
   projectId: string;
   invitationId: string;
   actorId: string;
-  status: "ACCEPTED" | "DECLINED" | "REVOKED";
+  status: Extract<InvitationStatus, "ACCEPTED" | "DECLINED" | "REVOKED">;
 }) {
   return getDb().transaction(async (tx) => {
+    let pushNotification: NotificationDto | null = null;
+    let pushRecipientId: string | null = null;
     const [invitation] = await tx
-      .select()
-      .from(projectInvitations)
+      .update(projectInvitations)
+      .set({
+        status: input.status,
+        acceptedAt: input.status === "ACCEPTED" ? new Date() : null,
+      })
       .where(
         and(
           eq(projectInvitations.id, input.invitationId),
           eq(projectInvitations.projectId, input.projectId),
+          eq(projectInvitations.status, "PENDING"),
+          input.status === "REVOKED"
+            ? undefined
+            : eq(projectInvitations.invitedUserId, input.actorId),
+          input.status === "ACCEPTED"
+            ? sql`${projectInvitations.expiresAt} > now()`
+            : undefined,
         ),
       )
-      .limit(1);
-    if (!invitation || invitation.status !== "PENDING") return null;
+      .returning();
+    if (!invitation) return null;
     if (input.status === "ACCEPTED") {
-      if (
-        invitation.invitedUserId !== input.actorId ||
-        invitation.expiresAt < new Date()
-      ) {
-        return null;
-      }
       await tx.insert(projectMemberships).values({
         projectId: invitation.projectId,
         userId: invitation.invitedUserId,
@@ -579,24 +625,57 @@ export async function transitionInvitation(input: {
         .where(eq(projects.id, input.projectId))
         .limit(1);
       if (project?.ownerId && project.ownerId !== input.actorId) {
-        await tx.insert(notifications).values({
-          recipientId: project.ownerId,
-          type: "INVITATION_ACCEPTED",
-          title: "Invitation accepted",
-          body: "A collaborator joined your project.",
-          href: `/projects/${input.projectId}`,
-        });
+        const [ownerNotification] = await tx
+          .insert(notifications)
+          .values({
+            recipientId: project.ownerId,
+            type: "INVITATION_ACCEPTED",
+            title: "Invitation accepted",
+            body: "A collaborator joined your project.",
+            href: `/projects/${input.projectId}`,
+          })
+          .returning();
+        if (ownerNotification) {
+          pushRecipientId = project.ownerId;
+          pushNotification = {
+            id: ownerNotification.id,
+            type: ownerNotification.type as NotificationType,
+            title: ownerNotification.title,
+            body: ownerNotification.body,
+            href: ownerNotification.href,
+            readAt: ownerNotification.readAt?.toISOString() ?? null,
+            createdAt: ownerNotification.createdAt.toISOString(),
+          } satisfies NotificationDto;
+        }
       }
     }
-    const [updated] = await tx
-      .update(projectInvitations)
-      .set({
-        status: input.status,
-        acceptedAt: input.status === "ACCEPTED" ? new Date() : null,
-      })
-      .where(eq(projectInvitations.id, invitation.id))
-      .returning();
-    return updated ?? null;
+    if (input.status !== "REVOKED") {
+      await tx
+        .update(notifications)
+        .set({
+          title:
+            input.status === "ACCEPTED"
+              ? "Project invitation accepted"
+              : "Project invitation declined",
+          body:
+            input.status === "ACCEPTED"
+              ? "You joined the project."
+              : "You declined the project invitation.",
+          href: input.status === "ACCEPTED" ? `/projects/${input.projectId}` : null,
+          readAt: new Date(),
+        })
+        .where(
+          and(
+            eq(notifications.recipientId, invitation.invitedUserId),
+            eq(notifications.type, "PROJECT_INVITATION"),
+            eq(
+              notifications.href,
+              `/projects/${input.projectId}?invitation=${invitation.id}`,
+            ),
+          ),
+        );
+    }
+    return { invitation, pushNotification, pushRecipientId };
   });
 }
 

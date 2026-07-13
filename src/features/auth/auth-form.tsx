@@ -27,6 +27,18 @@ type AuthValues = {
   displayName?: string;
 };
 
+type SignupResult = {
+  ok: true;
+  requiresEmailVerification: boolean;
+};
+
+/**
+ * Purpose: Restrict post-login navigation to a same-origin relative route.
+ * Inputs: Optional next query value.
+ * Output: Safe typed route, defaulting to dashboard.
+ * Side effects: None.
+ * Business rule: Protocol-relative and cross-origin redirects are rejected.
+ */
 export function getSafePostLoginPath(next: string | null): Route {
   if (!next || !next.startsWith("/") || next.startsWith("//")) return "/dashboard";
   try {
@@ -59,12 +71,21 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
 
   const submit = form.handleSubmit(async (values) => {
     try {
-      await apiMutation(
+      const result = await apiMutation<{ ok: true } | SignupResult>(
         "post",
         mode === "login" ? "/api/auth/signin" : "/api/auth/signup",
-        values,
+        mode === "signup"
+          ? {
+              ...values,
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            }
+          : values,
       );
-      if (mode === "signup") {
+      if (
+        mode === "signup" &&
+        "requiresEmailVerification" in result &&
+        result.requiresEmailVerification
+      ) {
         router.push("/verify-email");
       } else {
         router.push(getSafePostLoginPath(search.get("next")));

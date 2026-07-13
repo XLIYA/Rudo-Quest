@@ -166,20 +166,7 @@ export async function connectProjectRepository(
   },
   db: DbExecutor = getDb(),
 ) {
-  const [row] = await db
-    .insert(projectRepositories)
-    .values(input)
-    .onConflictDoUpdate({
-      target: projectRepositories.projectId,
-      set: {
-        githubInstallationId: input.githubInstallationId,
-        repositoryId: input.repositoryId,
-        repositoryFullName: input.repositoryFullName,
-        repositoryUrl: input.repositoryUrl,
-        defaultBranch: input.defaultBranch ?? null,
-      },
-    })
-    .returning();
+  const [row] = await db.insert(projectRepositories).values(input).returning();
   return row;
 }
 

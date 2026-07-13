@@ -22,9 +22,12 @@ export default async function SignupPage() {
         <div className="mt-6">
           <AuthForm mode="signup" />
         </div>
-        <p className="mt-5 text-sm text-text-secondary">
+        <p className="mt-4 flex flex-wrap items-center gap-x-1 text-sm text-text-secondary">
           Already have an account?{" "}
-          <Link className="font-semibold text-brand" href="/login">
+          <Link
+            className="inline-flex min-h-11 items-center font-semibold text-brand hover:underline"
+            href="/login"
+          >
             Sign in
           </Link>
         </p>

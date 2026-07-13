@@ -22,7 +22,7 @@ const callbackSchema = z
  * Purpose: Accept GitHub App installation callback parameters.
  * Inputs: GitHub callback query.
  * Output: Installation callback metadata.
- * Side effects: Authentication is verified; installation metadata is persisted when GitHub sends webhook events.
+ * Side effects: Verifies the current user and persists installation metadata after GitHub ownership checks.
  */
 export async function GET(request: NextRequest) {
   return withApiHandler(request, async (_requestId) => {

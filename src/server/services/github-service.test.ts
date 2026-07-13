@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   completeGitHubInstallation,
   connectRepository,
+  handleGitHubWebhook,
   listGitHubRepositories,
 } from "./github-service";
 
@@ -49,10 +50,20 @@ const activityRepository = vi.hoisted(() => ({
   createActivityEvent: vi.fn(),
 }));
 
+const serverEnv = vi.hoisted(() => ({
+  getServerEnv: vi.fn(),
+}));
+
+const structuredLog = vi.hoisted(() => ({
+  writeStructuredLog: vi.fn(),
+}));
+
 vi.mock("@/lib/github/app", () => githubApp);
 vi.mock("@/server/repositories/project-repository", () => projectRepository);
 vi.mock("@/server/repositories/github-repository", () => githubRepository);
 vi.mock("@/server/repositories/activity-repository", () => activityRepository);
+vi.mock("@/lib/env/server", () => serverEnv);
+vi.mock("@/server/observability/structured-log", () => structuredLog);
 vi.mock("@/lib/db/client", () => ({
   runDbTransaction: transaction.runDbTransaction,
 }));
@@ -68,6 +79,48 @@ beforeEach(() => {
   projectRepository.findProjectAccess.mockResolvedValue({
     role: "ADMIN",
     archivedAt: null,
+  });
+  githubRepository.findProjectRepository.mockResolvedValue(null);
+  serverEnv.getServerEnv.mockReturnValue({ GITHUB_WEBHOOK_SECRET: "configured" });
+});
+
+describe("GitHub webhook verification", () => {
+  it("returns a configuration error when the webhook secret is absent", async () => {
+    serverEnv.getServerEnv.mockReturnValue({ GITHUB_WEBHOOK_SECRET: undefined });
+
+    await expect(
+      handleGitHubWebhook("{}", "signature", "installation", "delivery-1"),
+    ).rejects.toMatchObject({ code: "INTEGRATION_NOT_CONFIGURED", status: 503 });
+
+    expect(githubApp.verifyGitHubWebhookSignature).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid signatures without logging delivery metadata", async () => {
+    githubApp.verifyGitHubWebhookSignature.mockReturnValue(false);
+
+    await expect(
+      handleGitHubWebhook("{}", "invalid", "installation", "delivery-1"),
+    ).rejects.toMatchObject({ code: "FORBIDDEN", status: 403 });
+
+    expect(structuredLog.writeStructuredLog).not.toHaveBeenCalled();
+  });
+
+  it("logs only safe identifiers after a valid signature", async () => {
+    githubApp.verifyGitHubWebhookSignature.mockReturnValue(true);
+
+    await expect(
+      handleGitHubWebhook(
+        '{"private":"payload"}',
+        "sha256=valid",
+        "installation",
+        "delivery-1",
+      ),
+    ).resolves.toEqual({ accepted: true, event: "installation" });
+
+    expect(structuredLog.writeStructuredLog).toHaveBeenCalledWith(
+      "github_webhook_accepted",
+      { githubEvent: "installation", deliveryId: "delivery-1" },
+    );
   });
 });
 
@@ -174,5 +227,19 @@ describe("GitHub installation ownership", () => {
       },
       transaction.executor,
     );
+  });
+
+  it("requires disconnecting an existing project repository before replacement", async () => {
+    githubRepository.findProjectRepository.mockResolvedValue({ id: "existing" });
+
+    await expect(
+      connectRepository(userId, projectId, {
+        githubInstallationId: installationRowId,
+        repositoryId: 987,
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
+
+    expect(githubApp.findInstallationRepository).not.toHaveBeenCalled();
+    expect(githubRepository.connectProjectRepository).not.toHaveBeenCalled();
   });
 });

@@ -3,6 +3,8 @@ import { ZodError } from "zod";
 import type { ApiFailure, ApiSuccess } from "@/types/domain";
 import { AppError, normalizeAppError } from "./errors";
 
+const requestIdPattern = /^[A-Za-z0-9._:-]{1,120}$/;
+
 /**
  * Purpose: Generate a request ID for API tracing.
  * Inputs: Optional incoming request ID.
@@ -10,7 +12,7 @@ import { AppError, normalizeAppError } from "./errors";
  * Side effects: None.
  */
 export function requestIdFrom(incoming: string | null): string {
-  return incoming && incoming.length <= 120 ? incoming : crypto.randomUUID();
+  return incoming && requestIdPattern.test(incoming) ? incoming : crypto.randomUUID();
 }
 
 /**

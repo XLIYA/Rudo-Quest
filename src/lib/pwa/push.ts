@@ -11,6 +11,13 @@ export type PushBrowserState = {
 
 const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
+/**
+ * Purpose: Convert a VAPID base64url key into the Web Push binary format.
+ * Inputs: Public VAPID key string.
+ * Output: ArrayBuffer accepted by PushManager.
+ * Side effects: Uses the browser base64 decoder.
+ * Failure behavior: Propagates malformed-key decoding errors to the explicit subscribe action.
+ */
 function urlBase64ToArrayBuffer(value: string): ArrayBuffer {
   const padding = "=".repeat((4 - (value.length % 4)) % 4);
   const base64 = `${value}${padding}`.replace(/-/g, "+").replace(/_/g, "/");
@@ -25,6 +32,12 @@ function urlBase64ToArrayBuffer(value: string): ArrayBuffer {
   return buffer;
 }
 
+/**
+ * Purpose: Detect whether this browser implements the complete push runtime.
+ * Inputs: None.
+ * Output: Capability flag.
+ * Side effects: Reads browser globals only.
+ */
 function hasPushRuntime(): boolean {
   return (
     typeof window !== "undefined" &&
@@ -34,6 +47,12 @@ function hasPushRuntime(): boolean {
   );
 }
 
+/**
+ * Purpose: Resolve a usable service-worker registration without hanging the settings UI.
+ * Inputs: Maximum wait in milliseconds.
+ * Output: Ready or existing registration, otherwise null.
+ * Side effects: Reads service-worker state and schedules a short timeout.
+ */
 async function getReadyRegistration(timeoutMs = 4000) {
   const timeout = new Promise<null>((resolve) =>
     window.setTimeout(() => resolve(null), timeoutMs),

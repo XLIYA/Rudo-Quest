@@ -8,6 +8,12 @@ const localHits = new Map<string, LocalHit>();
 let sharedRedis: Redis | null = null;
 const sharedLimiters = new Map<string, Ratelimit>();
 
+/**
+ * Purpose: Reuse an Upstash limiter only when its complete policy matches.
+ * Inputs: Logical route key, request limit, and window seconds.
+ * Output: In-process limiter cache key.
+ * Side effects: None.
+ */
 function limiterCacheKey(key: string, limit: number, windowSeconds: number): string {
   return `${key}:${limit}:${windowSeconds}`;
 }

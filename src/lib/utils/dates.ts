@@ -70,6 +70,12 @@ export function getDateInTimeZone(value: Date, timeZone: string): string {
     });
   }
   const parts = formatter.formatToParts(value);
+  /**
+   * Purpose: Read one numeric date part from the timezone-aware formatter result.
+   * Inputs: Intl date-part type.
+   * Output: Part value, or a defensive zero value when absent.
+   * Side effects: None.
+   */
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((item) => item.type === type)?.value ?? "00";
   return `${part("year")}-${part("month")}-${part("day")}`;

@@ -2,32 +2,53 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+/**
+ * Purpose: Create a per-request nonce for framework and application scripts.
+ * Inputs: None.
+ * Output: Base64 nonce string.
+ * Side effects: Uses the runtime cryptographic random source.
+ */
 function createNonce(): string {
   return btoa(crypto.randomUUID());
 }
 
+/**
+ * Purpose: Build the environment-aware Content Security Policy.
+ * Inputs: Per-request script and style nonce.
+ * Output: CSP header value.
+ * Side effects: Reads the runtime environment mode.
+ */
 function contentSecurityPolicy(nonce: string): string {
-  const developmentSources =
-    process.env.NODE_ENV === "production" ? [] : ["'unsafe-eval'"];
+  const isDevelopment = process.env.NODE_ENV !== "production";
+  // Sonner 2.0.7 injects its bundled stylesheet by creating an empty style
+  // element and then appending the minified CSS. The package has no nonce
+  // option, so production permits only those two version-pinned payloads.
+  const sonnerStyleHashes = [
+    "'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='",
+    "'sha256-CIxDM5jnsGiKqXs2v7NKCY5MzdR9gu6TtiMJrDw29AY='",
+  ];
   return [
     "default-src 'self'",
+    (isDevelopment
+      ? ["script-src", "'self'", "'unsafe-inline'", "'unsafe-eval'"]
+      : ["script-src", "'self'", `'nonce-${nonce}'`, "'strict-dynamic'"]
+    ).join(" "),
     [
-      "script-src",
+      "style-src",
       "'self'",
-      `'nonce-${nonce}'`,
-      "'strict-dynamic'",
-      ...developmentSources,
+      ...(isDevelopment
+        ? ["'unsafe-inline'"]
+        : [`'nonce-${nonce}'`, ...sonnerStyleHashes]),
     ].join(" "),
-    ["style-src", "'self'", `'nonce-${nonce}'`].join(" "),
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' data: blob: https://*.supabase.co https://avatars.githubusercontent.com",
     "font-src 'self'",
     [
       "connect-src",
       "'self'",
-      ...(process.env.NODE_ENV === "production"
-        ? []
-        : ["http://localhost:4747", "ws://localhost:4747"]),
+      ...(isDevelopment
+        ? ["http://localhost:4747", "ws://localhost:*", "ws://127.0.0.1:*"]
+        : []),
       "https://*.supabase.co",
       "https://*.ingest.sentry.io",
       "https://vitals.vercel-insights.com",
@@ -42,6 +63,12 @@ function contentSecurityPolicy(nonce: string): string {
   ].join("; ");
 }
 
+/**
+ * Purpose: Attach the shared browser security policy to a response.
+ * Inputs: Mutable Next.js response and generated CSP.
+ * Output: The same response with hardened headers.
+ * Side effects: Mutates response headers.
+ */
 function applySecurityHeaders(response: NextResponse, csp: string): NextResponse {
   response.headers.set("Content-Security-Policy", csp);
   response.headers.set("X-Content-Type-Options", "nosniff");
@@ -54,6 +81,12 @@ function applySecurityHeaders(response: NextResponse, csp: string): NextResponse
   return response;
 }
 
+/**
+ * Purpose: Redirect while preserving cookies and cache directives created during auth refresh.
+ * Inputs: Destination URL, source auth response, and CSP.
+ * Output: Hardened redirect response.
+ * Side effects: Copies cookies and selected headers to the redirect.
+ */
 function redirectWithAuthState(
   url: URL,
   source: NextResponse,
@@ -80,6 +113,8 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   const csp = contentSecurityPolicy(nonce);
+  // Next.js reads the request CSP to apply the per-request nonce to framework code.
+  requestHeaders.set("Content-Security-Policy", csp);
   let response = applySecurityHeaders(
     NextResponse.next({ request: { headers: requestHeaders } }),
     csp,
@@ -134,7 +169,10 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     return redirectWithAuthState(redirectUrl, response, csp);
   }
 
-  if (user && ["/", "/login", "/signup"].includes(request.nextUrl.pathname)) {
+  if (
+    user &&
+    ["/", "/login", "/signup", "/verify-email"].includes(request.nextUrl.pathname)
+  ) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/dashboard";
     redirectUrl.search = "";

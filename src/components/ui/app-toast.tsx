@@ -9,9 +9,10 @@ import { toast } from "sonner";
 export function AppToast(
   message: string,
   tone: "success" | "error" | "info" | "warning" = "info",
+  options?: { action?: { label: string; onClick: () => void } },
 ) {
-  if (tone === "success") return toast.success(message);
-  if (tone === "error") return toast.error(message);
-  if (tone === "warning") return toast.warning(message);
-  return toast.info(message);
+  if (tone === "success") return toast.success(message, options);
+  if (tone === "error") return toast.error(message, options);
+  if (tone === "warning") return toast.warning(message, options);
+  return toast.info(message, options);
 }

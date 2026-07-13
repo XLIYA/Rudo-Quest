@@ -7,6 +7,12 @@ type LoginPageProps = {
   searchParams: Promise<{ error?: string | string[] }>;
 };
 
+/**
+ * Purpose: Translate safe confirmation error codes into actionable sign-in guidance.
+ * Inputs: Optional single or repeated error query value.
+ * Output: User-facing message or null for unknown values.
+ * Side effects: None.
+ */
 function getConfirmationError(error: string | string[] | undefined): string | null {
   const code = Array.isArray(error) ? error[0] : error;
   if (code === "confirmation_expired") {
@@ -44,9 +50,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <div className="mt-6">
           <AuthForm mode="login" />
         </div>
-        <p className="mt-5 text-sm text-text-secondary">
+        <p className="mt-4 flex flex-wrap items-center gap-x-1 text-sm text-text-secondary">
           New here?{" "}
-          <Link className="font-semibold text-brand" href="/signup">
+          <Link
+            className="inline-flex min-h-11 items-center font-semibold text-brand hover:underline"
+            href="/signup"
+          >
             Create an account
           </Link>
         </p>

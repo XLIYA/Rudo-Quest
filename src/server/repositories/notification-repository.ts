@@ -44,7 +44,7 @@ export async function insertNotification(
       href: input.href ?? null,
       dedupeKey: input.dedupeKey ?? null,
     })
-    .onConflictDoNothing({ target: notifications.dedupeKey })
+    .onConflictDoNothing()
     .returning();
   if (created) return toNotificationDto(created);
   if (input.dedupeKey) {
@@ -107,6 +107,12 @@ export async function listNotifications(
     : { items, unreadCount };
 }
 
+/**
+ * Purpose: Encode the last delivered notification tuple for cursor pagination.
+ * Inputs: Notification creation time and UUID.
+ * Output: Opaque base64url cursor.
+ * Side effects: None.
+ */
 function encodeNotificationCursor(createdAt: Date, id: string): string {
   return Buffer.from(
     JSON.stringify({ createdAt: createdAt.toISOString(), id }),
@@ -114,6 +120,13 @@ function encodeNotificationCursor(createdAt: Date, id: string): string {
   ).toString("base64url");
 }
 
+/**
+ * Purpose: Validate and decode a notification pagination cursor.
+ * Inputs: Opaque cursor string.
+ * Output: Creation time and UUID tuple.
+ * Side effects: None.
+ * Failure behavior: Throws a typed 400 for malformed cursor values.
+ */
 function decodeNotificationCursor(value: string): { createdAt: Date; id: string } {
   try {
     const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as {

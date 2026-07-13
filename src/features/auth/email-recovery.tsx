@@ -19,6 +19,12 @@ export function EmailRecoveryActions({ initialKind }: { initialKind?: RecoveryKi
   const [kind, setKind] = useState<RecoveryKind | null>(initialKind ?? null);
   const [email, setEmail] = useState("");
   const [pending, setPending] = useState(false);
+  /**
+   * Purpose: Submit the selected generic recovery request.
+   * Inputs: Recovery form event.
+   * Output: Promise resolving after feedback is shown.
+   * Side effects: Calls the auth API, resets input, and displays a toast.
+   */
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!kind || !email) return;
@@ -49,14 +55,14 @@ export function EmailRecoveryActions({ initialKind }: { initialKind?: RecoveryKi
       <div className="flex flex-wrap gap-3 text-sm">
         <button
           type="button"
-          className="font-semibold text-brand hover:underline"
+          className="inline-flex min-h-11 items-center font-semibold text-brand hover:underline"
           onClick={() => setKind(kind === "password" ? null : "password")}
         >
           Forgot password?
         </button>
         <button
           type="button"
-          className="font-semibold text-brand hover:underline"
+          className="inline-flex min-h-11 items-center font-semibold text-brand hover:underline"
           onClick={() => setKind(kind === "verification" ? null : "verification")}
         >
           Resend verification email

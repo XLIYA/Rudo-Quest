@@ -100,10 +100,11 @@ export async function listActivityForUser(input: {
     )
     .orderBy(desc(activityEvents.createdAt), desc(activityEvents.id))
     .limit(limit + 1);
+  const visibleRows = rows.filter((row) => canViewActivityRow(input.userId, row));
   const avatarUrls = await createProfileAssetUrlMap(
-    rows.map((row) => row.actorAvatarPath),
+    visibleRows.map((row) => row.actorAvatarPath),
   );
-  const items = rows.slice(0, limit).map((row) => ({
+  const items = visibleRows.slice(0, limit).map((row) => ({
     id: row.id,
     actor: row.actorId
       ? {
@@ -122,11 +123,17 @@ export async function listActivityForUser(input: {
   // The cursor represents the final row already returned. The next request uses
   // a strict `<` tuple comparison, so using the extra look-ahead row here would
   // skip that row permanently.
-  const nextRow = rows.length > limit ? rows[limit - 1] : undefined;
+  const nextRow = visibleRows.length > limit ? visibleRows[limit - 1] : undefined;
   const next = nextRow ? encodeActivityCursor(nextRow.createdAt, nextRow.id) : undefined;
   return next ? { items, cursor: next } : { items };
 }
 
+/**
+ * Purpose: Encode the last delivered activity tuple for stable cursor pagination.
+ * Inputs: Activity creation time and UUID.
+ * Output: Opaque base64url cursor.
+ * Side effects: None.
+ */
 function encodeActivityCursor(createdAt: Date, id: string): string {
   return Buffer.from(
     JSON.stringify({ createdAt: createdAt.toISOString(), id }),
@@ -134,6 +141,13 @@ function encodeActivityCursor(createdAt: Date, id: string): string {
   ).toString("base64url");
 }
 
+/**
+ * Purpose: Validate and decode an activity pagination cursor.
+ * Inputs: Opaque cursor string.
+ * Output: Creation time and UUID tuple.
+ * Side effects: None.
+ * Failure behavior: Throws a typed 400 for malformed or forged cursor shapes.
+ */
 function decodeActivityCursor(value: string): { createdAt: Date; id: string } {
   try {
     const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as {
@@ -152,6 +166,13 @@ function decodeActivityCursor(value: string): { createdAt: Date; id: string } {
   }
 }
 
+/**
+ * Purpose: Apply a final privacy check to an activity row after SQL filtering.
+ * Inputs: Current user ID and joined activity visibility fields.
+ * Output: True for project membership, own unscoped activity, or an accessible personal task.
+ * Side effects: None.
+ * Business rule: Private personal-task activity is visible only to its creator/assignee.
+ */
 export function canViewActivityRow(
   userId: string,
   row: {

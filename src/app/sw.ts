@@ -17,7 +17,7 @@ declare const self: ServiceWorkerGlobalScope;
 
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST ?? [],
-  skipWaiting: true,
+  skipWaiting: false,
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching: [
@@ -29,7 +29,7 @@ const serwist = new Serwist({
       matcher: ({ sameOrigin, url }) =>
         sameOrigin &&
         (url.pathname.startsWith("/_next/static/") ||
-          /\.(?:svg|png|ico|webp)$/.test(url.pathname)),
+          /\.(?:svg|png|ico|webp|woff2)$/.test(url.pathname)),
       handler: new CacheFirst({
         cacheName: "rudo-static-assets",
         plugins: [
@@ -79,7 +79,11 @@ self.addEventListener("notificationclick", (event) => {
     typeof event.notification.data?.href === "string"
       ? event.notification.data.href
       : "/profile#notifications";
-  const targetUrl = new URL(href, self.location.origin).href;
+  const candidateUrl = new URL(href, self.location.origin);
+  const targetUrl =
+    candidateUrl.origin === self.location.origin
+      ? candidateUrl.href
+      : new URL("/notifications", self.location.origin).href;
   event.waitUntil(
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })

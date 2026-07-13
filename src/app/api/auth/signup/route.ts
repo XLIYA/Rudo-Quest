@@ -6,18 +6,21 @@ import { apiSuccess } from "@/lib/api/response";
 import { getServerEnv } from "@/lib/env/server";
 import { withApiHandler, readJson } from "@/server/api/handler";
 import { assertRateLimit, requestRateLimitIdentity } from "@/server/security/rate-limit";
+import { ensureProfileForAuthUser } from "@/server/services/profile-service";
+import { timeZoneSchema } from "@/lib/validation/common";
 
 const signupSchema = z.object({
   email: z.email(),
   password: z.string().min(8).max(128),
   displayName: z.string().trim().min(2).max(60),
+  timeZone: timeZoneSchema.optional(),
 });
 
 /**
  * Purpose: Register a user with Supabase email/password auth.
  * Inputs: Email, password, and display name in JSON body.
- * Output: Generic success envelope.
- * Side effects: Creates a Supabase auth user and sends verification email.
+ * Output: Generic success envelope indicating whether email verification is required.
+ * Side effects: Creates a Supabase auth user, may send verification email, and bootstraps an autoconfirmed local profile.
  * Failure behavior: Returns generic auth failure without email enumeration.
  */
 export async function POST(request: NextRequest) {
@@ -38,13 +41,36 @@ export async function POST(request: NextRequest) {
       email: body.email,
       password: body.password,
       options: {
-        data: { name: body.displayName },
+        data: {
+          name: body.displayName,
+          ...(body.timeZone ? { time_zone: body.timeZone } : {}),
+        },
         ...(emailRedirectTo ? { emailRedirectTo } : {}),
       },
     });
     if (error || !data.user) {
       throw new AppError("BAD_REQUEST", 400, "Sign up could not be completed.");
     }
-    return apiSuccess({ ok: true }, { status: 201, requestId });
+    if (data.session && data.user.email) {
+      try {
+        await ensureProfileForAuthUser({
+          id: data.user.id,
+          email: data.user.email,
+          displayName: body.displayName,
+          timeZone: body.timeZone,
+        });
+      } catch {
+        await supabase.auth.signOut({ scope: "local" });
+        throw new AppError(
+          "INTERNAL_ERROR",
+          500,
+          "Sign up could not be completed. Run the local database setup and try again.",
+        );
+      }
+    }
+    return apiSuccess(
+      { ok: true, requiresEmailVerification: !data.session },
+      { status: 201, requestId },
+    );
   });
 }

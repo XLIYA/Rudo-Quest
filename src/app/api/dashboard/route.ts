@@ -1,12 +1,9 @@
 import type { NextRequest } from "next/server";
-import { z } from "zod";
 import { apiSuccess } from "@/lib/api/response";
-import { dateSchema } from "@/lib/validation/common";
+import { dashboardQuerySchema } from "@/lib/validation/dashboard";
 import { withApiHandler } from "@/server/api/handler";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { getDashboard } from "@/server/services/dashboard-service";
-
-const dashboardQuerySchema = z.object({ from: dateSchema, to: dateSchema });
 
 /**
  * Purpose: Return server-side dashboard aggregates.

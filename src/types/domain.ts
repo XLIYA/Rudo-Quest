@@ -103,8 +103,6 @@ export type ApiFailure = {
   requestId: string;
 };
 
-export type ApiResponse<T> = ApiSuccess<T> | ApiFailure;
-
 export type ProfileSummary = {
   id: string;
   handle: string;
@@ -138,6 +136,7 @@ export type ProjectSummary = {
   timeZone: string;
   role: ProjectRole;
   openTaskCount: number;
+  completedThisWeek: number;
   weeklyCompletionPercent: number;
   githubRepositoryFullName: string | null;
   members: ProfileSummary[];

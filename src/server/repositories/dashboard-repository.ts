@@ -38,14 +38,22 @@ export async function getDashboardAggregate(input: {
 }): Promise<DashboardAggregate> {
   const profile = await findProfileById(input.userId);
   const today = getDateInTimeZone(new Date(), profile?.timeZone ?? "UTC");
-  const tasks = await listDashboardTasks({
-    ...input,
-    from: input.from < today ? input.from : today,
-    to: input.to > today ? input.to : today,
-  });
-  const overdue = tasks.filter(
-    (task) => task.scheduledDate < today && task.status !== "DONE",
-  );
+  const yesterday = format(subDays(new Date(`${today}T00:00:00.000Z`), 1), "yyyy-MM-dd");
+  const [tasks, overdue, heatmapDays, projectSummaries] = await Promise.all([
+    listDashboardTasks({ userId: input.userId, from: input.from, to: input.to }),
+    listDashboardTasks({
+      userId: input.userId,
+      to: yesterday,
+      incompleteOnly: true,
+    }),
+    listCompletionCounts({
+      userId: input.userId,
+      from: format(subDays(new Date(`${today}T00:00:00.000Z`), 364), "yyyy-MM-dd"),
+      to: today,
+      timeZone: profile?.timeZone ?? "UTC",
+    }),
+    listProjectSummaries({ userId: input.userId, archived: "active" }),
+  ]);
   const todayTasks = tasks.filter(
     (task) => task.scheduledDate === today && task.status !== "DONE",
   );
@@ -62,13 +70,6 @@ export async function getDashboardAggregate(input: {
   });
   const completed = days.reduce((sum, day) => sum + day.completed, 0);
   const total = days.reduce((sum, day) => sum + day.total, 0);
-  const heatmapToday = today;
-  const from365 = format(subDays(new Date(`${today}T00:00:00.000Z`), 364), "yyyy-MM-dd");
-  const heatmapDays = await listCompletionCounts({
-    userId: input.userId,
-    from: from365,
-    to: heatmapToday,
-  });
   return {
     today: { overdue, tasks: todayTasks },
     weeklyProgress: {
@@ -81,8 +82,13 @@ export async function getDashboardAggregate(input: {
       days: heatmapDays,
       streak: calculateCompletionStreak(heatmapDays, today),
     },
-    projects: (
-      await listProjectSummaries({ userId: input.userId, archived: "active" })
-    ).slice(0, 4),
+    projects: projectSummaries
+      .sort(
+        (left, right) =>
+          right.completedThisWeek - left.completedThisWeek ||
+          right.openTaskCount - left.openTaskCount ||
+          left.title.localeCompare(right.title),
+      )
+      .slice(0, 4),
   };
 }

@@ -25,19 +25,6 @@ export function useProjects(search = "") {
 }
 
 /**
- * Purpose: Fetch one project summary.
- * Inputs: Project ID.
- * Output: TanStack Query result.
- * Side effects: Performs browser HTTP GET.
- */
-export function useProject(projectId: string) {
-  return useQuery({
-    queryKey: queryKeys.project(projectId),
-    queryFn: ({ signal }) => apiGet<ProjectSummary>(`/api/projects/${projectId}`, signal),
-  });
-}
-
-/**
  * Purpose: Create a project without optimistic updates.
  * Inputs: Validated project form payload.
  * Output: TanStack mutation.

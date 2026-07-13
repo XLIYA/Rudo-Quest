@@ -155,7 +155,7 @@ export function assertProductionEnv(env: ServerEnv = getServerEnv()): void {
       getSupabasePublicKey(env),
     ],
     ["SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY", getSupabaseAdminKey(env)],
-    ["DATABASE_URL", env.DATABASE_URL],
+    ["DATABASE_URL", hasDatabaseEnv(env) ? "configured" : undefined],
     ["CRON_SECRET", env.CRON_SECRET],
     [
       "UPSTASH_REDIS_REST_URL/TOKEN or KV_REST_API_URL/TOKEN",
@@ -169,18 +169,4 @@ export function assertProductionEnv(env: ServerEnv = getServerEnv()): void {
       `Missing required production environment variables: ${missing.join(", ")}`,
     );
   }
-}
-
-/**
- * Purpose: Read a required integration value at runtime.
- * Inputs: Integration name and candidate value.
- * Output: The candidate value when present.
- * Side effects: None.
- * Failure behavior: Throws an integration error consumed by API handlers.
- */
-export function requireIntegrationValue(name: string, value: string | undefined): string {
-  if (!value) {
-    throw new Error(`INTEGRATION_NOT_CONFIGURED:${name}`);
-  }
-  return value;
 }

@@ -37,9 +37,13 @@ export function useCreateTask(weekStart: string) {
       scheduledTime?: string | null;
     }) => apiMutation<TaskDto>("post", "/api/tasks", body),
     onMutate: async (body) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.tasksWeek(weekStart) });
-      const previous =
-        queryClient.getQueryData<TaskDto[]>(queryKeys.tasksWeek(weekStart)) ?? [];
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: queryKeys.tasksWeek(weekStart) }),
+        queryClient.cancelQueries({ queryKey: ["dashboard"] }),
+      ]);
+      const previous = queryClient.getQueriesData<TaskDto[]>({
+        queryKey: queryKeys.tasksWeek(weekStart),
+      });
       const optimistic: TaskDto = {
         id: crypto.randomUUID(),
         projectId: body.projectId ?? null,
@@ -75,14 +79,16 @@ export function useCreateTask(weekStart: string) {
         },
         project: null,
       };
-      queryClient.setQueryData<TaskDto[]>(queryKeys.tasksWeek(weekStart), [
-        ...previous,
-        optimistic,
-      ]);
+      queryClient.setQueriesData<TaskDto[]>(
+        { queryKey: queryKeys.tasksWeek(weekStart) },
+        (current) => [...(current ?? []), optimistic],
+      );
       return { previous };
     },
     onError: (error, _body, context) => {
-      queryClient.setQueryData(queryKeys.tasksWeek(weekStart), context?.previous ?? []);
+      for (const [key, data] of context?.previous ?? []) {
+        queryClient.setQueryData(key, data);
+      }
       AppToast(normalizeApiClientError(error).message, "error");
     },
     onSettled: () => {
@@ -122,36 +128,63 @@ export function useTaskMutation(weekStart: string) {
       });
     },
     onMutate: async (input) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.tasksWeek(weekStart) });
-      const previous =
-        queryClient.getQueryData<TaskDto[]>(queryKeys.tasksWeek(weekStart)) ?? [];
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: queryKeys.tasksWeek(weekStart) }),
+        queryClient.cancelQueries({ queryKey: queryKeys.task(input.task.id) }),
+        queryClient.cancelQueries({ queryKey: ["dashboard"] }),
+      ]);
+      const previous = queryClient.getQueriesData<TaskDto[]>({
+        queryKey: queryKeys.tasksWeek(weekStart),
+      });
+      const previousTask = queryClient.getQueryData<TaskDto>(
+        queryKeys.task(input.task.id),
+      );
       if (input.action !== "archive") {
-        queryClient.setQueryData<TaskDto[]>(
-          queryKeys.tasksWeek(weekStart),
-          previous.map((task) =>
-            task.id === input.task.id
-              ? optimisticTask(task, input.action, input.body)
-              : task,
-          ),
+        queryClient.setQueriesData<TaskDto[]>(
+          { queryKey: queryKeys.tasksWeek(weekStart) },
+          (current) =>
+            current?.map((task) =>
+              task.id === input.task.id
+                ? optimisticTask(task, input.action, input.body)
+                : task,
+            ),
         );
         queryClient.setQueryData<TaskDto>(
           queryKeys.task(input.task.id),
           optimisticTask(input.task, input.action, input.body),
         );
       }
-      return { previous };
+      return { previous, previousTask };
     },
-    onError: (error, _input, context) => {
-      queryClient.setQueryData(queryKeys.tasksWeek(weekStart), context?.previous ?? []);
-      if (_input) queryClient.setQueryData(queryKeys.task(_input.task.id), _input.task);
-      AppToast(normalizeApiClientError(error).message, "error");
+    onError: (error, input, context) => {
+      for (const [key, data] of context?.previous ?? []) {
+        queryClient.setQueryData(key, data);
+      }
+      queryClient.setQueryData(
+        queryKeys.task(input.task.id),
+        context?.previousTask ?? input.task,
+      );
+      const normalized = normalizeApiClientError(error);
+      AppToast(
+        normalized.status === 409
+          ? "This task changed elsewhere. The latest version has been loaded."
+          : normalized.message,
+        "error",
+      );
     },
     onSuccess: (data, input) => {
       queryClient.setQueryData(queryKeys.task(input.task.id), data);
+      queryClient.setQueriesData<TaskDto[]>(
+        { queryKey: queryKeys.tasksWeek(weekStart) },
+        (current) => current?.map((task) => (task.id === input.task.id ? data : task)),
+      );
     },
     onSettled: (_data, _error, input) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tasksWeek(weekStart) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.task(input.task.id) });
+      void queryClient.invalidateQueries({
+        queryKey: ["task-activity", input.task.id],
+      });
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });

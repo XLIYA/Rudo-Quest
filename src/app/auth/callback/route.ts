@@ -2,12 +2,24 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/auth/supabase";
 
+/**
+ * Purpose: Create an auth redirect that cannot be stored by intermediaries.
+ * Inputs: Absolute redirect URL.
+ * Output: No-store redirect response.
+ * Side effects: Sets response cache directives.
+ */
 function noStoreRedirect(url: URL): NextResponse {
   const response = NextResponse.redirect(url);
   response.headers.set("Cache-Control", "private, no-store");
   return response;
 }
 
+/**
+ * Purpose: Build a clean same-origin auth callback destination.
+ * Inputs: Callback request and allowlisted pathname.
+ * Output: URL with callback query/hash data removed.
+ * Side effects: None.
+ */
 function callbackTarget(request: NextRequest, pathname: string): URL {
   const target = request.nextUrl.clone();
   target.pathname = pathname;
@@ -16,6 +28,13 @@ function callbackTarget(request: NextRequest, pathname: string): URL {
   return target;
 }
 
+/**
+ * Purpose: Select the only allowed post-confirmation destination.
+ * Inputs: Callback request query parameters.
+ * Output: Dashboard or password-reset pathname.
+ * Side effects: None.
+ * Business rule: Arbitrary redirect targets are never accepted.
+ */
 function successPath(request: NextRequest): "/dashboard" | "/reset-password" {
   return request.nextUrl.searchParams.get("next") === "/reset-password"
     ? "/reset-password"

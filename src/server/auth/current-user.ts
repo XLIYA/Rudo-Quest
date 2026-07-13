@@ -24,6 +24,7 @@ export async function requireCurrentUser(): Promise<CurrentUser> {
     id: data.user.id,
     email: data.user.email,
     displayName: data.user.user_metadata.name,
+    timeZone: data.user.user_metadata.time_zone,
   });
   return { id: data.user.id, email: data.user.email };
 }

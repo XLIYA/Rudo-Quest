@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import type { Route } from "next";
+import { useRouter } from "next/navigation";
 import { AppButton } from "@/components/ui/app-button";
+import { AppPagination } from "@/components/ui/app-pagination";
 import { AppEmptyState } from "@/components/ui/app-empty-state";
 import { AppSkeleton } from "@/components/ui/app-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
@@ -25,6 +27,7 @@ export function NotificationsPanel({ compact = false }: { compact?: boolean }) {
   const online = useOnline();
   const read = useReadNotifications();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const invitation = useMutation({
     mutationFn: (input: {
       projectId: string;
@@ -45,24 +48,29 @@ export function NotificationsPanel({ compact = false }: { compact?: boolean }) {
         input.action === "accept" ? "Invitation accepted." : "Invitation declined.",
         "success",
       );
+      if (input.action === "accept") {
+        router.push(`/projects/${input.projectId}` as Route);
+      }
     },
     onError: (error) => AppToast(normalizeApiClientError(error).message, "error"),
   });
   const notifications = query.data?.pages.flatMap((page) => page.items) ?? [];
   return (
-    <section
-      id="notifications"
-      className={compact ? "grid gap-4" : "mx-auto grid max-w-3xl gap-5 p-5 md:p-8"}
-    >
+    <section id="notifications" className="grid gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className={compact ? "text-lg font-semibold" : "text-2xl font-semibold"}>
-            Notifications
-          </h2>
-          <p className="mt-1 text-sm text-text-secondary">
-            Invitations, assignments, and reminders.
+        {compact ? (
+          <div>
+            <h2 className="text-lg font-semibold">Notifications</h2>
+            <p className="mt-1 text-sm text-text-secondary">
+              Invitations, assignments, and reminders.
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-text-secondary" aria-live="polite">
+            {notifications.filter((notification) => !notification.readAt).length} unread
+            on this page
           </p>
-        </div>
+        )}
         <AppButton
           variant="secondary"
           onClick={() => read.mutate({ all: true })}
@@ -118,14 +126,17 @@ export function NotificationsPanel({ compact = false }: { compact?: boolean }) {
                   notification={notification}
                   disabled={!online || invitation.isPending}
                   onAction={(input) => {
-                    read.mutate({ id: notification.id });
                     invitation.mutate(input);
                   }}
                 />
               ) : null}
-              {notification.href ? (
+              {notification.href &&
+              !(
+                notification.type === "PROJECT_INVITATION" &&
+                notification.href.includes("?invitation=")
+              ) ? (
                 <Link
-                  className="mt-3 inline-flex text-sm font-semibold text-brand"
+                  className="mt-2 inline-flex min-h-11 min-w-11 items-center justify-center text-sm font-semibold text-brand hover:underline"
                   href={notification.href as Route}
                 >
                   Open
@@ -133,15 +144,13 @@ export function NotificationsPanel({ compact = false }: { compact?: boolean }) {
               ) : null}
             </article>
           ))}
-          {query.hasNextPage ? (
-            <AppButton
-              variant="secondary"
-              onClick={() => void query.fetchNextPage()}
-              disabled={query.isFetchingNextPage}
-            >
-              {query.isFetchingNextPage ? "Loading…" : "Load older notifications"}
-            </AppButton>
-          ) : null}
+          <AppPagination
+            hasNext={Boolean(query.hasNextPage)}
+            pending={query.isFetchingNextPage}
+            label="Load older notifications"
+            pendingLabel="Loading older notifications…"
+            onNext={() => void query.fetchNextPage()}
+          />
         </section>
       ) : null}
       {!query.isError && query.data && !notifications.length ? (
@@ -154,6 +163,12 @@ export function NotificationsPanel({ compact = false }: { compact?: boolean }) {
   );
 }
 
+/**
+ * Purpose: Render valid project-invitation response actions from a safe deep link.
+ * Inputs: Notification, disabled state, and controlled transition callback.
+ * Output: Accept/decline controls or null for unrelated/malformed notifications.
+ * Side effects: Invokes the selected invitation transition.
+ */
 function InvitationActions({
   notification,
   disabled,
@@ -202,7 +217,7 @@ function InvitationActions({
  */
 export function NotificationsScreen() {
   return (
-    <main className="grid gap-5">
+    <main className="mx-auto grid max-w-3xl gap-5 p-5 md:p-8">
       <PageHeader
         title="Notifications"
         description="Invitations, assignments, and reminders."

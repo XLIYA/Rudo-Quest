@@ -27,6 +27,13 @@ export function assertCronAuthorized(header: string | null): void {
   }
 }
 
+/**
+ * Purpose: Resolve the scheduler clock into a user's local date and minute.
+ * Inputs: Current instant and stored IANA timezone.
+ * Output: ISO date and 24-hour HH:mm values.
+ * Side effects: None.
+ * Failure behavior: Falls back to UTC for legacy invalid timezone values.
+ */
 function getLocalDateTime(now: Date, timeZone: string) {
   const safeTimeZone = timeZone || "UTC";
   let parts: Intl.DateTimeFormatPart[];
@@ -51,6 +58,12 @@ function getLocalDateTime(now: Date, timeZone: string) {
       hourCycle: "h23",
     }).formatToParts(now);
   }
+  /**
+   * Purpose: Read one local date-time part from Intl output.
+   * Inputs: Intl part type.
+   * Output: Part value or a defensive zero value.
+   * Side effects: None.
+   */
   const value = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((part) => part.type === type)?.value ?? "00";
 
@@ -60,15 +73,33 @@ function getLocalDateTime(now: Date, timeZone: string) {
   };
 }
 
+/**
+ * Purpose: Normalize nullable database reminder times to minute precision.
+ * Inputs: Stored SQL time or null.
+ * Output: HH:mm reminder time.
+ * Side effects: None.
+ */
 function getReminderTime(value: string | null): string {
   return (value ?? defaultReminderTime).slice(0, 5);
 }
 
+/**
+ * Purpose: Convert an HH:mm time into minutes since midnight.
+ * Inputs: Validated time string.
+ * Output: Minute index.
+ * Side effects: None.
+ */
 function minutes(value: string): number {
   const [hour, minute] = value.split(":").map(Number);
   return (hour ?? 0) * 60 + (minute ?? 0);
 }
 
+/**
+ * Purpose: Determine whether a local time falls inside a possibly overnight quiet period.
+ * Inputs: Current local time and quiet-period start/end.
+ * Output: True when notification delivery must be suppressed.
+ * Side effects: None.
+ */
 function isQuietTime(localTime: string, start: string, end: string): boolean {
   const current = minutes(localTime);
   const from = minutes(start.slice(0, 5));

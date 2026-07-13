@@ -2,6 +2,7 @@
 
 import * as Select from "@radix-ui/react-select";
 import { Check, ChevronDown } from "lucide-react";
+import { useId } from "react";
 
 export type AppSelectOption = { value: string; label: string };
 export type AppSelectProps = {
@@ -27,11 +28,15 @@ export function AppSelect({
   disabled,
   placeholder,
 }: AppSelectProps) {
+  const labelId = useId();
   return (
-    <label className="grid gap-1.5 text-sm font-medium">
-      <span>{label}</span>
+    <div className="grid gap-1.5 text-sm font-medium">
+      <span id={labelId}>{label}</span>
       <Select.Root value={value} onValueChange={onValueChange} disabled={disabled}>
-        <Select.Trigger className="inline-flex min-h-11 items-center justify-between rounded-md border border-border bg-surface px-3 text-sm">
+        <Select.Trigger
+          aria-labelledby={labelId}
+          className="inline-flex min-h-11 items-center justify-between rounded-md border border-border bg-surface px-3 text-sm"
+        >
           {value ? (
             <Select.Value />
           ) : (
@@ -60,6 +65,6 @@ export function AppSelect({
           </Select.Content>
         </Select.Portal>
       </Select.Root>
-    </label>
+    </div>
   );
 }

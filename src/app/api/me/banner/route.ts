@@ -23,6 +23,12 @@ export async function PATCH(request: NextRequest) {
   });
 }
 
+/**
+ * Purpose: Remove the current user's uploaded banner.
+ * Inputs: Authenticated same-origin request.
+ * Output: Updated profile envelope.
+ * Side effects: Clears the banner path and retires the private storage object.
+ */
 export async function DELETE(request: NextRequest) {
   return withApiHandler(request, async (requestId) => {
     const user = await requireCurrentUser();

@@ -1,4 +1,5 @@
 import webPush from "web-push";
+import * as Sentry from "@sentry/nextjs";
 import { AppError } from "@/lib/api/errors";
 import { getServerEnv, hasPushEnv } from "@/lib/env/server";
 import { pushSubscriptionSchema } from "@/lib/validation/common";
@@ -173,6 +174,27 @@ export async function sendPushForNotification(
     }
   }
   return { sent };
+}
+
+/**
+ * Purpose: Deliver browser push after its durable in-app notification has committed.
+ * Inputs: Safe notification DTO and recipient ID.
+ * Output: Promise that always resolves after delivery or failure capture.
+ * Side effects: Sends push, writes delivery rows, and reports infrastructure failures.
+ * Failure behavior: Never rolls back the already-committed application mutation.
+ */
+export async function deliverPushBestEffort(
+  notification: NotificationDto,
+  userId: string,
+): Promise<void> {
+  try {
+    await sendPushForNotification(notification, userId);
+  } catch (error) {
+    Sentry.captureException(error, {
+      tags: { operation: "push-delivery", notificationType: notification.type },
+      extra: { notificationId: notification.id, recipientId: userId },
+    });
+  }
 }
 
 /**

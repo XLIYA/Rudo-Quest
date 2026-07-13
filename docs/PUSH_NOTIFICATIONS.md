@@ -12,7 +12,8 @@ Users opt in from profile/settings. The app never requests browser notification 
 
 Notification payloads avoid private task descriptions and use safe title/body text. Delivery attempts are logged in `notification_deliveries`; 404 and 410 push failures remove dead subscriptions.
 
-The scheduled endpoint is `POST /api/cron/notifications` and requires:
+The scheduled endpoint supports `GET /api/cron/notifications` for Vercel Cron
+and `POST /api/cron/notifications` for an authorized manual run. Both require:
 
 ```text
 Authorization: Bearer CRON_SECRET
@@ -25,3 +26,8 @@ one notification/subscription pair, track attempts, use exponential backoff,
 and remove subscriptions that return HTTP 404 or 410. Invitation acceptance
 creates an owner notification. Browser permission is requested only from an
 explicit Profile or Settings action.
+
+Assignment, project-invitation, and invitation-acceptance notifications are
+dispatched immediately after their database transaction commits. A failed push
+delivery never rolls back the underlying product action; it is recorded for
+retry and visible through delivery observability.

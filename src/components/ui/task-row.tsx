@@ -6,6 +6,7 @@ import { getProjectColor } from "@/lib/theme/project-colors";
 import { AppAvatar } from "./app-avatar";
 import { AppIconButton } from "./app-icon-button";
 import { TaskCheckbox } from "./task-checkbox";
+import { ProjectIconGlyph } from "@/features/projects/project-pickers";
 
 export type TaskRowProps = {
   task: TaskDto;
@@ -41,9 +42,17 @@ export function TaskRow({
       <button
         type="button"
         onClick={() => onOpen(task)}
-        className="min-w-0 rounded-sm text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        className="min-h-11 min-w-0 rounded-sm text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       >
-        <h3 className="line-clamp-2 text-sm font-semibold">{task.title}</h3>
+        <h3 className="flex items-start gap-2 text-sm font-semibold">
+          {task.iconKey ? (
+            <ProjectIconGlyph
+              iconKey={task.iconKey}
+              className="mt-0.5 size-4 shrink-0 text-text-secondary"
+            />
+          ) : null}
+          <span className="line-clamp-2">{task.title}</span>
+        </h3>
         <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-xs text-text-secondary">
           {task.project ? (
             <span className="inline-flex min-w-0 max-w-full items-center gap-1">

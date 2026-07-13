@@ -11,6 +11,12 @@ export type ApiClientError = {
   status: number;
 };
 
+/**
+ * Purpose: Detect errors already normalized by the shared API client.
+ * Inputs: Unknown caught value.
+ * Output: Type predicate for ApiClientError.
+ * Side effects: None.
+ */
 function isApiClientError(error: unknown): error is ApiClientError {
   return (
     typeof error === "object" &&
@@ -41,6 +47,14 @@ export function normalizeApiClientError(error: unknown): ApiClientError {
     };
     if (data?.error.fieldErrors) normalized.fieldErrors = data.error.fieldErrors;
     return normalized;
+  }
+  if (error instanceof Error) {
+    return {
+      code: "CLIENT_ERROR",
+      message: error.message || "Unexpected client error.",
+      requestId: crypto.randomUUID(),
+      status: 0,
+    };
   }
   return {
     code: "UNKNOWN_ERROR",

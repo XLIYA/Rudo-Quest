@@ -15,7 +15,7 @@ export const maxDuration = 300;
  * Output: Job summary.
  * Side effects: Creates notifications, sends push, logs deliveries.
  */
-export async function GET(request: NextRequest) {
+async function handleCronRequest(request: NextRequest) {
   return withApiHandler(
     request,
     async (requestId) => {
@@ -29,4 +29,24 @@ export async function GET(request: NextRequest) {
     },
     { allowMissingOrigin: true },
   );
+}
+
+/**
+ * Purpose: Accept Vercel Cron's GET invocation.
+ * Inputs: Authorized cron request.
+ * Output: Notification job response.
+ * Side effects: Runs the scheduled notification job under a distributed lock.
+ */
+export async function GET(request: NextRequest) {
+  return handleCronRequest(request);
+}
+
+/**
+ * Purpose: Accept the documented POST cron invocation for manual schedulers.
+ * Inputs: Authorized cron request.
+ * Output: Notification job response.
+ * Side effects: Runs the scheduled notification job under a distributed lock.
+ */
+export async function POST(request: NextRequest) {
+  return handleCronRequest(request);
 }

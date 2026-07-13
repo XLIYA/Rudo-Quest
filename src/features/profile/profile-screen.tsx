@@ -10,17 +10,22 @@ import {
 } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+import { addDays, format, parseISO } from "date-fns";
 import { AppToast } from "@/components/ui/app-toast";
 import { useOnline } from "@/hooks/use-online";
 import { apiGet, apiMutation, normalizeApiClientError } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
 import { AppAvatar } from "@/components/ui/app-avatar";
 import { AppButton } from "@/components/ui/app-button";
+import { AppCheckbox } from "@/components/ui/app-checkbox";
 import { AppEmptyState } from "@/components/ui/app-empty-state";
 import { AppInput } from "@/components/ui/app-input";
+import { AppTimeZoneInput } from "@/components/ui/app-time-zone-input";
 import { AppSelect } from "@/components/ui/app-select";
 import { AppSkeleton } from "@/components/ui/app-skeleton";
+import { AppPagination } from "@/components/ui/app-pagination";
 import { PageHeader } from "@/components/shared/page-header";
+import { ActivityHeatmap } from "@/components/shared/activity-heatmap";
 import type {
   ActivityPageDto,
   BannerPresetKey,
@@ -35,6 +40,11 @@ import {
   unsubscribeCurrentBrowserFromPush,
   type PushBrowserState,
 } from "@/lib/pwa/push";
+import {
+  formatRelativeDay,
+  getDateInTimeZone,
+  getMondayWeekStart,
+} from "@/lib/utils/dates";
 
 type Profile = ProfileDto;
 type ProfileDraft = Pick<
@@ -47,12 +57,22 @@ type ProfileDraft = Pick<
   | "quietHoursEnd"
 >;
 
+type ProfileHeatmapData = {
+  heatmap: { days: { date: string; count: number }[]; streak: number };
+};
+
 const bannerLabels: Record<BannerPresetKey, string> = {
   sunrise: "Sunrise route",
   trail: "Trail map",
   night: "Night watch",
 };
 
+/**
+ * Purpose: Convert a caught API failure into safe profile-page feedback.
+ * Inputs: Unknown caught value.
+ * Output: Normalized user-facing message.
+ * Side effects: None.
+ */
 function errorMessage(error: unknown): string {
   return normalizeApiClientError(error).message;
 }
@@ -83,6 +103,20 @@ export function ProfileScreen() {
     getNextPageParam: (page) => page.cursor,
     enabled: Boolean(profile.data),
   });
+  const profileTimeZone =
+    profile.data?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const currentDate = getDateInTimeZone(new Date(), profileTimeZone);
+  const currentWeekStart = getMondayWeekStart(parseISO(currentDate));
+  const currentWeekEnd = format(addDays(parseISO(currentWeekStart), 6), "yyyy-MM-dd");
+  const heatmap = useQuery({
+    queryKey: queryKeys.dashboard(currentWeekStart, currentWeekEnd),
+    queryFn: ({ signal }) =>
+      apiGet<ProfileHeatmapData>(
+        `/api/dashboard?from=${currentWeekStart}&to=${currentWeekEnd}`,
+        signal,
+      ),
+    enabled: Boolean(profile.data),
+  });
   const [draftState, setDraftState] = useState<{
     key: string;
     value: ProfileDraft;
@@ -93,6 +127,7 @@ export function ProfileScreen() {
     permission: "unsupported",
     subscribed: false,
   });
+  const [pushPending, setPushPending] = useState(false);
 
   useEffect(() => {
     if (!profile.data) return;
@@ -109,11 +144,19 @@ export function ProfileScreen() {
   const updatePreferences = useMutation({
     mutationFn: (values: Partial<Profile>) =>
       apiMutation<Profile>("patch", "/api/me/preferences", values),
+    onMutate: (values) => {
+      const previousTheme = profile.data?.themePreference ?? "system";
+      if (values.themePreference) setTheme(values.themePreference);
+      return { previousTheme };
+    },
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.me, data);
       setTheme(data.themePreference);
     },
-    onError: (error) => AppToast(errorMessage(error), "error"),
+    onError: (error, _values, context) => {
+      setTheme(context?.previousTheme ?? "system");
+      AppToast(errorMessage(error), "error");
+    },
   });
   const preset = useMutation({
     mutationFn: (presetKey: BannerPresetKey) =>
@@ -157,23 +200,29 @@ export function ProfileScreen() {
           quietHoursEnd: profile.data.quietHoursEnd,
         }
     : null;
+  /**
+   * Purpose: Merge profile form edits without copying server state into a global store.
+   * Inputs: Partial identity/reminder draft.
+   * Output: Void.
+   * Side effects: Updates version-keyed local form state.
+   */
   const updateDraft = (values: Partial<ProfileDraft>) => {
     if (!profileKey || !draft) return;
     setDraftState({ key: profileKey, value: { ...draft, ...values } });
   };
 
-  if (profile.isLoading || !draft)
+  if (profile.isLoading)
     return (
       <main className="mx-auto max-w-4xl p-5 md:p-8">
         <AppSkeleton className="h-[42rem]" />
       </main>
     );
-  if (!profile.data)
+  if (profile.isError || !profile.data || !draft)
     return (
       <main className="p-5 md:p-8">
         <AppEmptyState
           title="Profile unavailable"
-          description="Sign in again to load profile data."
+          description="Profile data could not be loaded. Check the connection and try again."
         />
       </main>
     );
@@ -183,6 +232,13 @@ export function ProfileScreen() {
     current.bannerPath ??
     (current.bannerPresetKey ? `/banners/${current.bannerPresetKey}.svg` : null);
 
+  /**
+   * Purpose: Crop a selected image to the required profile aspect ratio before upload.
+   * Inputs: Asset kind and optional browser file.
+   * Output: Promise resolving after the upload mutation starts.
+   * Side effects: Decodes/crops client-side image bytes and starts signed upload.
+   * Failure behavior: Displays validation or crop failures without changing the profile.
+   */
   const handleFile = async (kind: "avatar" | "banner", file: File | undefined) => {
     if (!file) return;
     try {
@@ -193,8 +249,20 @@ export function ProfileScreen() {
     }
   };
 
+  /**
+   * Purpose: Persist the current display-name and handle draft.
+   * Inputs: None.
+   * Output: Void.
+   * Side effects: Starts the identity mutation.
+   */
   const saveIdentity = () =>
     updateProfile.mutate({ displayName: draft.displayName, handle: draft.handle });
+  /**
+   * Purpose: Persist timezone and reminder-window draft values.
+   * Inputs: None.
+   * Output: Void.
+   * Side effects: Starts the preference mutation.
+   */
   const savePreferences = () =>
     updatePreferences.mutate({
       timeZone: draft.timeZone,
@@ -234,15 +302,19 @@ export function ProfileScreen() {
                 <p className="font-mono text-sm text-text-secondary">@{current.handle}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <label className="inline-flex min-h-11 cursor-pointer items-center rounded-md border border-border px-3 text-sm font-semibold hover:bg-surface-muted">
+                <label className="relative inline-flex min-h-12 cursor-pointer items-center overflow-hidden rounded-md border border-border px-3 text-sm font-semibold hover:bg-surface-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand">
                   Upload avatar
                   <input
-                    className="sr-only"
+                    className="absolute inset-0 size-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
                     type="file"
+                    aria-label="Choose avatar image"
                     accept="image/jpeg,image/png,image/webp"
-                    onChange={(event) =>
-                      void handleFile("avatar", event.target.files?.[0])
-                    }
+                    disabled={upload.isPending}
+                    onChange={(event) => {
+                      const file = event.currentTarget.files?.[0];
+                      event.currentTarget.value = "";
+                      void handleFile("avatar", file);
+                    }}
                   />
                 </label>
                 {current.avatarPath ? (
@@ -289,13 +361,19 @@ export function ProfileScreen() {
             ))}
           </div>
           <div className="flex flex-wrap gap-2">
-            <label className="inline-flex min-h-11 cursor-pointer items-center rounded-md border border-border px-3 text-sm font-semibold hover:bg-surface-muted">
+            <label className="relative inline-flex min-h-12 cursor-pointer items-center overflow-hidden rounded-md border border-border px-3 text-sm font-semibold hover:bg-surface-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand">
               Upload banner
               <input
-                className="sr-only"
+                className="absolute inset-0 size-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
                 type="file"
+                aria-label="Choose banner image"
                 accept="image/jpeg,image/png,image/webp"
-                onChange={(event) => void handleFile("banner", event.target.files?.[0])}
+                disabled={upload.isPending}
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  event.currentTarget.value = "";
+                  void handleFile("banner", file);
+                }}
               />
             </label>
             {current.bannerPath ? (
@@ -358,8 +436,7 @@ export function ProfileScreen() {
                 { value: "dark", label: "Dark" },
               ]}
             />
-            <AppInput
-              label="Timezone"
+            <AppTimeZoneInput
               value={draft.timeZone}
               onChange={(event) => updateDraft({ timeZone: event.currentTarget.value })}
             />
@@ -409,54 +486,91 @@ export function ProfileScreen() {
           <div className="flex flex-wrap gap-2">
             <AppButton
               onClick={async () => {
+                setPushPending(true);
                 try {
-                  setPushState(await subscribeCurrentBrowserToPush());
-                  updatePreferences.mutate({ notificationsEnabled: true });
+                  const nextState = await subscribeCurrentBrowserToPush();
+                  try {
+                    await updatePreferences.mutateAsync({ notificationsEnabled: true });
+                    setPushState(nextState);
+                  } catch {
+                    setPushState(await unsubscribeCurrentBrowserFromPush());
+                  }
                 } catch (error) {
-                  AppToast(errorMessage(error), "error");
+                  if (normalizeApiClientError(error).code === "CLIENT_ERROR") {
+                    AppToast(errorMessage(error), "error");
+                  }
+                } finally {
+                  setPushPending(false);
                 }
               }}
-              disabled={updatePreferences.isPending || pushState.subscribed}
+              disabled={
+                pushPending ||
+                updatePreferences.isPending ||
+                !pushState.supported ||
+                !pushState.configured ||
+                pushState.subscribed
+              }
             >
               Enable this device
             </AppButton>
             <AppButton
               variant="secondary"
               onClick={async () => {
+                setPushPending(true);
                 try {
                   setPushState(await unsubscribeCurrentBrowserFromPush());
-                  updatePreferences.mutate({
-                    notificationsEnabled: false,
-                    dailyReminderEnabled: false,
-                  });
                 } catch (error) {
                   AppToast(errorMessage(error), "error");
+                } finally {
+                  setPushPending(false);
                 }
               }}
-              disabled={!pushState.subscribed || updatePreferences.isPending}
+              disabled={!pushState.subscribed || pushPending}
             >
-              Unsubscribe
+              Unsubscribe this device
             </AppButton>
-            <AppButton
-              variant={current.dailyReminderEnabled ? "primary" : "secondary"}
-              onClick={() =>
-                updatePreferences.mutate({
-                  dailyReminderEnabled: !current.dailyReminderEnabled,
-                })
+            <AppCheckbox
+              label="Account notifications"
+              checked={current.notificationsEnabled}
+              onCheckedChange={(checked) =>
+                updatePreferences.mutate({ notificationsEnabled: checked === true })
+              }
+              disabled={updatePreferences.isPending}
+            />
+            <AppCheckbox
+              label="Daily reminders"
+              checked={current.dailyReminderEnabled}
+              onCheckedChange={(checked) =>
+                updatePreferences.mutate({ dailyReminderEnabled: checked === true })
               }
               disabled={!current.notificationsEnabled || updatePreferences.isPending}
-            >
-              {current.dailyReminderEnabled
-                ? "Daily reminders on"
-                : "Daily reminders off"}
-            </AppButton>
+            />
           </div>
           <Link
             href="/notifications"
-            className="w-fit text-sm font-semibold text-brand hover:underline"
+            className="inline-flex min-h-11 w-fit items-center text-sm font-semibold text-brand hover:underline"
           >
             Open notification center
           </Link>
+        </section>
+        <section className="grid gap-4 rounded-lg border border-border bg-surface p-5">
+          <div>
+            <h2 className="text-lg font-semibold">Completion rhythm</h2>
+            <p className="mt-1 text-sm text-text-secondary">
+              {heatmap.data
+                ? `${heatmap.data.heatmap.streak} day current completion streak.`
+                : "Your last 13 weeks of completed work."}
+            </p>
+          </div>
+          {heatmap.isLoading ? <AppSkeleton className="h-40" /> : null}
+          {heatmap.data ? (
+            <ActivityHeatmap days={heatmap.data.heatmap.days} endDate={currentDate} />
+          ) : null}
+          {heatmap.isError ? (
+            <p className="text-sm text-text-secondary">
+              Completion history could not be loaded right now.
+            </p>
+          ) : null}
         </section>
         <section className="grid gap-4 rounded-lg border border-border bg-surface p-5">
           <div>
@@ -498,6 +612,7 @@ export function ProfileScreen() {
                   </span>{" "}
                   {event.label}
                   <span className="mt-1 block font-mono text-xs text-text-tertiary">
+                    {formatRelativeDay(event.createdAt)} ·{" "}
                     {new Date(event.createdAt).toLocaleString()}
                   </span>
                 </p>
@@ -510,23 +625,25 @@ export function ProfileScreen() {
               description="Your completed work and project changes will appear here."
             />
           ) : null}
-          {activity.hasNextPage ? (
-            <AppButton
-              variant="secondary"
-              onClick={() => void activity.fetchNextPage()}
-              disabled={activity.isFetchingNextPage}
-            >
-              {activity.isFetchingNextPage
-                ? "Loading older activity…"
-                : "Load older activity"}
-            </AppButton>
-          ) : null}
+          <AppPagination
+            hasNext={Boolean(activity.hasNextPage)}
+            pending={activity.isFetchingNextPage}
+            label="Load older activity"
+            pendingLabel="Loading older activity…"
+            onNext={() => void activity.fetchNextPage()}
+          />
         </section>
       </fieldset>
     </main>
   );
 }
 
+/**
+ * Purpose: Explain the effective browser/account push state in plain language.
+ * Inputs: Current profile preferences and browser capability/subscription state.
+ * Output: User-facing status sentence.
+ * Side effects: None.
+ */
 function pushStatusText(profile: Profile, state: PushBrowserState): string {
   if (!state.supported) return "Push notifications are not supported in this browser.";
   if (!state.configured)

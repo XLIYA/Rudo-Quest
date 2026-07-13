@@ -6,6 +6,12 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   typedRoutes: true,
   allowedDevOrigins: ["127.0.0.1", "localhost"],
+  experimental: {
+    // Keep the large authenticated E2E surface within the dev server's memory
+    // envelope while retaining full typechecking and source maps.
+    webpackMemoryOptimizations: true,
+    preloadEntriesOnStart: false,
+  },
   images: {
     remotePatterns: [
       {

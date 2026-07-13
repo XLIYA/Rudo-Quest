@@ -12,7 +12,7 @@ import {
   type ProjectSummary,
   type TaskDto,
 } from "@/types/domain";
-import { resolveProjectIcon } from "@/features/projects/project-pickers";
+import { ProjectIconGlyph } from "@/features/projects/project-pickers";
 import { AppButton } from "./app-button";
 import { AppCombobox } from "./app-combobox";
 import { AppConfirmDialog } from "./app-confirm-dialog";
@@ -40,12 +40,20 @@ export type TaskDetailSheetProps = {
   task: TaskDto | null;
   open: boolean;
   offline?: boolean;
+  pending?: boolean;
+  conflict?: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (task: TaskDto, values: TaskDraft) => void;
   onAction: (task: TaskDto, action: TaskDetailAction) => void;
   onArchive: (task: TaskDto) => void;
 };
 
+/**
+ * Purpose: Create an editable snapshot from the latest versioned task DTO.
+ * Inputs: Current task.
+ * Output: Form draft with normalized time and assignee values.
+ * Side effects: None.
+ */
 function toDraft(task: TaskDto): TaskDraft {
   return {
     title: task.title,
@@ -59,6 +67,12 @@ function toDraft(task: TaskDto): TaskDraft {
   };
 }
 
+/**
+ * Purpose: Select between personal scope and active editable projects.
+ * Inputs: Current project, controlled change handler, and disabled state.
+ * Output: Local project select UI.
+ * Side effects: Reads the shared projects query.
+ */
 function ProjectCombobox({
   value,
   onChange,
@@ -71,28 +85,36 @@ function ProjectCombobox({
   const projectsQuery = useQuery({
     queryKey: queryKeys.projects,
     queryFn: ({ signal }) => apiGet<ProjectSummary[]>("/api/projects", signal),
-    enabled: !disabled,
   });
   const options = useMemo(
-    () =>
-      projectsQuery.data?.map((project) => ({
-        value: project.id,
-        label: project.title,
-      })) ?? [],
+    () => [
+      { value: "__personal__", label: "Personal task" },
+      ...(projectsQuery.data
+        ?.filter((project) => !project.archivedAt && project.role !== "VIEWER")
+        .map((project) => ({
+          value: project.id,
+          label: project.title,
+        })) ?? []),
+    ],
     [projectsQuery.data],
   );
   return (
     <AppSelect
       label="Project"
-      value={value ?? ""}
-      onValueChange={(next) => onChange(next || null)}
+      value={value ?? "__personal__"}
+      onValueChange={(next) => onChange(next === "__personal__" ? null : next)}
       options={options}
-      placeholder="Personal task"
       disabled={disabled}
     />
   );
 }
 
+/**
+ * Purpose: Search and select a single active member for a project task.
+ * Inputs: Current assignee/project, controlled change handler, and disabled state.
+ * Output: Debounced accessible member combobox or personal-task guidance.
+ * Side effects: Fetches project-member suggestions and updates controlled selection.
+ */
 function AssigneeCombobox({
   value,
   currentAssignee,
@@ -140,7 +162,7 @@ function AssigneeCombobox({
         value={search}
         onChange={(next) => {
           setSearch(next);
-          if (!next) onChange(null);
+          onChange(null);
         }}
         onOptionSelect={(option) => {
           const profile = suggestions.data?.find(
@@ -174,6 +196,12 @@ function AssigneeCombobox({
   );
 }
 
+/**
+ * Purpose: Select or clear an allowlisted Lucide task icon.
+ * Inputs: Current icon, controlled change handler, and disabled state.
+ * Output: Accessible pressed-state icon grid.
+ * Side effects: Invokes the controlled selection callback.
+ */
 function IconPicker({
   value,
   onChange,
@@ -188,7 +216,6 @@ function IconPicker({
       <legend className="text-sm font-semibold">Icon</legend>
       <div className="grid grid-cols-6 gap-2 sm:grid-cols-8">
         {projectIconKeys.map((key) => {
-          const Icon = resolveProjectIcon(key);
           return (
             <button
               key={key}
@@ -199,7 +226,7 @@ function IconPicker({
               disabled={disabled}
               className={`flex min-h-11 items-center justify-center rounded-md border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${value === key ? "border-brand bg-brand-soft text-brand" : "border-border hover:bg-surface-muted"}`}
             >
-              <Icon className="size-5" aria-hidden={true} />
+              <ProjectIconGlyph iconKey={key} className="size-5" />
             </button>
           );
         })}
@@ -208,6 +235,12 @@ function IconPicker({
   );
 }
 
+/**
+ * Purpose: Present a task state with text and a supporting icon.
+ * Inputs: Current task status.
+ * Output: Compact status badge.
+ * Side effects: None.
+ */
 function StatusBadge({ status }: { status: TaskDto["status"] }) {
   const icon =
     status === "IN_PROGRESS" ? (
@@ -234,6 +267,8 @@ export function TaskDetailSheet({
   task,
   open,
   offline = false,
+  pending = false,
+  conflict = false,
   onOpenChange,
   onSave,
   onAction,
@@ -268,12 +303,24 @@ export function TaskDetailSheet({
   if (!activeTask || !draft || !draftKey) return null;
   const detailsDisabled = offline || !activeTask.permissions.canEditDetails;
   const transitionsDisabled = offline || !activeTask.permissions.canTransition;
+  /**
+   * Purpose: Update one draft field while retaining its task-version identity.
+   * Inputs: Draft key and typed replacement value.
+   * Output: Void.
+   * Side effects: Updates local form state.
+   */
   const update = <K extends keyof TaskDraft>(key: K, value: TaskDraft[K]) =>
     setDraftState((current) => ({
       key: draftKey,
       draft: { ...(current?.key === draftKey ? current.draft : draft), [key]: value },
     }));
 
+  /**
+   * Purpose: Normalize and submit the latest editable task draft.
+   * Inputs: Form submission event.
+   * Output: Void.
+   * Side effects: Prevents navigation and invokes the versioned save callback.
+   */
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     onSave(activeTask, {
@@ -297,12 +344,22 @@ export function TaskDetailSheet({
           </div>
           {!activeTask.permissions.canEditDetails ? (
             <p className="rounded-md border border-border bg-surface-muted p-3 text-sm text-text-secondary">
-              You can view this task, but project details can only be edited by an owner
-              or admin.
+              You can view this task, but only its assignee or a project owner/admin can
+              edit it.
+            </p>
+          ) : null}
+          {conflict ? (
+            <p
+              role="alert"
+              className="rounded-md border border-warning bg-warning-soft p-3 text-sm text-text-primary"
+            >
+              This task changed on another device. The latest version is loaded; review it
+              before saving again.
             </p>
           ) : null}
           <AppInput
             label="Title"
+            maxLength={140}
             value={draft.title}
             onChange={(event) => update("title", event.currentTarget.value)}
             disabled={detailsDisabled}
@@ -310,6 +367,7 @@ export function TaskDetailSheet({
           />
           <AppTextarea
             label="Description"
+            maxLength={5000}
             value={draft.description ?? ""}
             onChange={(event) => update("description", event.currentTarget.value)}
             disabled={detailsDisabled}
@@ -340,9 +398,14 @@ export function TaskDetailSheet({
             disabled={detailsDisabled}
           />
           <AssigneeCombobox
-            key={`${activeTask.id}:${activeTask.assignee?.id ?? "none"}:${draft.projectId ?? "personal"}`}
+            key={`${activeTask.id}:${activeTask.version}:${draft.projectId ?? "personal"}`}
             value={draft.assigneeId}
-            currentAssignee={activeTask.assignee}
+            currentAssignee={
+              draft.projectId === activeTask.projectId &&
+              draft.assigneeId === activeTask.assignee?.id
+                ? activeTask.assignee
+                : null
+            }
             projectId={draft.projectId}
             onChange={(value) => update("assigneeId", value)}
             disabled={detailsDisabled}
@@ -375,6 +438,11 @@ export function TaskDetailSheet({
             {activity.isLoading ? (
               <p className="text-sm text-text-tertiary">Loading activity…</p>
             ) : null}
+            {activity.isError ? (
+              <p role="alert" className="text-sm text-error">
+                Activity history could not be loaded.
+              </p>
+            ) : null}
             {activity.data?.length
               ? activity.data.map((event) => (
                   <p
@@ -391,27 +459,38 @@ export function TaskDetailSheet({
                   </p>
                 ))
               : null}
-            {!activity.isLoading && !activity.data?.length ? (
+            {!activity.isLoading && !activity.isError && !activity.data?.length ? (
               <p className="text-sm text-text-tertiary">No activity yet.</p>
             ) : null}
           </section>
           <div className="flex flex-wrap gap-2">
             {activeTask.status === "TODO" ? (
-              <AppButton
-                type="button"
-                variant="secondary"
-                disabled={transitionsDisabled}
-                onClick={() => onAction(activeTask, "start")}
-              >
-                <Play className="size-4" aria-hidden="true" />
-                Start
-              </AppButton>
+              <>
+                <AppButton
+                  type="button"
+                  variant="secondary"
+                  disabled={transitionsDisabled || pending}
+                  onClick={() => onAction(activeTask, "start")}
+                >
+                  <Play className="size-4" aria-hidden="true" />
+                  Start
+                </AppButton>
+                <AppButton
+                  type="button"
+                  variant="secondary"
+                  disabled={transitionsDisabled || pending}
+                  onClick={() => onAction(activeTask, "complete")}
+                >
+                  <CheckCircle2 className="size-4" aria-hidden="true" />
+                  Complete
+                </AppButton>
+              </>
             ) : null}
             {activeTask.status === "IN_PROGRESS" ? (
               <AppButton
                 type="button"
                 variant="secondary"
-                disabled={transitionsDisabled}
+                disabled={transitionsDisabled || pending}
                 onClick={() => onAction(activeTask, "complete")}
               >
                 <CheckCircle2 className="size-4" aria-hidden="true" />
@@ -422,21 +501,24 @@ export function TaskDetailSheet({
               <AppButton
                 type="button"
                 variant="secondary"
-                disabled={transitionsDisabled}
+                disabled={transitionsDisabled || pending}
                 onClick={() => onAction(activeTask, "reopen")}
               >
                 <RotateCcw className="size-4" aria-hidden="true" />
                 Reopen
               </AppButton>
             ) : null}
-            <AppButton type="submit" disabled={detailsDisabled || !draft.title.trim()}>
+            <AppButton
+              type="submit"
+              disabled={detailsDisabled || pending || !draft.title.trim()}
+            >
               <CheckCircle2 className="size-4" aria-hidden="true" />
               Save changes
             </AppButton>
             <AppButton
               type="button"
               variant="danger"
-              disabled={offline || !activeTask.permissions.canArchive}
+              disabled={offline || pending || !activeTask.permissions.canArchive}
               onClick={() => setConfirmArchive(true)}
             >
               <Archive className="size-4" aria-hidden="true" />

@@ -1,16 +1,30 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
+import { Pool } from "pg";
 
-const email = process.env.E2E_EMAIL;
-const password = process.env.E2E_PASSWORD;
+const email = process.env.E2E_EMAIL ?? process.env.SEED_ADMIN_EMAIL;
+const password = process.env.E2E_PASSWORD ?? process.env.SEED_ADMIN_PASSWORD;
+const localDatabaseUrl = (() => {
+  try {
+    const value = process.env.DATABASE_URL;
+    if (!value) return null;
+    const hostname = new URL(value).hostname;
+    return hostname === "localhost" || hostname === "127.0.0.1" ? value : null;
+  } catch {
+    return null;
+  }
+})();
 
 test.describe("authenticated production flow", () => {
-  test.skip(!email || !password, "E2E_EMAIL and E2E_PASSWORD are required.");
+  test.skip(
+    !email || !password,
+    "E2E_EMAIL/E2E_PASSWORD or the seeded development credentials are required.",
+  );
 
   test("signs in, creates, renders, and archives a personal task", async ({
     context,
     page,
   }, testInfo) => {
-    test.setTimeout(60_000);
+    test.setTimeout(120_000);
     await page.goto("/login");
     await page.getByLabel("Email").fill(email ?? "");
     await page.getByLabel("Password").fill(password ?? "");
@@ -50,6 +64,7 @@ test.describe("authenticated production flow", () => {
     const created = (await createResponse.json()) as {
       data: { id: string; title: string; version: number };
     };
+    let latestVersion = created.data.version;
 
     try {
       const weekDate = new Date(`${scheduledDate}T00:00:00.000Z`);
@@ -82,15 +97,124 @@ test.describe("authenticated production flow", () => {
       await expect(page.getByText(title, { exact: true })).toBeVisible({
         timeout: 10_000,
       });
+      await page.getByText(title, { exact: true }).click();
+      await expect(page).toHaveURL(new RegExp(`task=${created.data.id}`));
+      const sheet = page.getByRole("dialog", { name: "Task details" });
+      await expect(sheet).toBeVisible();
+
+      const startResponsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === `/api/tasks/${created.data.id}/start`,
+      );
+      await sheet.getByRole("button", { name: "Start", exact: true }).click();
+      const startResponse = await startResponsePromise;
+      expect(startResponse.status()).toBe(200);
+      latestVersion = ((await startResponse.json()) as { data: { version: number } }).data
+        .version;
+      await expect(sheet.getByText("IN PROGRESS", { exact: true })).toBeVisible();
+
+      const completeResponsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === `/api/tasks/${created.data.id}/complete`,
+      );
+      await sheet.getByRole("button", { name: "Complete", exact: true }).click();
+      const completeResponse = await completeResponsePromise;
+      expect(completeResponse.status()).toBe(200);
+      latestVersion = (
+        (await completeResponse.json()) as {
+          data: { version: number };
+        }
+      ).data.version;
+      await expect(sheet.getByText("DONE", { exact: true })).toBeVisible();
+
+      const reopenResponsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === `/api/tasks/${created.data.id}/reopen`,
+      );
+      await sheet.getByRole("button", { name: "Reopen", exact: true }).click();
+      const reopenResponse = await reopenResponsePromise;
+      expect(reopenResponse.status()).toBe(200);
+      latestVersion = (
+        (await reopenResponse.json()) as {
+          data: { version: number };
+        }
+      ).data.version;
+      await expect(sheet.getByText("IN PROGRESS", { exact: true })).toBeVisible();
+
+      const renamedTitle = `${title} renamed`;
+      await sheet.getByLabel("Title").fill(renamedTitle);
+      const renameResponsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === "PATCH" &&
+          new URL(response.url()).pathname === `/api/tasks/${created.data.id}`,
+      );
+      await sheet.getByRole("button", { name: "Save changes" }).click();
+      const renameResponse = await renameResponsePromise;
+      expect(renameResponse.status()).toBe(200);
+      latestVersion = (
+        (await renameResponse.json()) as {
+          data: { version: number };
+        }
+      ).data.version;
+      await expect(sheet.getByLabel("Title")).toHaveValue(renamedTitle);
+      await sheet.getByRole("button", { name: "Close sheet" }).click();
+      await expect(page).not.toHaveURL(/task=/);
+
+      await page.getByRole("button", { name: "Next week" }).click();
+      await expect(page).toHaveURL(/weekStart=/);
+      await page.getByRole("button", { name: "Today" }).click();
+      await expect(page).toHaveURL(/date=/);
+
+      await page.goto("/settings");
+      await page.getByLabel("Theme").click();
+      const darkThemeResponsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === "PATCH" &&
+          new URL(response.url()).pathname === "/api/me/preferences",
+      );
+      await page.getByRole("option", { name: "Dark" }).click();
+      expect((await darkThemeResponsePromise).status()).toBe(200);
+      await expect(page.locator("html")).toHaveClass(/dark/);
+
+      await page.getByLabel("Theme").click();
+      const systemThemeResponsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === "PATCH" &&
+          new URL(response.url()).pathname === "/api/me/preferences",
+      );
+      await page.getByRole("option", { name: "System" }).click();
+      expect((await systemThemeResponsePromise).status()).toBe(200);
+
+      await page.goto(`/weekly?date=${scheduledDate}`);
+      await expect(page.getByText(renamedTitle, { exact: true })).toBeVisible();
+      await context.setOffline(true);
+      await expect(page.getByText(/Offline\. Changes are disabled/)).toBeVisible();
+      await expect(page.getByRole("button", { name: /Add a task/ })).toBeDisabled();
+      await context.setOffline(false);
     } finally {
+      await context.setOffline(false).catch(() => undefined);
       const archiveResponse = await page.request.delete(`/api/tasks/${created.data.id}`, {
         headers: { origin },
-        data: { version: created.data.version },
+        data: { version: latestVersion },
       });
-      expect(
-        archiveResponse.status(),
-        `Archive response: ${await archiveResponse.text()}`,
-      ).toBe(200);
+      const archiveStatus = archiveResponse.status();
+      const archiveBody = await archiveResponse.text();
+      if (localDatabaseUrl) {
+        const cleanupPool = new Pool({
+          connectionString: localDatabaseUrl,
+          ssl: false,
+          max: 1,
+        });
+        try {
+          await cleanupPool.query("delete from tasks where id = $1", [created.data.id]);
+        } finally {
+          await cleanupPool.end();
+        }
+      }
+      expect(archiveStatus, `Archive response: ${archiveBody}`).toBe(200);
     }
   });
 });

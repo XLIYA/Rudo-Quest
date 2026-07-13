@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "npm@10.9.8",
   "scripts": {
-    "dev": "next dev --webpack",
+    "dev": "next dev",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
@@ -17,6 +17,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node src/db/migrate.mjs",
     "db:seed": "node src/db/seeds/seed.mjs",
+    "dev:setup": "npm run db:migrate && npm run db:seed",
     "icons": "node scripts/generate-icons.mjs",
     "prepare": "husky"
   },
@@ -54,12 +55,14 @@
     "react-hook-form": "^7.81.0",
     "recharts": "^3.9.2",
     "serwist": "^9.5.11",
+    "sharp": "^0.35.3",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
     "web-push": "^3.6.7",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@next/env": "^16.2.10",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
@@ -71,7 +74,6 @@
     "@types/react-dom": "^19",
     "@types/web-push": "^3.6.4",
     "@vitest/coverage-v8": "^4.1.10",
-    "agentation": "^3.0.2",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
@@ -80,7 +82,6 @@
     "jsdom": "^29.1.1",
     "lint-staged": "^17.0.8",
     "prettier": "^3.9.4",
-    "sharp": "^0.35.3",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.10"
@@ -88,5 +89,12 @@
   "overrides": {
     "esbuild": "^0.28.1",
     "postcss": "^8.5.16"
+  },
+  "lint-staged": {
+    "*.{js,mjs,cjs,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,css,yml,yaml}": "prettier --write"
   }
 }

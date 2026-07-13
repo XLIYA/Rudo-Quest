@@ -1,4 +1,4 @@
-import { forwardRef, type TextareaHTMLAttributes } from "react";
+import { forwardRef, useId, type TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/utils/cn";
 
 export type AppTextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
@@ -14,10 +14,14 @@ export type AppTextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
  */
 export const AppTextarea = forwardRef<HTMLTextAreaElement, AppTextareaProps>(
   ({ label, error, className, id, ...props }, ref) => {
-    const inputId = id ?? props.name;
-    const errorId = inputId ? `${inputId}-error` : undefined;
+    const generatedId = useId();
+    const inputId = id ?? props.name ?? generatedId;
+    const errorId = `${inputId}-error`;
     return (
-      <label className="grid gap-1.5 text-sm font-medium text-text-primary">
+      <label
+        htmlFor={inputId}
+        className="grid gap-1.5 text-sm font-medium text-text-primary"
+      >
         {label ? <span>{label}</span> : null}
         <textarea
           ref={ref}
@@ -31,7 +35,7 @@ export const AppTextarea = forwardRef<HTMLTextAreaElement, AppTextareaProps>(
           )}
           {...props}
         />
-        {error && inputId ? (
+        {error ? (
           <span id={errorId} role="alert" className="text-xs font-medium text-error">
             {error}
           </span>

@@ -32,6 +32,13 @@ type PersistedUserCache = {
   state: DehydratedState;
 };
 
+/**
+ * Purpose: Namespace persisted query data by authenticated user and cache version.
+ * Inputs: Server-confirmed user ID.
+ * Output: IndexedDB key string.
+ * Side effects: None.
+ * Business rule: Cached private reads must never be shared between accounts.
+ */
 function cacheKey(userId: string): string {
   return `${cachePrefix}:${userId}`;
 }

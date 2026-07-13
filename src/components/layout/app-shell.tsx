@@ -19,7 +19,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
 import RudoMark from "@/assets/brand/rudo-mark.svg";
 import RudoWordmark from "@/assets/brand/rudo-wordmark.svg";
@@ -28,11 +28,14 @@ import { AppToast } from "@/components/ui/app-toast";
 import { useOnline } from "@/hooks/use-online";
 import { AppAvatar } from "@/components/ui/app-avatar";
 import { AppIconButton } from "@/components/ui/app-icon-button";
+import { AppSkeleton } from "@/components/ui/app-skeleton";
 import { apiGet, apiMutation, normalizeApiClientError } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
 import { clearUserQueryCache } from "@/lib/pwa/query-persistence";
 import { cn } from "@/lib/utils/cn";
 import { useNotifications } from "@/features/notifications/notification-hooks";
+import { unsubscribeCurrentBrowserFromPush } from "@/lib/pwa/push";
+import type { NotificationPageDto, ProfileDto } from "@/types/domain";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -42,26 +45,66 @@ const navItems = [
   { href: "/profile", label: "Profile", icon: User },
 ] as const;
 
-type NavProfile = {
-  id: string;
-  displayName: string;
-  handle: string;
-  avatarPath: string | null;
-  themePreference: "system" | "light" | "dark";
-};
+type NavProfile = Pick<
+  ProfileDto,
+  "id" | "displayName" | "handle" | "avatarPath" | "themePreference"
+>;
+
+/**
+ * Purpose: Provide React's hydration snapshot hook with a stable no-op subscription.
+ * Inputs: Store-change callback supplied by React.
+ * Output: No-op unsubscribe callback.
+ * Side effects: None.
+ */
+function subscribeToHydration(): () => void {
+  return () => undefined;
+}
+
+/**
+ * Purpose: Report that browser hydration has completed.
+ * Inputs: None.
+ * Output: True for post-hydration browser renders.
+ * Side effects: None.
+ */
+function readHydratedClient(): boolean {
+  return true;
+}
+
+/**
+ * Purpose: Keep protected query screens in their deterministic shell during SSR/hydration.
+ * Inputs: None.
+ * Output: False for the server snapshot and first hydration render.
+ * Side effects: None.
+ */
+function readHydratedServer(): boolean {
+  return false;
+}
 
 /**
  * Purpose: Render responsive protected navigation, account actions, theme controls, and the global offline state.
- * Inputs: Protected route children.
+ * Inputs: Protected route children and the server-verified initial profile.
  * Output: Collapsible desktop shell and five-item mobile navigation.
  * Side effects: Reads profile/notifications and can sign out or persist a theme preference.
  * Failure behavior: Keeps navigation usable when profile or notification data is unavailable.
  */
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  initialProfile,
+  initialNotifications,
+}: {
+  children: React.ReactNode;
+  initialProfile: NavProfile;
+  initialNotifications: NotificationPageDto;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { theme, setTheme } = useTheme();
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    readHydratedClient,
+    readHydratedServer,
+  );
   const online = useOnline();
   const [collapsed, setCollapsed] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -71,12 +114,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const profile = useQuery({
     queryKey: queryKeys.me,
     queryFn: ({ signal }) => apiGet<NavProfile>("/api/me", signal),
+    initialData: initialProfile,
     staleTime: 60_000,
   });
-  const notifications = useNotifications();
+  const notifications = useNotifications(initialNotifications);
   const unreadCount = notifications.data?.pages[0]?.unreadCount ?? 0;
   const signOut = useMutation({
-    mutationFn: () => apiMutation("post", "/api/auth/signout"),
+    mutationFn: async () => {
+      try {
+        await unsubscribeCurrentBrowserFromPush();
+      } catch {
+        // Push cleanup is best effort; signing out must still clear the local session.
+      }
+      return apiMutation("post", "/api/auth/signout");
+    },
     onSuccess: async () => {
       if (profile.data?.id) await clearUserQueryCache(profile.data.id);
       queryClient.clear();
@@ -90,26 +141,55 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       apiMutation<NavProfile>("patch", "/api/me/preferences", {
         themePreference: nextTheme,
       }),
+    onMutate: (nextTheme) => {
+      const previousTheme = profile.data?.themePreference ?? "system";
+      setTheme(nextTheme);
+      return { previousTheme };
+    },
     onSuccess: (data) => queryClient.setQueryData(queryKeys.me, data),
-    onError: (error) => AppToast(normalizeApiClientError(error).message, "error"),
+    onError: (error, _nextTheme, context) => {
+      setTheme(context?.previousTheme ?? "system");
+      AppToast(normalizeApiClientError(error).message, "error");
+    },
   });
 
+  /**
+   * Purpose: Apply and persist an explicit theme selection.
+   * Inputs: System, light, or dark preference.
+   * Output: Void.
+   * Side effects: Starts the optimistic preference mutation.
+   */
   const setPreferredTheme = (nextTheme: "system" | "light" | "dark") => {
-    setTheme(nextTheme);
     saveTheme.mutate(nextTheme);
   };
+
+  useEffect(() => {
+    if (profile.data?.themePreference) setTheme(profile.data.themePreference);
+  }, [profile.data?.themePreference, setTheme]);
 
   useEffect(() => {
     if (!accountOpen) return;
     const focusFrame = window.requestAnimationFrame(() =>
       firstAccountItemRef.current?.focus(),
     );
+    /**
+     * Purpose: Close the account menu with Escape and restore trigger focus.
+     * Inputs: Keyboard event.
+     * Output: Void.
+     * Side effects: Updates menu state and focus.
+     */
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setAccountOpen(false);
         accountTriggerRef.current?.focus();
       }
     };
+    /**
+     * Purpose: Close the account menu when pointer input occurs outside it.
+     * Inputs: Pointer event.
+     * Output: Void.
+     * Side effects: Updates menu state.
+     */
     const closeOnOutsidePointer = (event: PointerEvent) => {
       if (event.target instanceof Node && !accountMenuRef.current?.contains(event.target))
         setAccountOpen(false);
@@ -138,7 +218,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             collapsed ? "justify-center" : "justify-between gap-2",
           )}
         >
-          <Link href="/dashboard" aria-label="Rudo Quest dashboard" className="shrink-0">
+          <Link
+            href="/dashboard"
+            aria-label="Rudo Quest dashboard"
+            className="inline-flex min-h-11 shrink-0 items-center"
+          >
             {collapsed ? (
               <Image src={RudoMark} alt="Rudo Quest" width={40} height={40} />
             ) : (
@@ -183,7 +267,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               >
                 <item.icon className="size-4 shrink-0" aria-hidden="true" />
                 {!collapsed ? item.label : null}
-                {item.href === "/notifications" && unreadCount > 0 ? (
+                {hydrated && item.href === "/notifications" && unreadCount > 0 ? (
                   <span
                     className={cn(
                       "inline-flex min-w-5 items-center justify-center rounded-full bg-brand px-1 font-mono text-[10px] text-white",
@@ -304,7 +388,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
       <div className="min-w-0 pb-[calc(6rem+env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] md:pb-0 md:pl-0 md:pr-0 md:pt-0">
-        {children}
+        {hydrated ? (
+          children
+        ) : (
+          <main
+            className="mx-auto max-w-7xl p-5 md:p-8"
+            aria-busy="true"
+            aria-label="Loading page"
+          >
+            <AppSkeleton className="h-[32rem] w-full" />
+          </main>
+        )}
         <Link
           href="/weekly?quickAdd=1"
           className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-[calc(1.25rem+env(safe-area-inset-right))] z-30 inline-flex size-14 items-center justify-center rounded-lg bg-brand text-white shadow-[var(--shadow-raised)] md:hidden"
@@ -330,7 +424,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               >
                 <item.icon className="size-5" aria-hidden="true" />
                 <span>{item.label}</span>
-                {item.href === "/notifications" && unreadCount > 0 ? (
+                {hydrated && item.href === "/notifications" && unreadCount > 0 ? (
                   <span
                     className="absolute right-1/4 top-2 inline-flex size-4 items-center justify-center rounded-full bg-brand font-mono text-[9px] text-white"
                     aria-label={`${unreadCount} unread notifications`}

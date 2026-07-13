@@ -21,7 +21,6 @@ export async function POST(request: NextRequest) {
       await createTask(user.id, {
         ...body,
         projectId: body.projectId ?? null,
-        assigneeId: body.assigneeId ?? null,
       }),
       { status: 201, requestId },
     );

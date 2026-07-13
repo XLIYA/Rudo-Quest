@@ -1,6 +1,6 @@
 import { AppError } from "@/lib/api/errors";
 import { runDbTransaction } from "@/lib/db/client";
-import type { ProjectRole } from "@/types/domain";
+import type { InvitationStatus, ProjectRole } from "@/types/domain";
 import { assertProjectRole } from "@/server/policies/project-policy";
 import { createActivityEvent } from "@/server/repositories/activity-repository";
 import {
@@ -22,8 +22,18 @@ import {
   updateProjectRow,
   transferProjectOwnership,
 } from "@/server/repositories/project-repository";
-import { createNotification } from "@/server/services/notification-service";
+import {
+  createNotification,
+  deliverPushBestEffort,
+} from "@/server/services/notification-service";
 
+/**
+ * Purpose: Require a minimum role on a project that is still active.
+ * Inputs: Project ID, current user ID, and minimum accepted role.
+ * Output: The user's verified server-side role.
+ * Side effects: Reads project access.
+ * Failure behavior: Throws forbidden or conflict for insufficient access or archived projects.
+ */
 async function requireActiveProjectRole(
   projectId: string,
   userId: string,
@@ -69,11 +79,16 @@ export async function createProject(
     invitations?: { userId: string; role: Exclude<ProjectRole, "OWNER"> }[];
   },
 ) {
-  const { summary } = await insertProjectWithInvitations({
+  const { summary, pushNotifications } = await insertProjectWithInvitations({
     ...payload,
     ownerId: userId,
     invitations: payload.invitations ?? [],
   });
+  await Promise.all(
+    pushNotifications.map(({ notification, recipientId }) =>
+      deliverPushBestEffort(notification, recipientId),
+    ),
+  );
   return summary;
 }
 
@@ -168,7 +183,7 @@ export async function inviteProjectMember(
 ) {
   await expirePendingInvitations();
   await requireActiveProjectRole(projectId, userId, "ADMIN");
-  return runDbTransaction(async (tx) => {
+  const result = await runDbTransaction(async (tx) => {
     const invitation = await insertInvitation(
       {
         projectId,
@@ -180,7 +195,7 @@ export async function inviteProjectMember(
     );
     if (!invitation)
       throw new AppError("CONFLICT", 409, "User is already invited or a member.");
-    await createNotification(
+    const notification = await createNotification(
       {
         recipientId: payload.invitedUserId,
         type: "PROJECT_INVITATION",
@@ -199,8 +214,10 @@ export async function inviteProjectMember(
       },
       tx,
     );
-    return invitation;
+    return { invitation, notification };
   });
+  await deliverPushBestEffort(result.notification, payload.invitedUserId);
+  return result.invitation;
 }
 
 /**
@@ -213,7 +230,7 @@ export async function changeInvitationStatus(
   userId: string,
   projectId: string,
   invitationId: string,
-  status: "ACCEPTED" | "DECLINED" | "REVOKED",
+  status: Extract<InvitationStatus, "ACCEPTED" | "DECLINED" | "REVOKED">,
 ) {
   await expirePendingInvitations();
   const existing = await findProjectInvitation(projectId, invitationId);
@@ -229,14 +246,17 @@ export async function changeInvitationStatus(
   if (status === "ACCEPTED" && existing.expiresAt < new Date()) {
     throw new AppError("CONFLICT", 409, "Invitation has expired.");
   }
-  const invitation = await transitionInvitation({
+  const transition = await transitionInvitation({
     projectId,
     invitationId,
     actorId: userId,
     status,
   });
-  if (!invitation) throw new AppError("CONFLICT", 409, "Invitation cannot be changed.");
-  return invitation;
+  if (!transition) throw new AppError("CONFLICT", 409, "Invitation cannot be changed.");
+  if (transition.pushNotification && transition.pushRecipientId) {
+    await deliverPushBestEffort(transition.pushNotification, transition.pushRecipientId);
+  }
+  return transition.invitation;
 }
 
 /**
@@ -276,8 +296,13 @@ export async function changeMemberRole(
   role: Exclude<ProjectRole, "OWNER">,
 ) {
   const actorRole = await requireActiveProjectRole(projectId, userId, "ADMIN");
-  if (actorRole === "ADMIN" && role === "ADMIN") {
-    throw new AppError("FORBIDDEN", 403, "Admins cannot promote other admins.");
+  const targetRole = await findProjectRole(projectId, targetUserId);
+  if (actorRole === "ADMIN" && (role === "ADMIN" || targetRole === "ADMIN")) {
+    throw new AppError(
+      "FORBIDDEN",
+      403,
+      "Only the owner can change an administrator's role.",
+    );
   }
   const updated = await updateMemberRole({ projectId, userId: targetUserId, role });
   if (!updated) throw new AppError("NOT_FOUND", 404, "Member not found.");

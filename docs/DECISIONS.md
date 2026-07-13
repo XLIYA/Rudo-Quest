@@ -10,6 +10,8 @@ Client state is TanStack Query only. No global task/project/profile store is use
 
 Route Handlers are used for browser mutations because the client uses Axios. Server-side code calls services and repositories directly.
 
-The existing dashboard heatmap and font configuration are intentionally
-preserved. Audit remediation does not reinterpret or regenerate those two
-surfaces.
+The 91-day heatmap layout is intentionally preserved because it gives the
+compact activity signal the product needs. Manrope and Roboto Mono are loaded
+from local Next.js font assets to avoid layout shift and third-party font
+requests; Bitcount Ink remains limited to the wordmark and prominent weekday
+headings.

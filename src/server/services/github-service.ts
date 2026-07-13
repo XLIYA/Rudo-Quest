@@ -1,5 +1,6 @@
 import { AppError } from "@/lib/api/errors";
 import { runDbTransaction } from "@/lib/db/client";
+import { getServerEnv } from "@/lib/env/server";
 import {
   createGitHubInstallationState,
   decryptGitHubUserToken,
@@ -33,6 +34,7 @@ import {
   listGitHubInstallationsForUser,
   upsertGitHubInstallation,
 } from "@/server/repositories/github-repository";
+import { writeStructuredLog } from "@/server/observability/structured-log";
 
 /**
  * Purpose: Start a GitHub App installation flow.
@@ -158,6 +160,14 @@ export async function connectRepository(
   },
 ) {
   await requireActiveProjectAdmin(userId, projectId);
+  const existingConnection = await findProjectRepository(projectId);
+  if (existingConnection) {
+    throw new AppError(
+      "CONFLICT",
+      409,
+      "Disconnect the current repository before connecting another one.",
+    );
+  }
   const installation = await findGitHubInstallationForUser(
     payload.githubInstallationId,
     userId,
@@ -232,15 +242,28 @@ export async function getProjectRepository(userId: string, projectId: string) {
 
 /**
  * Purpose: Validate and accept a GitHub webhook request.
- * Inputs: Raw body and GitHub signature.
+ * Inputs: Raw body, GitHub signature, event type, and delivery ID.
  * Output: Accepted flag.
- * Side effects: None in V1 because repository metadata only is supported.
+ * Side effects: Writes safe delivery metadata to structured server logs.
  */
-export async function handleGitHubWebhook(body: string, signature: string | null) {
+export async function handleGitHubWebhook(
+  body: string,
+  signature: string | null,
+  githubEvent: string,
+  deliveryId: string,
+) {
+  if (!getServerEnv().GITHUB_WEBHOOK_SECRET) {
+    throw new AppError(
+      "INTEGRATION_NOT_CONFIGURED",
+      503,
+      "GitHub webhooks are not configured.",
+    );
+  }
   if (!verifyGitHubWebhookSignature(body, signature)) {
     throw new AppError("FORBIDDEN", 403, "Invalid GitHub webhook signature.");
   }
-  return { accepted: true };
+  writeStructuredLog("github_webhook_accepted", { githubEvent, deliveryId });
+  return { accepted: true, event: githubEvent };
 }
 
 /**
@@ -253,6 +276,13 @@ export async function listGitHubInstallations(userId: string) {
   return listGitHubInstallationsForUser(userId);
 }
 
+/**
+ * Purpose: Require owner/admin access to an active project before GitHub mutations.
+ * Inputs: Current user ID and project ID.
+ * Output: Void after authorization succeeds.
+ * Side effects: Reads current project membership.
+ * Failure behavior: Throws forbidden or conflict for insufficient access or archived projects.
+ */
 async function requireActiveProjectAdmin(
   userId: string,
   projectId: string,

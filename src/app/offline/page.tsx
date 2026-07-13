@@ -10,7 +10,7 @@ export default function OfflinePage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-background p-5 text-text-primary">
       <section className="max-w-sm rounded-lg border border-border bg-surface p-6 text-center">
-        <h1 className="font-display text-4xl">Offline</h1>
+        <h1 className="text-4xl font-bold tracking-[-0.03em]">Offline</h1>
         <p className="mt-3 text-sm leading-6 text-text-secondary">
           Rudo Quest can show recently synchronized weekly and dashboard data. Mutations
           stay disabled until reconnection.

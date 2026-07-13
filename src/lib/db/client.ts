@@ -4,7 +4,6 @@ import * as schema from "@/db/schema";
 import { AppError } from "@/lib/api/errors";
 import { getServerEnv } from "@/lib/env/server";
 
-let pool: Pool | null = null;
 let db: NodePgDatabase<typeof schema> | null = null;
 
 export type DbExecutor = Pick<
@@ -53,7 +52,7 @@ export function getDb(): NodePgDatabase<typeof schema> {
   if (!databaseUrl) {
     throw new AppError("INTEGRATION_NOT_CONFIGURED", 503, "Database is not configured.");
   }
-  pool = new Pool({
+  const pool = new Pool({
     connectionString: databaseUrl,
     ssl: getPgSslConfig(databaseUrl),
     max: 3,
@@ -65,20 +64,15 @@ export function getDb(): NodePgDatabase<typeof schema> {
   return db;
 }
 
+/**
+ * Purpose: Execute related repository writes in one PostgreSQL transaction.
+ * Inputs: Callback receiving a transaction-scoped Drizzle executor.
+ * Output: The callback result after commit.
+ * Side effects: Opens, commits, or rolls back a database transaction.
+ * Failure behavior: Propagates callback or database errors after rollback.
+ */
 export async function runDbTransaction<T>(
   operation: (tx: DbExecutor) => Promise<T>,
 ): Promise<T> {
   return getDb().transaction((tx) => operation(tx));
-}
-
-/**
- * Purpose: Close the shared pg pool during tests and scripted shutdowns.
- * Inputs: None.
- * Output: Promise that resolves after pool shutdown.
- * Side effects: Ends open database sockets and clears cached clients.
- */
-export async function closeDb(): Promise<void> {
-  await pool?.end();
-  pool = null;
-  db = null;
 }
