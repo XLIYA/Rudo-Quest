@@ -102,7 +102,9 @@
   --shadow-surface: 0 1px 2px rgb(0 0 0 / 0.06);
   --shadow-raised: 0 10px 30px rgb(0 0 0 / 0.08);
   --shadow-overlay: 0 24px 80px rgb(0 0 0 / 0.18);
-  --font-bitcount-ink: "Bitcount Ink", var(--font-manrope), system-ui, sans-serif;
+  --font-display: "Bitcount Ink", system-ui, sans-serif;
+  --font-sans: "Noto Serif", Georgia, serif;
+  --font-mono: "Roboto Mono", monospace;
   color-scheme: light;
 }
 
