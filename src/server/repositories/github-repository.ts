@@ -4,7 +4,7 @@ import {
   githubInstallations,
   projectRepositories,
 } from "@/db/schema";
-import { getDb } from "@/lib/db/client";
+import { getDb, type DbExecutor } from "@/lib/db/client";
 
 /**
  * Purpose: Persist or update a GitHub App installation.
@@ -155,15 +155,18 @@ export async function findGitHubInstallationForUser(id: string, userId: string) 
  * Output: Project repository row.
  * Side effects: Writes project_repositories.
  */
-export async function connectProjectRepository(input: {
-  projectId: string;
-  githubInstallationId: string;
-  repositoryId: number;
-  repositoryFullName: string;
-  repositoryUrl: string;
-  defaultBranch?: string | null;
-}) {
-  const [row] = await getDb()
+export async function connectProjectRepository(
+  input: {
+    projectId: string;
+    githubInstallationId: string;
+    repositoryId: number;
+    repositoryFullName: string;
+    repositoryUrl: string;
+    defaultBranch?: string | null;
+  },
+  db: DbExecutor = getDb(),
+) {
+  const [row] = await db
     .insert(projectRepositories)
     .values(input)
     .onConflictDoUpdate({
@@ -204,8 +207,9 @@ export async function findProjectRepository(projectId: string) {
 export async function disconnectProjectRepository(
   projectId: string,
   repositoryId: number,
+  db: DbExecutor = getDb(),
 ) {
-  const [row] = await getDb()
+  const [row] = await db
     .delete(projectRepositories)
     .where(
       and(

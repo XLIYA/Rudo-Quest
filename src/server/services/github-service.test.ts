@@ -21,7 +21,15 @@ const githubApp = vi.hoisted(() => ({
 }));
 
 const projectRepository = vi.hoisted(() => ({
+  findProjectAccess: vi.fn(),
   findProjectRole: vi.fn(),
+}));
+
+const transaction = vi.hoisted(() => ({
+  executor: {},
+  runDbTransaction: vi.fn(async (operation: (tx: object) => Promise<unknown>) =>
+    operation(transaction.executor),
+  ),
 }));
 
 const githubRepository = vi.hoisted(() => ({
@@ -45,6 +53,9 @@ vi.mock("@/lib/github/app", () => githubApp);
 vi.mock("@/server/repositories/project-repository", () => projectRepository);
 vi.mock("@/server/repositories/github-repository", () => githubRepository);
 vi.mock("@/server/repositories/activity-repository", () => activityRepository);
+vi.mock("@/lib/db/client", () => ({
+  runDbTransaction: transaction.runDbTransaction,
+}));
 
 const userId = "00000000-0000-4000-8000-000000000001";
 const otherUserId = "00000000-0000-4000-8000-000000000009";
@@ -54,6 +65,10 @@ const installationRowId = "00000000-0000-4000-8000-000000000003";
 beforeEach(() => {
   vi.clearAllMocks();
   projectRepository.findProjectRole.mockResolvedValue("ADMIN");
+  projectRepository.findProjectAccess.mockResolvedValue({
+    role: "ADMIN",
+    archivedAt: null,
+  });
 });
 
 describe("GitHub installation ownership", () => {
@@ -148,13 +163,16 @@ describe("GitHub installation ownership", () => {
       }),
     ).resolves.toEqual({ id: "connection" });
 
-    expect(githubRepository.connectProjectRepository).toHaveBeenCalledWith({
-      projectId,
-      githubInstallationId: installationRowId,
-      repositoryId: 987,
-      repositoryFullName: "acme/private-repo",
-      repositoryUrl: "https://github.com/acme/private-repo",
-      defaultBranch: "main",
-    });
+    expect(githubRepository.connectProjectRepository).toHaveBeenCalledWith(
+      {
+        projectId,
+        githubInstallationId: installationRowId,
+        repositoryId: 987,
+        repositoryFullName: "acme/private-repo",
+        repositoryUrl: "https://github.com/acme/private-repo",
+        defaultBranch: "main",
+      },
+      transaction.executor,
+    );
   });
 });

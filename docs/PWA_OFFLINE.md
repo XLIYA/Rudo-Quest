@@ -6,11 +6,10 @@ The app shell and offline fallback route are precached. Authenticated API respon
 
 The persisted key contains the authenticated profile ID, cache version, and
 last-write timestamp. Entries expire after seven days. A successful `/api/me`
-bootstrap is required before an online cache is restored; a previous cache is
-used only while the browser is offline. Logout deletes the user-scoped cache
-and active-user marker, preventing one account's reads from appearing for the
-next account on the same device.
+bootstrap is required before any persisted cache is restored. A remembered
+browser user ID is never treated as authentication, including during a cold
+offline launch. Logout deletes the user-scoped cache and active-user marker.
 
 Offline V1 behavior:
 
-Offline state shows a persistent warning, mutations are disabled in the UI, task/project/profile edits require reconnection, and the app refetches data after reconnect. Rudo Quest does not fake offline mutation success and does not implement a background mutation queue.
+An already-open authenticated app keeps its in-memory data when connectivity drops. Offline state shows a persistent warning, mutations are disabled in the UI, task/project/profile edits require reconnection, and the app refetches after reconnect. A cold offline navigation receives the neutral offline route rather than cached private HTML or data. Rudo Quest does not fake mutation success and does not implement a background mutation queue.

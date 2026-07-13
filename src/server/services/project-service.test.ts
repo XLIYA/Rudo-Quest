@@ -3,11 +3,13 @@ import { changeInvitationStatus } from "./project-service";
 
 const projectRepository = vi.hoisted(() => ({
   archiveProjectRow: vi.fn(),
+  findProjectAccess: vi.fn(),
   findProjectInvitation: vi.fn(),
   findProjectRole: vi.fn(),
   findProjectSummary: vi.fn(),
   expirePendingInvitations: vi.fn(),
   findProjectOwnerId: vi.fn(),
+  isProjectArchived: vi.fn(),
   insertInvitation: vi.fn(),
   listProjectInvitations: vi.fn(),
   listProjectMembers: vi.fn(),
@@ -54,6 +56,7 @@ beforeEach(() => {
   projectRepository.expirePendingInvitations.mockResolvedValue(0);
   projectRepository.findProjectInvitation.mockResolvedValue(pendingInvitation());
   projectRepository.transitionInvitation.mockResolvedValue(pendingInvitation());
+  projectRepository.isProjectArchived.mockResolvedValue(false);
 });
 
 describe("changeInvitationStatus authorization", () => {
@@ -79,7 +82,10 @@ describe("changeInvitationStatus authorization", () => {
   });
 
   it("keeps revocation limited to project admins and owners", async () => {
-    projectRepository.findProjectRole.mockResolvedValue("MEMBER");
+    projectRepository.findProjectAccess.mockResolvedValue({
+      role: "MEMBER",
+      archivedAt: null,
+    });
 
     await expect(
       changeInvitationStatus(otherUserId, projectId, invitationId, "REVOKED"),

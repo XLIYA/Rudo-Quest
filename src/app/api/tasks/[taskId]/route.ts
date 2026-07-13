@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { apiSuccess } from "@/lib/api/response";
 import { uuidSchema } from "@/lib/validation/common";
-import { updateTaskSchema } from "@/lib/validation/tasks";
+import { taskActionSchema, updateTaskSchema } from "@/lib/validation/tasks";
 import { withApiHandler, readJson } from "@/server/api/handler";
 import { requireCurrentUser } from "@/server/auth/current-user";
 import { archiveTask, getTask, updateTask } from "@/server/services/task-service";
@@ -49,7 +49,7 @@ export async function DELETE(request: NextRequest, context: Context) {
   return withApiHandler(request, async (requestId) => {
     const user = await requireCurrentUser();
     const { taskId } = await context.params;
-    const body = updateTaskSchema.pick({ version: true }).parse(await readJson(request));
+    const body = taskActionSchema.parse(await readJson(request));
     return apiSuccess(
       await archiveTask(user.id, uuidSchema.parse(taskId), body.version),
       { requestId },

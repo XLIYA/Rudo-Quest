@@ -1,6 +1,7 @@
 import {
   bigint,
   boolean,
+  check,
   date,
   index,
   integer,
@@ -37,23 +38,74 @@ export const profiles = pgTable(
   (table) => [
     index("profiles_handle_idx").on(table.handle),
     index("profiles_lower_email_idx").on(sql`lower(${table.email})`),
+    check(
+      "profiles_handle_format",
+      sql`${table.handle} = lower(${table.handle}) and length(${table.handle}) between 3 and 30 and ${table.handle} ~ '^[a-z0-9_-]+$'`,
+    ),
+    check(
+      "profiles_display_name_length",
+      sql`length(${table.displayName}) between 2 and 60`,
+    ),
+    check(
+      "profiles_theme_preference",
+      sql`${table.themePreference} in ('system', 'light', 'dark')`,
+    ),
+    check(
+      "profiles_banner_preset_key",
+      sql`${table.bannerPresetKey} is null or ${table.bannerPresetKey} in ('sunrise', 'trail', 'night')`,
+    ),
   ],
 );
 
-export const projects = pgTable("projects", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  ownerId: uuid("owner_id")
-    .notNull()
-    .references(() => profiles.id),
-  title: text("title").notNull(),
-  description: text("description"),
-  iconKey: text("icon_key").notNull(),
-  colorKey: text("color_key").notNull(),
-  timeZone: text("time_zone").notNull(),
-  archivedAt: timestamp("archived_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const profileAssetUploads = pgTable(
+  "profile_asset_uploads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    path: text("path").notNull().unique(),
+    kind: text("kind").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    committedAt: timestamp("committed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("profile_asset_uploads_pending_expiry_idx")
+      .on(table.expiresAt)
+      .where(sql`${table.committedAt} is null`),
+    check("profile_asset_uploads_kind", sql`${table.kind} in ('avatar', 'banner')`),
+  ],
+);
+
+export const projects = pgTable(
+  "projects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    ownerId: uuid("owner_id")
+      .notNull()
+      .references(() => profiles.id),
+    title: text("title").notNull(),
+    description: text("description"),
+    iconKey: text("icon_key").notNull(),
+    colorKey: text("color_key").notNull(),
+    timeZone: text("time_zone").notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check("projects_title_length", sql`length(${table.title}) between 2 and 60`),
+    check(
+      "projects_description_length",
+      sql`${table.description} is null or length(${table.description}) <= 500`,
+    ),
+    check(
+      "projects_color_key",
+      sql`${table.colorKey} in ('orange','red','rose','violet','blue','cyan','green','yellow')`,
+    ),
+  ],
+);
 
 export const projectMemberships = pgTable(
   "project_memberships",
@@ -61,10 +113,10 @@ export const projectMemberships = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     projectId: uuid("project_id")
       .notNull()
-      .references(() => projects.id),
+      .references(() => projects.id, { onDelete: "cascade" }),
     userId: uuid("user_id")
       .notNull()
-      .references(() => profiles.id),
+      .references(() => profiles.id, { onDelete: "cascade" }),
     role: text("role").notNull(),
     joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -75,6 +127,13 @@ export const projectMemberships = pgTable(
       table.userId,
     ),
     index("project_memberships_project_user_idx").on(table.projectId, table.userId),
+    uniqueIndex("project_one_owner_uidx")
+      .on(table.projectId)
+      .where(sql`${table.role} = 'OWNER'`),
+    check(
+      "project_memberships_role",
+      sql`${table.role} in ('OWNER','ADMIN','MEMBER','VIEWER')`,
+    ),
   ],
 );
 
@@ -84,10 +143,10 @@ export const projectInvitations = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     projectId: uuid("project_id")
       .notNull()
-      .references(() => projects.id),
+      .references(() => projects.id, { onDelete: "cascade" }),
     invitedUserId: uuid("invited_user_id")
       .notNull()
-      .references(() => profiles.id),
+      .references(() => profiles.id, { onDelete: "cascade" }),
     role: text("role").notNull(),
     status: text("status").notNull(),
     invitedBy: uuid("invited_by")
@@ -103,6 +162,17 @@ export const projectInvitations = pgTable(
       table.invitedUserId,
       table.status,
     ),
+    index("project_invitations_pending_expires_idx")
+      .on(table.expiresAt)
+      .where(sql`${table.status} = 'PENDING'`),
+    uniqueIndex("project_invitations_one_pending_uidx")
+      .on(table.projectId, table.invitedUserId)
+      .where(sql`${table.status} = 'PENDING'`),
+    check("project_invitations_role", sql`${table.role} in ('ADMIN','MEMBER','VIEWER')`),
+    check(
+      "project_invitations_status",
+      sql`${table.status} in ('PENDING','ACCEPTED','DECLINED','REVOKED','EXPIRED')`,
+    ),
   ],
 );
 
@@ -110,7 +180,7 @@ export const tasks = pgTable(
   "tasks",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    projectId: uuid("project_id").references(() => projects.id),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
     createdBy: uuid("created_by")
       .notNull()
       .references(() => profiles.id),
@@ -142,6 +212,25 @@ export const tasks = pgTable(
     ),
     index("tasks_created_by_date_idx").on(table.createdBy, table.scheduledDate),
     index("tasks_archived_at_idx").on(table.archivedAt),
+    check("tasks_title_length", sql`length(${table.title}) between 1 and 140`),
+    check(
+      "tasks_description_length",
+      sql`${table.description} is null or length(${table.description}) <= 5000`,
+    ),
+    check("tasks_status", sql`${table.status} in ('TODO','IN_PROGRESS','DONE')`),
+    check(
+      "tasks_previous_status",
+      sql`${table.previousStatus} is null or ${table.previousStatus} in ('TODO','IN_PROGRESS')`,
+    ),
+    check(
+      "tasks_personal_assignee_strict",
+      sql`${table.projectId} is not null or (${table.assigneeId} is not null and ${table.assigneeId} = ${table.createdBy})`,
+    ),
+    check("tasks_version_positive", sql`${table.version} > 0`),
+    check(
+      "tasks_status_completion_consistency",
+      sql`(${table.status} = 'DONE' and ${table.completedAt} is not null) or (${table.status} <> 'DONE' and ${table.completedAt} is null)`,
+    ),
   ],
 );
 
@@ -150,8 +239,8 @@ export const activityEvents = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     actorId: uuid("actor_id").references(() => profiles.id),
-    projectId: uuid("project_id").references(() => projects.id),
-    taskId: uuid("task_id").references(() => tasks.id),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
+    taskId: uuid("task_id").references(() => tasks.id, { onDelete: "cascade" }),
     eventType: text("event_type").notNull(),
     metadata: jsonb("metadata").notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -169,12 +258,12 @@ export const notifications = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     recipientId: uuid("recipient_id")
       .notNull()
-      .references(() => profiles.id),
+      .references(() => profiles.id, { onDelete: "cascade" }),
     type: text("type").notNull(),
     title: text("title").notNull(),
     body: text("body"),
     href: text("href"),
-    dedupeKey: text("dedupe_key").unique(),
+    dedupeKey: text("dedupe_key"),
     readAt: timestamp("read_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -184,6 +273,9 @@ export const notifications = pgTable(
       table.readAt,
       table.createdAt,
     ),
+    uniqueIndex("notifications_dedupe_key_uidx")
+      .on(table.dedupeKey)
+      .where(sql`${table.dedupeKey} is not null`),
   ],
 );
 
@@ -193,7 +285,7 @@ export const pushSubscriptions = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     userId: uuid("user_id")
       .notNull()
-      .references(() => profiles.id),
+      .references(() => profiles.id, { onDelete: "cascade" }),
     endpoint: text("endpoint").notNull().unique(),
     p256dh: text("p256dh").notNull(),
     auth: text("auth").notNull(),
@@ -204,22 +296,39 @@ export const pushSubscriptions = pgTable(
   (table) => [index("push_subscriptions_user_idx").on(table.userId)],
 );
 
-export const notificationDeliveries = pgTable("notification_deliveries", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  notificationId: uuid("notification_id")
-    .notNull()
-    .references(() => notifications.id),
-  subscriptionId: uuid("subscription_id")
-    .notNull()
-    .references(() => pushSubscriptions.id),
-  status: text("status").notNull(),
-  attemptCount: integer("attempt_count").notNull().default(0),
-  sentAt: timestamp("sent_at", { withTimezone: true }),
-  failedAt: timestamp("failed_at", { withTimezone: true }),
-  failureReason: text("failure_reason"),
-  nextRetryAt: timestamp("next_retry_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const notificationDeliveries = pgTable(
+  "notification_deliveries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    notificationId: uuid("notification_id")
+      .notNull()
+      .references(() => notifications.id, { onDelete: "cascade" }),
+    subscriptionId: uuid("subscription_id")
+      .notNull()
+      .references(() => pushSubscriptions.id, { onDelete: "cascade" }),
+    status: text("status").notNull(),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    failedAt: timestamp("failed_at", { withTimezone: true }),
+    failureReason: text("failure_reason"),
+    nextRetryAt: timestamp("next_retry_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("notification_deliveries_notification_subscription_uidx").on(
+      table.notificationId,
+      table.subscriptionId,
+    ),
+    index("notification_deliveries_retry_idx")
+      .on(table.nextRetryAt, table.createdAt)
+      .where(sql`${table.status} in ('PENDING', 'RETRYING')`),
+    check(
+      "notification_deliveries_status_check",
+      sql`${table.status} in ('PENDING', 'SENT', 'FAILED', 'RETRYING')`,
+    ),
+    check("notification_deliveries_attempt_count_check", sql`${table.attemptCount} >= 0`),
+  ],
+);
 
 export const githubInstallationStates = pgTable(
   "github_installation_states",
@@ -257,7 +366,7 @@ export const projectRepositories = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     projectId: uuid("project_id")
       .notNull()
-      .references(() => projects.id),
+      .references(() => projects.id, { onDelete: "cascade" }),
     githubInstallationId: uuid("github_installation_id")
       .notNull()
       .references(() => githubInstallations.id),

@@ -26,6 +26,8 @@ export async function GET(request: NextRequest) {
     const query = suggestQuerySchema.parse(
       Object.fromEntries(request.nextUrl.searchParams),
     );
-    return apiSuccess(await searchUserSuggestions(query), { requestId });
+    return apiSuccess(await searchUserSuggestions({ ...query, userId: user.id }), {
+      requestId,
+    });
   });
 }

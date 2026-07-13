@@ -29,11 +29,12 @@ export function TaskRow({
   onStart,
 }: TaskRowProps) {
   const color = task.project ? getProjectColor(task.project.colorKey) : null;
+  const actionsDisabled = disabled || !task.permissions.canTransition;
   return (
     <article className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] gap-3 rounded-md border border-border bg-surface p-3 shadow-[var(--shadow-surface)]">
       <TaskCheckbox
         checked={task.status === "DONE"}
-        disabled={disabled}
+        disabled={actionsDisabled}
         label={`${task.status === "DONE" ? "Reopen" : "Complete"} ${task.title}`}
         onChange={() => onCompleteToggle(task)}
       />
@@ -68,7 +69,7 @@ export function TaskRow({
         {task.status === "TODO" ? (
           <AppIconButton
             label={`Start ${task.title}`}
-            disabled={disabled}
+            disabled={actionsDisabled}
             onClick={(event) => {
               event.stopPropagation();
               onStart(task);

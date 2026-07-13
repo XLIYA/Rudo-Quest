@@ -156,6 +156,11 @@ export function assertProductionEnv(env: ServerEnv = getServerEnv()): void {
     ],
     ["SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY", getSupabaseAdminKey(env)],
     ["DATABASE_URL", env.DATABASE_URL],
+    ["CRON_SECRET", env.CRON_SECRET],
+    [
+      "UPSTASH_REDIS_REST_URL/TOKEN or KV_REST_API_URL/TOKEN",
+      getRedisRestCredentials(env) ? "configured" : undefined,
+    ],
   ]
     .filter(([, value]) => !value)
     .map(([name]) => name);

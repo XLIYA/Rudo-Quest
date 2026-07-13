@@ -3,6 +3,7 @@ import { AppError } from "@/lib/api/errors";
 import { getServerEnv, hasPushEnv } from "@/lib/env/server";
 import { pushSubscriptionSchema } from "@/lib/validation/common";
 import type { NotificationDto, NotificationType } from "@/types/domain";
+import type { DbExecutor } from "@/lib/db/client";
 import { findProfileById } from "@/server/repositories/profile-repository";
 import {
   deletePushSubscription,
@@ -24,15 +25,18 @@ import {
  * Output: Notification DTO.
  * Side effects: Writes notification row.
  */
-export async function createNotification(input: {
-  recipientId: string;
-  type: NotificationType;
-  title: string;
-  body?: string | null;
-  href?: string | null;
-  dedupeKey?: string | null;
-}): Promise<NotificationDto> {
-  return insertNotification(input);
+export async function createNotification(
+  input: {
+    recipientId: string;
+    type: NotificationType;
+    title: string;
+    body?: string | null;
+    href?: string | null;
+    dedupeKey?: string | null;
+  },
+  db?: DbExecutor,
+): Promise<NotificationDto> {
+  return insertNotification(input, db);
 }
 
 /**
@@ -41,8 +45,8 @@ export async function createNotification(input: {
  * Output: Notification DTO list.
  * Side effects: Reads notifications.
  */
-export async function getNotifications(userId: string): Promise<NotificationDto[]> {
-  return listNotifications(userId);
+export async function getNotifications(userId: string, cursor?: string) {
+  return listNotifications(userId, cursor);
 }
 
 /**

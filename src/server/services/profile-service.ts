@@ -2,6 +2,7 @@ import { AppError } from "@/lib/api/errors";
 import { createSupabaseAdminClient } from "@/lib/auth/supabase";
 import { getServerEnv, getSupabaseAdminKey } from "@/lib/env/server";
 import { uploadMetadataSchema } from "@/lib/validation/common";
+import { displayNameSchema } from "@/lib/validation/common";
 import type { BannerPresetKey, ProfileSummary } from "@/types/domain";
 import {
   assertProfileAssetBytes,
@@ -17,6 +18,13 @@ import {
   updateProfilePreferences,
   upsertProfile,
 } from "@/server/repositories/profile-repository";
+import {
+  commitProfileAssetUpload,
+  createProfileAssetUpload,
+  hasPendingProfileAssetUpload,
+} from "@/server/repositories/profile-upload-repository";
+import { findProjectRole } from "@/server/repositories/project-repository";
+import { assertProjectRole } from "@/server/policies/project-policy";
 
 /**
  * Purpose: Derive a safe default handle from an email address.
@@ -46,12 +54,16 @@ export async function ensureProfileForAuthUser(input: {
   email: string;
   displayName?: unknown;
 }) {
-  const fallbackName = input.email.split("@")[0] || "Rudo Explorer";
+  const emailName = input.email.split("@")[0]?.slice(0, 60) ?? "";
+  const fallbackName = displayNameSchema.safeParse(emailName).success
+    ? emailName
+    : "Rudo Explorer";
+  const parsedDisplayName = displayNameSchema.safeParse(input.displayName);
   return upsertProfile({
     id: input.id,
     email: input.email,
     handle: deriveHandle(input.email, input.id),
-    displayName: typeof input.displayName === "string" ? input.displayName : fallbackName,
+    displayName: parsedDisplayName.success ? parsedDisplayName.data : fallbackName,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
   });
 }
@@ -112,10 +124,26 @@ export async function updateMyPreferences(
  * Side effects: Reads profiles.
  */
 export async function searchUserSuggestions(input: {
+  userId: string;
   q: string;
   excludeProjectId?: string;
   memberProjectId?: string;
 }): Promise<ProfileSummary[]> {
+  if (input.excludeProjectId && input.memberProjectId) {
+    throw new AppError("BAD_REQUEST", 400, "Choose one project filter.");
+  }
+  if (input.excludeProjectId) {
+    assertProjectRole(
+      await findProjectRole(input.excludeProjectId, input.userId),
+      "ADMIN",
+    );
+  }
+  if (input.memberProjectId) {
+    assertProjectRole(
+      await findProjectRole(input.memberProjectId, input.userId),
+      "VIEWER",
+    );
+  }
   return suggestUsers(input);
 }
 
@@ -139,6 +167,12 @@ export async function createProfileUploadUrl(
     .from("profile-assets")
     .createSignedUploadUrl(path, { upsert: false });
   if (error || !data) throw new AppError("INTERNAL_ERROR", 500, "Upload URL failed.");
+  await createProfileAssetUpload({
+    userId,
+    path,
+    kind,
+    expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000),
+  });
   return { path, signedUrl: data.signedUrl, token: data.token };
 }
 
@@ -153,15 +187,22 @@ export async function commitProfileAsset(
   kind: "avatar" | "banner",
   path: string | null,
 ) {
-  if (path) await assertProfileAssetBytes(userId, kind, path);
+  if (path) {
+    if (!(await hasPendingProfileAssetUpload({ userId, kind, path }))) {
+      throw new AppError("BAD_REQUEST", 400, "Upload is invalid or expired.");
+    }
+    await assertProfileAssetBytes(userId, kind, path);
+  }
   const current = await findProfileById(userId);
   if (!current) throw new AppError("NOT_FOUND", 404, "Profile not found.");
   const oldPath = kind === "avatar" ? current.avatarPath : current.bannerPath;
-  const updated = await updateProfileAssets(userId, {
-    ...(kind === "avatar"
+  const values =
+    kind === "avatar"
       ? { avatarPath: path }
-      : { bannerPath: path, bannerPresetKey: null }),
-  });
+      : { bannerPath: path, bannerPresetKey: null };
+  const updated = path
+    ? await commitProfileAssetUpload({ userId, kind, path }, values)
+    : await updateProfileAssets(userId, values);
   if (!updated) throw new AppError("NOT_FOUND", 404, "Profile not found.");
   const env = getServerEnv();
   if (oldPath && oldPath !== path && getSupabaseAdminKey(env)) {

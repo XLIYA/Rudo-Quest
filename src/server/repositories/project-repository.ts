@@ -1,6 +1,8 @@
 import { addDays } from "date-fns";
 import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import {
+  activityEvents,
+  notifications,
   projectInvitations,
   projectMemberships,
   projectRepositories,
@@ -8,7 +10,7 @@ import {
   tasks,
   profiles,
 } from "@/db/schema";
-import { getDb } from "@/lib/db/client";
+import { getDb, type DbExecutor } from "@/lib/db/client";
 import { createProfileAssetUrlMap, profileAssetUrl } from "@/server/profile-assets";
 import type {
   ProjectColorKey,
@@ -39,6 +41,37 @@ export async function findProjectRole(
     )
     .limit(1);
   return (rows[0]?.role as ProjectRole | undefined) ?? null;
+}
+
+/**
+ * Purpose: Resolve a user's role together with the project's archive state.
+ * Inputs: Project and user IDs.
+ * Output: Access state or null when the user is not a member.
+ * Side effects: Reads projects and memberships.
+ */
+export async function findProjectAccess(projectId: string, userId: string) {
+  const rows = await getDb()
+    .select({ role: projectMemberships.role, archivedAt: projects.archivedAt })
+    .from(projectMemberships)
+    .innerJoin(projects, eq(projectMemberships.projectId, projects.id))
+    .where(
+      and(
+        eq(projectMemberships.projectId, projectId),
+        eq(projectMemberships.userId, userId),
+      ),
+    )
+    .limit(1);
+  const row = rows[0];
+  return row ? { role: row.role as ProjectRole, archivedAt: row.archivedAt } : null;
+}
+
+export async function isProjectArchived(projectId: string): Promise<boolean | null> {
+  const rows = await getDb()
+    .select({ archivedAt: projects.archivedAt })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  return rows[0] ? Boolean(rows[0].archivedAt) : null;
 }
 
 /**
@@ -86,6 +119,16 @@ export async function insertProjectWithInvitations(input: {
       userId: input.ownerId,
       role: "OWNER",
     });
+    const [ownerProfile] = await tx
+      .select({
+        id: profiles.id,
+        handle: profiles.handle,
+        displayName: profiles.displayName,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, input.ownerId))
+      .limit(1);
+    if (!ownerProfile) throw new Error("Project owner profile was not found.");
 
     if (invitedUserIds.length) {
       const existingProfiles = await tx
@@ -111,7 +154,50 @@ export async function insertProjectWithInvitations(input: {
           )
           .returning()
       : [];
-    return { project, invitations: createdInvitations };
+    await tx.insert(activityEvents).values({
+      actorId: input.ownerId,
+      projectId: project.id,
+      eventType: "PROJECT_CREATED",
+      metadata: { title: project.title },
+    });
+    if (createdInvitations.length) {
+      await tx.insert(notifications).values(
+        createdInvitations.map((invitation) => ({
+          recipientId: invitation.invitedUserId,
+          type: "PROJECT_INVITATION",
+          title: "Project invitation",
+          body: "You were invited to a Rudo Quest project.",
+          href: `/projects/${project.id}?invitation=${invitation.id}`,
+        })),
+      );
+      await tx.insert(activityEvents).values(
+        createdInvitations.map((invitation) => ({
+          actorId: input.ownerId,
+          projectId: project.id,
+          eventType: "MEMBER_INVITED",
+          metadata: { role: invitation.role },
+        })),
+      );
+    }
+    return {
+      project,
+      invitations: createdInvitations,
+      summary: {
+        id: project.id,
+        title: project.title,
+        description: project.description,
+        iconKey: project.iconKey as ProjectIconKey,
+        colorKey: project.colorKey as ProjectColorKey,
+        timeZone: project.timeZone,
+        role: "OWNER" as const,
+        openTaskCount: 0,
+        weeklyCompletionPercent: 0,
+        githubRepositoryFullName: null,
+        members: [{ ...ownerProfile, avatarUrl: null }],
+        archivedAt: null,
+        createdAt: project.createdAt.toISOString(),
+      } satisfies ProjectSummary,
+    };
   });
 }
 
@@ -130,8 +216,9 @@ export async function updateProjectRow(
     colorKey: ProjectColorKey;
     timeZone: string;
   }>,
+  db: DbExecutor = getDb(),
 ) {
-  const [updated] = await getDb()
+  const [updated] = await db
     .update(projects)
     .set({ ...values, updatedAt: new Date() })
     .where(eq(projects.id, projectId))
@@ -145,9 +232,9 @@ export async function updateProjectRow(
  * Output: Archived project row or null.
  * Side effects: Sets archived_at and updated_at.
  */
-export async function archiveProjectRow(projectId: string) {
+export async function archiveProjectRow(projectId: string, db: DbExecutor = getDb()) {
   const now = new Date();
-  const [updated] = await getDb()
+  const [updated] = await db
     .update(projects)
     .set({ archivedAt: now, updatedAt: now })
     .where(eq(projects.id, projectId))
@@ -215,10 +302,18 @@ export async function listProjectSummaries(input: {
     .select({
       projectId: tasks.projectId,
       openTaskCount: sql<number>`count(*) filter (where ${tasks.status} <> 'DONE')`,
-      completedWeek: sql<number>`count(*) filter (where ${tasks.status} = 'DONE' and ${tasks.scheduledDate} >= ${addDays(new Date(), -7).toISOString().slice(0, 10)})`,
-      weekTotal: sql<number>`count(*) filter (where ${tasks.scheduledDate} >= ${addDays(new Date(), -7).toISOString().slice(0, 10)})`,
+      completedWeek: sql<number>`count(*) filter (
+        where ${tasks.status} = 'DONE'
+          and ${tasks.scheduledDate} >= date_trunc('week', now() at time zone ${projects.timeZone})::date
+          and ${tasks.scheduledDate} < date_trunc('week', now() at time zone ${projects.timeZone})::date + 7
+      )`,
+      weekTotal: sql<number>`count(*) filter (
+        where ${tasks.scheduledDate} >= date_trunc('week', now() at time zone ${projects.timeZone})::date
+          and ${tasks.scheduledDate} < date_trunc('week', now() at time zone ${projects.timeZone})::date + 7
+      )`,
     })
     .from(tasks)
+    .innerJoin(projects, eq(tasks.projectId, projects.id))
     .where(and(inArray(tasks.projectId, ids), isNull(tasks.archivedAt)))
     .groupBy(tasks.projectId);
 
@@ -341,13 +436,16 @@ export async function listProjectMembers(projectId: string) {
  * Side effects: Inserts project_invitations.
  * Business rule: Existing pending invitations and existing members are rejected.
  */
-export async function insertInvitation(input: {
-  projectId: string;
-  invitedUserId: string;
-  role: Exclude<ProjectRole, "OWNER">;
-  invitedBy: string;
-}) {
-  const existingMember = await getDb()
+export async function insertInvitation(
+  input: {
+    projectId: string;
+    invitedUserId: string;
+    role: Exclude<ProjectRole, "OWNER">;
+    invitedBy: string;
+  },
+  db: DbExecutor = getDb(),
+) {
+  const existingMember = await db
     .select({ id: projectMemberships.id })
     .from(projectMemberships)
     .where(
@@ -358,7 +456,7 @@ export async function insertInvitation(input: {
     )
     .limit(1);
   if (existingMember.length) return null;
-  const pending = await getDb()
+  const pending = await db
     .select({ id: projectInvitations.id })
     .from(projectInvitations)
     .where(
@@ -370,7 +468,7 @@ export async function insertInvitation(input: {
     )
     .limit(1);
   if (pending.length) return null;
-  const [created] = await getDb()
+  const [created] = await db
     .insert(projectInvitations)
     .values({
       projectId: input.projectId,
@@ -470,6 +568,25 @@ export async function transitionInvitation(input: {
         userId: invitation.invitedUserId,
         role: invitation.role,
       });
+      await tx.insert(activityEvents).values({
+        actorId: input.actorId,
+        projectId: input.projectId,
+        eventType: "MEMBER_JOINED",
+      });
+      const [project] = await tx
+        .select({ ownerId: projects.ownerId })
+        .from(projects)
+        .where(eq(projects.id, input.projectId))
+        .limit(1);
+      if (project?.ownerId && project.ownerId !== input.actorId) {
+        await tx.insert(notifications).values({
+          recipientId: project.ownerId,
+          type: "INVITATION_ACCEPTED",
+          title: "Invitation accepted",
+          body: "A collaborator joined your project.",
+          href: `/projects/${input.projectId}`,
+        });
+      }
     }
     const [updated] = await tx
       .update(projectInvitations)
@@ -534,6 +651,13 @@ export async function transferProjectOwnership(input: {
         ),
       )
       .returning();
+    if (newOwner) {
+      await tx.insert(activityEvents).values({
+        actorId: input.currentOwnerId,
+        projectId: input.projectId,
+        eventType: "PROJECT_UPDATED",
+      });
+    }
     return newOwner ?? null;
   });
 }
@@ -569,18 +693,46 @@ export async function updateMemberRole(input: {
  * Output: Removed membership or null.
  * Side effects: Deletes membership row.
  */
-export async function removeMember(input: { projectId: string; userId: string }) {
-  const [deleted] = await getDb()
-    .delete(projectMemberships)
-    .where(
-      and(
-        eq(projectMemberships.projectId, input.projectId),
-        eq(projectMemberships.userId, input.userId),
-        ne(projectMemberships.role, "OWNER"),
-      ),
-    )
-    .returning();
-  return deleted ?? null;
+export async function removeMember(input: {
+  projectId: string;
+  userId: string;
+  actorId: string;
+}) {
+  return getDb().transaction(async (tx) => {
+    const [member] = await tx
+      .select({ id: projectMemberships.id })
+      .from(projectMemberships)
+      .where(
+        and(
+          eq(projectMemberships.projectId, input.projectId),
+          eq(projectMemberships.userId, input.userId),
+          ne(projectMemberships.role, "OWNER"),
+        ),
+      )
+      .limit(1);
+    if (!member) return null;
+    await tx
+      .update(tasks)
+      .set({
+        assigneeId: null,
+        version: sql`${tasks.version} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(eq(tasks.projectId, input.projectId), eq(tasks.assigneeId, input.userId)),
+      );
+    const [deleted] = await tx
+      .delete(projectMemberships)
+      .where(eq(projectMemberships.id, member.id))
+      .returning();
+    if (!deleted) return null;
+    await tx.insert(activityEvents).values({
+      actorId: input.actorId,
+      projectId: input.projectId,
+      eventType: "MEMBER_REMOVED",
+    });
+    return deleted;
+  });
 }
 
 /**

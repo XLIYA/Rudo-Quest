@@ -163,6 +163,11 @@ export type TaskDto = {
   version: number;
   createdAt: string;
   updatedAt: string;
+  permissions: {
+    canEditDetails: boolean;
+    canTransition: boolean;
+    canArchive: boolean;
+  };
   project: {
     id: string;
     title: string;
@@ -194,6 +199,12 @@ export type NotificationDto = {
   href: string | null;
   readAt: string | null;
   createdAt: string;
+};
+
+export type NotificationPageDto = {
+  items: NotificationDto[];
+  unreadCount: number;
+  cursor?: string;
 };
 
 export type TaskActivityDto = {

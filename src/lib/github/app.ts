@@ -24,6 +24,21 @@ export type GitHubInstallationState = {
 };
 
 const installationStateTtlSeconds = 10 * 60;
+const githubRequestTimeoutMs = 15_000;
+
+async function githubFetch(
+  input: string | URL,
+  init: RequestInit = {},
+): Promise<Response> {
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: AbortSignal.timeout(githubRequestTimeoutMs),
+    });
+  } catch {
+    throw new AppError("INTERNAL_ERROR", 502, "GitHub is temporarily unavailable.");
+  }
+}
 
 function getStateSecret(): string {
   const secret = getServerEnv().GITHUB_APP_CLIENT_SECRET;
@@ -241,7 +256,7 @@ export async function exchangeGitHubUserCode(code: string): Promise<string> {
       "GitHub App is not configured.",
     );
   }
-  const response = await fetch("https://github.com/login/oauth/access_token", {
+  const response = await githubFetch("https://github.com/login/oauth/access_token", {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -268,14 +283,17 @@ export async function exchangeGitHubUserCode(code: string): Promise<string> {
  * Failure behavior: Throws a sanitized upstream error.
  */
 export async function listUserInstallationIds(userToken: string): Promise<number[]> {
-  const response = await fetch("https://api.github.com/user/installations?per_page=100", {
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${userToken}`,
-      "X-GitHub-Api-Version": "2022-11-28",
+  const response = await githubFetch(
+    "https://api.github.com/user/installations?per_page=100",
+    {
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${userToken}`,
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      cache: "no-store",
     },
-    cache: "no-store",
-  });
+  );
   if (!response.ok)
     throw new AppError("FORBIDDEN", 403, "GitHub installation authorization failed.");
   const payload = (await response.json()) as { installations?: { id?: number }[] };
@@ -325,7 +343,7 @@ export function createGitHubAppJwt(): string {
 export async function createInstallationToken(
   githubInstallationId: number,
 ): Promise<string> {
-  const response = await fetch(
+  const response = await githubFetch(
     `https://api.github.com/app/installations/${githubInstallationId}/access_tokens`,
     {
       method: "POST",
@@ -359,7 +377,7 @@ export async function createInstallationToken(
 export async function getGitHubInstallationInfo(
   githubInstallationId: number,
 ): Promise<GitHubInstallationInfo> {
-  const response = await fetch(
+  const response = await githubFetch(
     `https://api.github.com/app/installations/${githubInstallationId}`,
     {
       headers: {
@@ -439,7 +457,7 @@ export async function listInstallationRepositories(
     const url = new URL("https://api.github.com/installation/repositories");
     url.searchParams.set("per_page", "100");
     url.searchParams.set("page", String(page));
-    const response = await fetch(url, {
+    const response = await githubFetch(url, {
       headers: {
         Accept: "application/vnd.github+json",
         Authorization: `Bearer ${token}`,

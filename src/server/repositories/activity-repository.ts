@@ -1,9 +1,10 @@
 import { and, desc, eq, isNotNull, isNull, lt, or } from "drizzle-orm";
 import { AppError } from "@/lib/api/errors";
 import { activityEvents, profiles, projectMemberships, tasks } from "@/db/schema";
-import { getDb } from "@/lib/db/client";
+import { getDb, type DbExecutor } from "@/lib/db/client";
 import { createProfileAssetUrlMap, profileAssetUrl } from "@/server/profile-assets";
 import type { ActivityEventDto, ActivityEventType } from "@/types/domain";
+import { uuidSchema } from "@/lib/validation/common";
 
 /**
  * Purpose: Persist a sanitized activity event.
@@ -12,14 +13,17 @@ import type { ActivityEventDto, ActivityEventType } from "@/types/domain";
  * Side effects: Writes activity_events.
  * Business rule: Callers must not include private task descriptions in metadata.
  */
-export async function createActivityEvent(input: {
-  actorId: string | null;
-  projectId?: string | null;
-  taskId?: string | null;
-  eventType: ActivityEventType;
-  metadata?: Record<string, string | number | boolean | null>;
-}) {
-  const [created] = await getDb()
+export async function createActivityEvent(
+  input: {
+    actorId: string | null;
+    projectId?: string | null;
+    taskId?: string | null;
+    eventType: ActivityEventType;
+    metadata?: Record<string, string | number | boolean | null>;
+  },
+  db: DbExecutor = getDb(),
+) {
+  const [created] = await db
     .insert(activityEvents)
     .values({
       actorId: input.actorId,
@@ -115,7 +119,10 @@ export async function listActivityForUser(input: {
     label: humanizeActivity(row.eventType as ActivityEventType),
     createdAt: row.createdAt.toISOString(),
   }));
-  const nextRow = rows.length > limit ? rows[limit] : undefined;
+  // The cursor represents the final row already returned. The next request uses
+  // a strict `<` tuple comparison, so using the extra look-ahead row here would
+  // skip that row permanently.
+  const nextRow = rows.length > limit ? rows[limit - 1] : undefined;
   const next = nextRow ? encodeActivityCursor(nextRow.createdAt, nextRow.id) : undefined;
   return next ? { items, cursor: next } : { items };
 }
@@ -133,10 +140,13 @@ function decodeActivityCursor(value: string): { createdAt: Date; id: string } {
       createdAt?: string;
       id?: string;
     };
-    if (!parsed.createdAt || !parsed.id) throw new Error("missing cursor fields");
+    const id = uuidSchema.safeParse(parsed.id);
+    if (!parsed.createdAt || !id.success) {
+      throw new Error("invalid cursor fields");
+    }
     const date = new Date(parsed.createdAt);
     if (Number.isNaN(date.getTime())) throw new Error("invalid cursor date");
-    return { createdAt: date, id: parsed.id };
+    return { createdAt: date, id: id.data };
   } catch {
     throw new AppError("BAD_REQUEST", 400, "Activity cursor is invalid.");
   }

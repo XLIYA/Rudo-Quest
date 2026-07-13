@@ -8,13 +8,13 @@ GitHub installation state is now persisted in `github_installation_states`, sign
 
 Hosted PostgreSQL uses certificate verification. Production state-changing requests require an allowed Origin, production request identity uses platform-forwarded address data, and Upstash-backed rate limiting fails closed when production credentials are absent. JSON and webhook bodies are streamed with byte limits. Production CSP uses request nonces and does not allow unsafe inline scripts or eval.
 
-RLS is enabled on the integration and delivery tables, the recursive membership policy was replaced with security-definer helpers, and policies cover project, task, activity, notification, push, invitation, GitHub, and repository visibility. Migrations add task integrity/version triggers, project-owner membership integrity, delivery uniqueness, and retry columns. Invitation expiry is transitioned to `EXPIRED` before invitation reads and transitions. Activity cursors contain both timestamp and event ID.
+RLS is enabled on every application table and direct `anon`/`authenticated` table grants are revoked because the browser uses the server API. The recursive membership policy was replaced with private helpers. The repaired migration chain normalizes foreign keys/checks, validates earlier `NOT VALID` constraints, adds retry/invitation indexes, and isolates Drizzle-generated snapshots. Invitation expiry is transitioned before reads and transitions. Activity cursors contain timestamp and ID and now resume after the last returned row without skipping the look-ahead row.
 
 ## Projects, invitations, and GitHub
 
-Project creation writes the project, owner membership, validated invitation users, and invitations in one database transaction. Project settings now updates title, description, icon, color, and timezone. Member role changes, member removal, invitation revocation, repository disconnect, project archive, and ownership transfer all use confirmation dialogs. Ownership transfer updates both the project owner and membership roles atomically and requires explicit confirmation.
+Project/task primary writes, activity, and in-app notifications now share database transactions. Project creation writes the project, owner membership, invitations, activity, and notifications atomically. Removing a member unassigns their project tasks before deleting membership. Archived projects are read-only across project, task, invitation, membership, ownership, and GitHub service boundaries. Ownership transfer updates the project and membership roles atomically.
 
-Task assignment search returns project members through a real accessible combobox. Members can edit assigned tasks and assign project-member tasks; viewers cannot mutate project data. Project detail activity is scoped to the selected project, task activity has a dedicated API and sheet view, and project task queries apply project filtering in SQL.
+Task assignment search returns project members through an authorized accessible combobox. Task DTOs carry server-derived edit/transition/archive capabilities, so viewers and unassigned members no longer receive failing controls. Project detail activity is scoped to the selected project, task activity has a dedicated API and sheet view, and project task queries apply project filtering in SQL.
 
 ## Tasks and weekly behavior
 
@@ -24,16 +24,16 @@ The weekly date is URL state, so direct links, browser navigation, week navigati
 
 ## Profile, settings, and notifications
 
-Profile now supports signed private avatar/banner uploads, browser-side cropping, server-side byte/MIME/dimension validation, replacement cleanup, preset banners, theme/timezone/reminder/quiet-hour controls, password reset, push opt-in, and activity display. Settings is a dedicated route rather than a profile redirect. Notifications has a dedicated center, unread badge, optimistic read actions, invitation accept/decline actions, invitation-accepted notifications, due-today reminders, daily digest notifications, quiet hours, dedupe keys, retry-aware delivery logs, and dead-subscription cleanup.
+Profile uploads are tracked from signed URL issuance through commit; expired uncommitted objects are cleaned by Cron. Password recovery now exchanges the SSR PKCE code before update and signs the recovery session out afterward. Notifications use cursor pagination, an unread badge, optimistic read actions, invitation actions, reminders, quiet hours, dedupe keys, retry-aware delivery logs, and dead-subscription cleanup.
 
 ## Offline and deployment
 
-Serwist precaches the app shell and offline route but uses `NetworkOnly` for all application API paths. Selected successful TanStack Query reads are persisted in user-scoped IndexedDB with versioning and a seven-day expiry. Cached reads restore only after a server-confirmed user bootstrap or while offline; logout clears the active user's cache. All mutations are blocked offline and no mutation is presented as successful without a server response. Vercel Cron runs every fifteen minutes and requires `CRON_SECRET`.
+Serwist caches public shell assets and the offline route but uses `NetworkOnly` for application APIs and protected navigations. Selected reads are persisted in user-scoped IndexedDB, but cold restore requires a server-confirmed `/api/me`; a remembered user ID never unlocks private data offline. All mutations are blocked offline. Vercel Cron uses the required GET contract, runs every fifteen minutes, requires `CRON_SECRET`, and holds a Redis lock to prevent overlapping invocations.
 
 The linked Vercel project is currently on the Hobby plan, which rejects this required fifteen-minute Cron schedule during deployment. The application build and existing production deployment were verified, but promoting this remediation requires upgrading that project to a plan that supports sub-daily Cron Jobs.
 
-The existing heatmap implementation and current font configuration are intentionally unchanged, per the remediation instructions.
+Dashboard heatmap bounds and streaks now use the profile timezone, project completion uses each project's current local Monday–Sunday week, and the duplicate remote font declaration and zero-byte font artifact were removed.
 
 ## Verification
 
-The current repository verification commands are `npm run format`, `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, `npm audit --omit=dev`, `git diff --check`, and `npx playwright test`. The production migration runner has applied migrations `0001_audit_hardening.sql`, `0002_integrity_and_delivery_retries.sql`, and `0003_rls_membership_transitions.sql` to the configured Supabase database. Browser dependency installation is documented in the local setup instructions for environments where Playwright's system libraries are absent.
+The repository verification commands are `npm run format`, `npm run lint`, `npm run typecheck`, `npm run test:coverage`, `npm run build`, `npm audit --omit=dev`, `git diff --check`, and `npx playwright test`. Coverage cannot regress below 40% statements/lines or 30% branches/functions. GitHub Actions now runs quality/build checks and public Chromium tests. An authenticated Playwright create/render/archive flow runs when `E2E_EMAIL` and `E2E_PASSWORD` point to a dedicated test account.

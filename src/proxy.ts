@@ -19,6 +19,7 @@ function contentSecurityPolicy(nonce: string): string {
       ...developmentSources,
     ].join(" "),
     ["style-src", "'self'", `'nonce-${nonce}'`].join(" "),
+    "style-src-attr 'unsafe-inline'",
     "img-src 'self' data: blob: https://*.supabase.co https://avatars.githubusercontent.com",
     "font-src 'self'",
     [
@@ -53,6 +54,20 @@ function applySecurityHeaders(response: NextResponse, csp: string): NextResponse
   return response;
 }
 
+function redirectWithAuthState(
+  url: URL,
+  source: NextResponse,
+  csp: string,
+): NextResponse {
+  const redirect = applySecurityHeaders(NextResponse.redirect(url), csp);
+  for (const cookie of source.cookies.getAll()) redirect.cookies.set(cookie);
+  for (const name of ["cache-control", "expires", "pragma"]) {
+    const value = source.headers.get(name);
+    if (value) redirect.headers.set(name, value);
+  }
+  return redirect;
+}
+
 /**
  * Purpose: Refresh Supabase SSR auth cookies and protect application routes.
  * Inputs: Next.js proxy request.
@@ -80,7 +95,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet, headersToSet) {
         for (const cookie of cookiesToSet) {
           request.cookies.set(cookie.name, cookie.value);
         }
@@ -90,6 +105,9 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
         );
         for (const cookie of cookiesToSet) {
           response.cookies.set(cookie.name, cookie.value, cookie.options);
+        }
+        for (const [name, value] of Object.entries(headersToSet)) {
+          response.headers.set(name, value);
         }
       },
     },
@@ -106,20 +124,21 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     "/profile",
     "/notifications",
     "/settings",
+    "/reset-password",
   ].some((path) => request.nextUrl.pathname.startsWith(path));
 
   if (protectedRoute && !user) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
     redirectUrl.searchParams.set("next", request.nextUrl.pathname);
-    return applySecurityHeaders(NextResponse.redirect(redirectUrl), csp);
+    return redirectWithAuthState(redirectUrl, response, csp);
   }
 
   if (user && ["/", "/login", "/signup"].includes(request.nextUrl.pathname)) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/dashboard";
     redirectUrl.search = "";
-    return applySecurityHeaders(NextResponse.redirect(redirectUrl), csp);
+    return redirectWithAuthState(redirectUrl, response, csp);
   }
 
   return response;

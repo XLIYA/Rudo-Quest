@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { countDueTasksForDate } from "./notification-repository";
 
 const dbMock = vi.hoisted(() => {
   const captured = {
@@ -65,8 +66,6 @@ describe("notification repository", () => {
   });
 
   it("excludes completed tasks from daily due counts", async () => {
-    const { countDueTasksForDate } = await import("./notification-repository");
-
     await expect(countDueTasksForDate("user-1", "2026-07-10")).resolves.toBe(1);
 
     const tokens = collectPredicateTokens(dbMock.captured.wherePredicate);

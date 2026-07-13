@@ -39,8 +39,13 @@ const serwist = new Serwist({
     },
     {
       matcher: ({ request, url }) =>
-        request.mode === "navigate" && !url.pathname.startsWith("/api"),
+        request.mode === "navigate" &&
+        ["/", "/login", "/signup", "/offline"].includes(url.pathname),
       handler: new NetworkFirst({ cacheName: "rudo-pages" }),
+    },
+    {
+      matcher: ({ request }) => request.mode === "navigate",
+      handler: new NetworkOnly(),
     },
   ],
   fallbacks: {

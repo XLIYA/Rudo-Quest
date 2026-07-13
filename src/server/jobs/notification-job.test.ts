@@ -10,9 +10,13 @@ const notifications = vi.hoisted(() => ({
   retryPushDeliveries: vi.fn(),
   sendPushForNotification: vi.fn(),
 }));
+const profileService = vi.hoisted(() => ({
+  cleanupExpiredProfileAssetUploads: vi.fn(),
+}));
 
 vi.mock("@/server/repositories/notification-repository", () => repository);
 vi.mock("@/server/services/notification-service", () => notifications);
+vi.mock("@/server/jobs/profile-upload-cleanup", () => profileService);
 
 const profile = {
   id: "00000000-0000-4000-8000-000000000001",
@@ -29,6 +33,7 @@ beforeEach(() => {
   repository.listNotificationEligibleProfiles.mockResolvedValue([profile]);
   repository.countDueTasksForDate.mockResolvedValue(2);
   notifications.retryPushDeliveries.mockResolvedValue({ attempted: 0, sent: 0 });
+  profileService.cleanupExpiredProfileAssetUploads.mockResolvedValue({ removed: 0 });
   notifications.createNotification.mockImplementation(
     async (input: { type: string }) => ({
       id: input.type,

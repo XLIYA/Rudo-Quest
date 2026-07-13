@@ -20,6 +20,12 @@ export async function withApiHandler(
     assertSameOrigin(request, options);
     const response = await handler(requestId);
     response.headers.set("x-request-id", requestId);
+    response.headers.set(
+      "Cache-Control",
+      "private, no-cache, no-store, must-revalidate, max-age=0",
+    );
+    response.headers.set("Expires", "0");
+    response.headers.set("Pragma", "no-cache");
     return response;
   } catch (error) {
     return apiFailure(error, requestId);

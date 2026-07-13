@@ -6,7 +6,7 @@ Rudo Quest is a compact collaborative weekly task-management PWA built with Next
 
 Install dependencies with `npm install`, copy `.env.example` to `.env.local`, configure Supabase and database credentials, then run `npm run db:migrate`, `npm run db:seed`, and `npm run dev`.
 
-This application uses Supabase Auth and the database migration references `auth.users`, so local development requires a Supabase local stack or a hosted Supabase project. A plain PostgreSQL database is not enough. The repository includes a `.env.local` template for the current workspace with the standard local Supabase URL, local database URL, and development seed account; fill the anon key and service role key from your Supabase project before seeding.
+This application uses Supabase Auth and the database migration references `auth.users`, so local development requires a Supabase local stack or a hosted Supabase project. A plain PostgreSQL database is not enough. Copy the tracked `.env.example` to `.env.local`, then fill the local or hosted Supabase values before migrating and seeding.
 
 The development seed creates or updates this verified login:
 
@@ -31,11 +31,11 @@ npx playwright test
 
 ## Environment
 
-All variables are listed in `.env.example`. Supabase and `DATABASE_URL` are required for authenticated application flows. GitHub, VAPID, Sentry, Upstash, and Cron credentials are integration-specific; missing optional credentials disable the relevant UI/API action with a typed `INTEGRATION_NOT_CONFIGURED` error.
+All variables are listed in `.env.example`. Supabase and `DATABASE_URL` are required for authenticated application flows. GitHub, VAPID, and Sentry are optional integrations. Upstash Redis and `CRON_SECRET` are required in production because rate limiting, overlap-safe scheduled work, notifications, and abandoned-upload cleanup depend on them.
 
 ## Database
 
-Schema lives in `src/db/schema/index.ts`. Migrations `0000_initial.sql`, `0001_audit_hardening.sql`, `0002_integrity_and_delivery_retries.sql`, and `0003_rls_membership_transitions.sql` are applied by `npm run db:migrate`. Drizzle Kit is configured in `drizzle.config.ts`.
+Schema lives in `src/db/schema/index.ts`. Hand-authored, forward-only SQL in `src/db/migrations` is applied by `npm run db:migrate` under an advisory lock with checksum drift detection. Drizzle Kit snapshots go to `src/db/drizzle`, so generated baselines cannot enter the runtime migration chain.
 
 ## Application
 
@@ -43,7 +43,7 @@ Browser mutations go through Route Handlers via `src/lib/api/client.ts`, the sin
 
 ## PWA
 
-Serwist builds `public/sw.js` from `src/app/sw.ts`. The service worker precaches the app shell and offline route, never caches authenticated API responses, and uses IndexedDB-backed, user-scoped TanStack Query persistence for selected reads. Mutations are blocked offline; no mutation queue exists in V1. The app manifest is `src/app/manifest.ts`; icons are in `public/icons`.
+Serwist builds `public/sw.js` from `src/app/sw.ts`. It caches public shell assets and the offline route, but never authenticated API or protected navigation responses. IndexedDB reads restore only after `/api/me` verifies the session; an already-open app keeps in-memory data while disconnected. Mutations are blocked offline. The app manifest is `src/app/manifest.ts`; icons are in `public/icons`.
 
 ## Documentation
 

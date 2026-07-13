@@ -44,7 +44,10 @@ loadLocalEnv();
 
 export default defineConfig({
   schema: "./src/db/schema/index.ts",
-  out: "./src/db/migrations",
+  // Runtime migrations are hand-authored in src/db/migrations and applied by
+  // src/db/migrate.mjs. Keep Drizzle snapshots separate so `db:generate`
+  // cannot inject a generated baseline into the production migration chain.
+  out: "./src/db/drizzle",
   dialect: "postgresql",
   dbCredentials: {
     url: process.env.DATABASE_URL ?? "",

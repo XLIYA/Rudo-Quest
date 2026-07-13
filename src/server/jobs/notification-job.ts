@@ -9,6 +9,7 @@ import {
   countDueTasksForDate,
   listNotificationEligibleProfiles,
 } from "@/server/repositories/notification-repository";
+import { cleanupExpiredProfileAssetUploads } from "@/server/jobs/profile-upload-cleanup";
 
 const defaultReminderTime = "09:00";
 
@@ -84,38 +85,49 @@ function isQuietTime(localTime: string, start: string, end: string): boolean {
  * Business rule: Each reminder type is deduplicated by a database unique key and is suppressed during quiet hours.
  */
 export async function runNotificationCron(now = new Date()) {
+  const uploadCleanup = await cleanupExpiredProfileAssetUploads();
   const retries = await retryPushDeliveries(now);
   const profiles = await listNotificationEligibleProfiles();
   let created = 0;
-  for (const profile of profiles) {
-    const local = getLocalDateTime(now, profile.timeZone);
-    const reminderTime = getReminderTime(profile.dailyReminderTime);
-    if (isQuietTime(local.time, profile.quietHoursStart, profile.quietHoursEnd)) continue;
-    if (local.time < reminderTime) continue;
-    const localDate = local.date;
-    const href = `/weekly?date=${localDate}`;
-    const dueCount = await countDueTasksForDate(profile.id, localDate);
-    if (dueCount > 0) {
-      const dueNotification = await createNotification({
-        recipientId: profile.id,
-        type: "TASK_DUE_TODAY",
-        title: "Tasks due today",
-        body: `${dueCount} task${dueCount === 1 ? "" : "s"} still need attention today.`,
-        href,
-        dedupeKey: `${profile.id}:${localDate}:TASK_DUE_TODAY`,
-      });
-      await sendPushForNotification(dueNotification, profile.id);
-    }
-    const digest = await createNotification({
-      recipientId: profile.id,
-      type: "DAILY_DIGEST",
-      title: "Today in Rudo Quest",
-      body: `${dueCount} task${dueCount === 1 ? "" : "s"} scheduled for today.`,
-      href,
-      dedupeKey: `${profile.id}:${localDate}:DAILY_DIGEST`,
-    });
-    await sendPushForNotification(digest, profile.id);
-    created += dueCount > 0 ? 2 : 1;
+  for (let offset = 0; offset < profiles.length; offset += 10) {
+    const batch = profiles.slice(offset, offset + 10);
+    const counts = await Promise.all(
+      batch.map(async (profile) => {
+        const local = getLocalDateTime(now, profile.timeZone);
+        const reminderTime = getReminderTime(profile.dailyReminderTime);
+        if (
+          isQuietTime(local.time, profile.quietHoursStart, profile.quietHoursEnd) ||
+          local.time < reminderTime
+        ) {
+          return 0;
+        }
+        const localDate = local.date;
+        const href = `/weekly?date=${localDate}`;
+        const dueCount = await countDueTasksForDate(profile.id, localDate);
+        if (dueCount > 0) {
+          const dueNotification = await createNotification({
+            recipientId: profile.id,
+            type: "TASK_DUE_TODAY",
+            title: "Tasks due today",
+            body: `${dueCount} task${dueCount === 1 ? "" : "s"} still need attention today.`,
+            href,
+            dedupeKey: `${profile.id}:${localDate}:TASK_DUE_TODAY`,
+          });
+          await sendPushForNotification(dueNotification, profile.id);
+        }
+        const digest = await createNotification({
+          recipientId: profile.id,
+          type: "DAILY_DIGEST",
+          title: "Today in Rudo Quest",
+          body: `${dueCount} task${dueCount === 1 ? "" : "s"} scheduled for today.`,
+          href,
+          dedupeKey: `${profile.id}:${localDate}:DAILY_DIGEST`,
+        });
+        await sendPushForNotification(digest, profile.id);
+        return dueCount > 0 ? 2 : 1;
+      }),
+    );
+    created += counts.reduce<number>((total, count) => total + count, 0);
   }
-  return { created, checked: profiles.length, retries };
+  return { created, checked: profiles.length, retries, uploadCleanup };
 }

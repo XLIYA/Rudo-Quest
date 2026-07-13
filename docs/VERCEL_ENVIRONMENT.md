@@ -18,8 +18,8 @@ and client-visible configuration.
 | Variable                               | Scope       | Required for production                     | Where the value comes from                                                                                                                                                                                                                            |
 | -------------------------------------- | ----------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `NEXT_PUBLIC_APP_URL`                  | Public      | Yes                                         | The canonical production URL in Vercel, for example `https://app.yourdomain.com`. Use the assigned Vercel production domain or your custom domain from Vercel Project Settings > Domains. Do not include a trailing slash.                            |
-| `NEXT_PUBLIC_SUPABASE_URL`             | Public      | Yes                                         | Supabase project URL from Supabase Dashboard > Project Settings > API. For the project details supplied in this audit, this is `https://fypfpkrahvgitekovnos.supabase.co`.                                                                            |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public      | Yes                                         | Supabase publishable key from Supabase Dashboard > Project Settings > API Keys. For the project details supplied in this audit, this is `sb_publishable_wXrXOizdwJO-SVczyflgmQ_SWeIAxMU`.                                                             |
+| `NEXT_PUBLIC_SUPABASE_URL`             | Public      | Yes                                         | Supabase project URL from Supabase Dashboard > Project Settings > API.                                                                                                                                                                                |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public      | Yes                                         | Supabase publishable key from Supabase Dashboard > Project Settings > API Keys.                                                                                                                                                                       |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY`        | Public      | Legacy fallback                             | Legacy Supabase anon key name. Leave unset when `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` is set.                                                                                                                                                        |
 | `SUPABASE_SECRET_KEY`                  | Server-only | Yes                                         | Supabase secret key from Supabase Dashboard > Project Settings > API Keys. This bypasses RLS and must never be exposed to the browser.                                                                                                                |
 | `SUPABASE_SERVICE_ROLE_KEY`            | Server-only | Legacy fallback                             | Legacy Supabase service role key name. Leave unset when `SUPABASE_SECRET_KEY` is set.                                                                                                                                                                 |
@@ -52,14 +52,13 @@ Project URL into `NEXT_PUBLIC_SUPABASE_URL`, the publishable key into
 `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` names, but new
 Vercel environments should use the current publishable/secret names.
 
-For the Supabase project details supplied in this audit, the Vercel Production
-Supabase variables should start with:
+The Vercel Production Supabase variables should use this shape:
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=https://fypfpkrahvgitekovnos.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_wXrXOizdwJO-SVczyflgmQ_SWeIAxMU
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<copy the full sb_publishable value>
 SUPABASE_SECRET_KEY=<copy the full sb_secret value from Supabase API Keys>
-SUPABASE_JWKS_URL=https://fypfpkrahvgitekovnos.supabase.co/auth/v1/.well-known/jwks.json
+SUPABASE_JWKS_URL=https://<project-ref>.supabase.co/auth/v1/.well-known/jwks.json
 ```
 
 `SUPABASE_JWKS_URL` is listed for completeness because Supabase exposes it for
@@ -160,7 +159,7 @@ rotation, users need to subscribe again from the app.
 `vercel.json` schedules:
 
 ```text
-POST /api/cron/notifications every 15 minutes
+GET /api/cron/notifications every 15 minutes
 ```
 
 Create `CRON_SECRET` with a random value such as:
@@ -273,8 +272,8 @@ Then verify these runtime checks:
 
 ```bash
 curl -i https://<your-app-domain>/api/me
-curl -i -X POST https://<your-app-domain>/api/cron/notifications
-curl -i -X POST \
+curl -i https://<your-app-domain>/api/cron/notifications
+curl -i \
   -H "Authorization: Bearer $CRON_SECRET" \
   https://<your-app-domain>/api/cron/notifications
 ```

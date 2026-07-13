@@ -28,6 +28,11 @@ function task(): TaskDto {
     version: 1,
     createdAt: "2026-07-10T00:00:00.000Z",
     updatedAt: "2026-07-10T00:00:00.000Z",
+    permissions: {
+      canEditDetails: true,
+      canTransition: true,
+      canArchive: true,
+    },
     project: null,
   };
 }

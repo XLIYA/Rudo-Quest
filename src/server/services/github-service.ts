@@ -1,4 +1,5 @@
 import { AppError } from "@/lib/api/errors";
+import { runDbTransaction } from "@/lib/db/client";
 import {
   createGitHubInstallationState,
   decryptGitHubUserToken,
@@ -15,7 +16,10 @@ import {
 } from "@/lib/github/app";
 import { assertProjectRole } from "@/server/policies/project-policy";
 import { createActivityEvent } from "@/server/repositories/activity-repository";
-import { findProjectRole } from "@/server/repositories/project-repository";
+import {
+  findProjectAccess,
+  findProjectRole,
+} from "@/server/repositories/project-repository";
 import {
   connectProjectRepository,
   disconnectProjectRepository,
@@ -37,6 +41,7 @@ import {
  * Side effects: None.
  */
 export async function startGitHubInstallation(userId: string, projectId?: string) {
+  if (projectId) await requireActiveProjectAdmin(userId, projectId);
   const state = createGitHubInstallationState(userId, projectId);
   const parsed = verifyGitHubInstallationState(state, userId);
   await insertGitHubInstallationState({
@@ -131,8 +136,7 @@ export async function listGitHubRepositories(
   projectId: string,
   installationId: string,
 ) {
-  const role = await findProjectRole(projectId, userId);
-  assertProjectRole(role, "ADMIN");
+  await requireActiveProjectAdmin(userId, projectId);
   const installation = await findGitHubInstallationForUser(installationId, userId);
   if (!installation)
     throw new AppError("NOT_FOUND", 404, "GitHub installation not found.");
@@ -153,8 +157,7 @@ export async function connectRepository(
     repositoryId: number;
   },
 ) {
-  const role = await findProjectRole(projectId, userId);
-  assertProjectRole(role, "ADMIN");
+  await requireActiveProjectAdmin(userId, projectId);
   const installation = await findGitHubInstallationForUser(
     payload.githubInstallationId,
     userId,
@@ -172,20 +175,24 @@ export async function connectRepository(
       "Repository is not available to this installation.",
     );
   }
-  const row = await connectProjectRepository({
-    projectId,
-    githubInstallationId: installation.id,
-    repositoryId: repository.id,
-    repositoryFullName: repository.fullName,
-    repositoryUrl: repository.htmlUrl,
-    defaultBranch: repository.defaultBranch,
+  return runDbTransaction(async (tx) => {
+    const row = await connectProjectRepository(
+      {
+        projectId,
+        githubInstallationId: installation.id,
+        repositoryId: repository.id,
+        repositoryFullName: repository.fullName,
+        repositoryUrl: repository.htmlUrl,
+        defaultBranch: repository.defaultBranch,
+      },
+      tx,
+    );
+    await createActivityEvent(
+      { actorId: userId, projectId, eventType: "GITHUB_CONNECTED" },
+      tx,
+    );
+    return row;
   });
-  await createActivityEvent({
-    actorId: userId,
-    projectId,
-    eventType: "GITHUB_CONNECTED",
-  });
-  return row;
 }
 
 /**
@@ -199,16 +206,16 @@ export async function disconnectRepository(
   projectId: string,
   repositoryId: number,
 ) {
-  const role = await findProjectRole(projectId, userId);
-  assertProjectRole(role, "ADMIN");
-  const row = await disconnectProjectRepository(projectId, repositoryId);
-  if (!row) throw new AppError("NOT_FOUND", 404, "Repository connection not found.");
-  await createActivityEvent({
-    actorId: userId,
-    projectId,
-    eventType: "GITHUB_DISCONNECTED",
+  await requireActiveProjectAdmin(userId, projectId);
+  return runDbTransaction(async (tx) => {
+    const row = await disconnectProjectRepository(projectId, repositoryId, tx);
+    if (!row) throw new AppError("NOT_FOUND", 404, "Repository connection not found.");
+    await createActivityEvent(
+      { actorId: userId, projectId, eventType: "GITHUB_DISCONNECTED" },
+      tx,
+    );
+    return row;
   });
-  return row;
 }
 
 /**
@@ -244,4 +251,15 @@ export async function handleGitHubWebhook(body: string, signature: string | null
  */
 export async function listGitHubInstallations(userId: string) {
   return listGitHubInstallationsForUser(userId);
+}
+
+async function requireActiveProjectAdmin(
+  userId: string,
+  projectId: string,
+): Promise<void> {
+  const access = await findProjectAccess(projectId, userId);
+  assertProjectRole(access?.role ?? null, "ADMIN");
+  if (access?.archivedAt) {
+    throw new AppError("CONFLICT", 409, "Archived projects are read-only.");
+  }
 }

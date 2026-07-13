@@ -48,6 +48,7 @@ export function NotificationsPanel({ compact = false }: { compact?: boolean }) {
     },
     onError: (error) => AppToast(normalizeApiClientError(error).message, "error"),
   });
+  const notifications = query.data?.pages.flatMap((page) => page.items) ?? [];
   return (
     <section
       id="notifications"
@@ -65,15 +66,26 @@ export function NotificationsPanel({ compact = false }: { compact?: boolean }) {
         <AppButton
           variant="secondary"
           onClick={() => read.mutate({ all: true })}
-          disabled={!online || read.isPending || !query.data?.length}
+          disabled={!online || read.isPending || !notifications.length}
         >
           Mark all read
         </AppButton>
       </div>
       {query.isLoading ? <AppSkeleton className="h-64" /> : null}
-      {query.data?.length ? (
+      {query.isError ? (
+        <AppEmptyState
+          title="Notifications unavailable"
+          description="The notification center could not be loaded."
+          action={
+            <AppButton variant="secondary" onClick={() => void query.refetch()}>
+              Try again
+            </AppButton>
+          }
+        />
+      ) : null}
+      {!query.isError && notifications.length ? (
         <section className="grid gap-2">
-          {query.data.map((notification) => (
+          {notifications.map((notification) => (
             <article
               key={notification.id}
               className="rounded-lg border border-border bg-surface p-4"
@@ -121,9 +133,18 @@ export function NotificationsPanel({ compact = false }: { compact?: boolean }) {
               ) : null}
             </article>
           ))}
+          {query.hasNextPage ? (
+            <AppButton
+              variant="secondary"
+              onClick={() => void query.fetchNextPage()}
+              disabled={query.isFetchingNextPage}
+            >
+              {query.isFetchingNextPage ? "Loading…" : "Load older notifications"}
+            </AppButton>
+          ) : null}
         </section>
       ) : null}
-      {query.data && !query.data.length ? (
+      {!query.isError && query.data && !notifications.length ? (
         <AppEmptyState
           title="No notifications"
           description="Assignments and project invitations will appear here."

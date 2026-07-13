@@ -7,6 +7,11 @@ import { getServerEnv } from "@/lib/env/server";
 let pool: Pool | null = null;
 let db: NodePgDatabase<typeof schema> | null = null;
 
+export type DbExecutor = Pick<
+  NodePgDatabase<typeof schema>,
+  "select" | "insert" | "update" | "delete"
+>;
+
 /**
  * Purpose: Choose pg SSL settings from the database connection URL.
  * Inputs: PostgreSQL connection URL.
@@ -51,9 +56,19 @@ export function getDb(): NodePgDatabase<typeof schema> {
   pool = new Pool({
     connectionString: databaseUrl,
     ssl: getPgSslConfig(databaseUrl),
+    max: 3,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 5_000,
+    allowExitOnIdle: true,
   });
   db = drizzle(pool, { schema });
   return db;
+}
+
+export async function runDbTransaction<T>(
+  operation: (tx: DbExecutor) => Promise<T>,
+): Promise<T> {
+  return getDb().transaction((tx) => operation(tx));
 }
 
 /**

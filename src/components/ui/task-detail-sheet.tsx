@@ -266,6 +266,8 @@ export function TaskDetailSheet({
     : null;
 
   if (!activeTask || !draft || !draftKey) return null;
+  const detailsDisabled = offline || !activeTask.permissions.canEditDetails;
+  const transitionsDisabled = offline || !activeTask.permissions.canTransition;
   const update = <K extends keyof TaskDraft>(key: K, value: TaskDraft[K]) =>
     setDraftState((current) => ({
       key: draftKey,
@@ -293,18 +295,24 @@ export function TaskDetailSheet({
               v{activeTask.version}
             </span>
           </div>
+          {!activeTask.permissions.canEditDetails ? (
+            <p className="rounded-md border border-border bg-surface-muted p-3 text-sm text-text-secondary">
+              You can view this task, but project details can only be edited by an owner
+              or admin.
+            </p>
+          ) : null}
           <AppInput
             label="Title"
             value={draft.title}
             onChange={(event) => update("title", event.currentTarget.value)}
-            disabled={offline}
+            disabled={detailsDisabled}
             autoFocus
           />
           <AppTextarea
             label="Description"
             value={draft.description ?? ""}
             onChange={(event) => update("description", event.currentTarget.value)}
-            disabled={offline}
+            disabled={detailsDisabled}
             rows={5}
           />
           <div className="grid grid-cols-2 gap-3">
@@ -312,7 +320,7 @@ export function TaskDetailSheet({
               label="Scheduled date"
               value={draft.scheduledDate}
               onChange={(event) => update("scheduledDate", event.currentTarget.value)}
-              disabled={offline}
+              disabled={detailsDisabled}
             />
             <AppTimePicker
               label="Scheduled time"
@@ -320,7 +328,7 @@ export function TaskDetailSheet({
               onChange={(event) =>
                 update("scheduledTime", event.currentTarget.value || null)
               }
-              disabled={offline}
+              disabled={detailsDisabled}
             />
           </div>
           <ProjectCombobox
@@ -329,20 +337,20 @@ export function TaskDetailSheet({
               update("projectId", value);
               update("assigneeId", value ? null : activeTask.createdBy.id);
             }}
-            disabled={offline}
+            disabled={detailsDisabled}
           />
           <AssigneeCombobox
-            key={activeTask.id}
+            key={`${activeTask.id}:${activeTask.assignee?.id ?? "none"}:${draft.projectId ?? "personal"}`}
             value={draft.assigneeId}
             currentAssignee={activeTask.assignee}
             projectId={draft.projectId}
             onChange={(value) => update("assigneeId", value)}
-            disabled={offline}
+            disabled={detailsDisabled}
           />
           <IconPicker
             value={draft.iconKey}
             onChange={(value) => update("iconKey", value)}
-            disabled={offline}
+            disabled={detailsDisabled}
           />
           <dl className="grid gap-2 rounded-md bg-surface-muted p-3 text-sm">
             <div className="flex justify-between gap-3">
@@ -392,7 +400,7 @@ export function TaskDetailSheet({
               <AppButton
                 type="button"
                 variant="secondary"
-                disabled={offline}
+                disabled={transitionsDisabled}
                 onClick={() => onAction(activeTask, "start")}
               >
                 <Play className="size-4" aria-hidden="true" />
@@ -403,7 +411,7 @@ export function TaskDetailSheet({
               <AppButton
                 type="button"
                 variant="secondary"
-                disabled={offline}
+                disabled={transitionsDisabled}
                 onClick={() => onAction(activeTask, "complete")}
               >
                 <CheckCircle2 className="size-4" aria-hidden="true" />
@@ -414,21 +422,21 @@ export function TaskDetailSheet({
               <AppButton
                 type="button"
                 variant="secondary"
-                disabled={offline}
+                disabled={transitionsDisabled}
                 onClick={() => onAction(activeTask, "reopen")}
               >
                 <RotateCcw className="size-4" aria-hidden="true" />
                 Reopen
               </AppButton>
             ) : null}
-            <AppButton type="submit" disabled={offline || !draft.title.trim()}>
+            <AppButton type="submit" disabled={detailsDisabled || !draft.title.trim()}>
               <CheckCircle2 className="size-4" aria-hidden="true" />
               Save changes
             </AppButton>
             <AppButton
               type="button"
               variant="danger"
-              disabled={offline}
+              disabled={offline || !activeTask.permissions.canArchive}
               onClick={() => setConfirmArchive(true)}
             >
               <Archive className="size-4" aria-hidden="true" />

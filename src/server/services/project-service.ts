@@ -1,13 +1,15 @@
 import { AppError } from "@/lib/api/errors";
+import { runDbTransaction } from "@/lib/db/client";
 import type { ProjectRole } from "@/types/domain";
 import { assertProjectRole } from "@/server/policies/project-policy";
 import { createActivityEvent } from "@/server/repositories/activity-repository";
 import {
   archiveProjectRow,
   findProjectInvitation,
+  findProjectAccess,
   findProjectRole,
   findProjectSummary,
-  findProjectOwnerId,
+  isProjectArchived,
   expirePendingInvitations,
   insertInvitation,
   insertProjectWithInvitations,
@@ -21,6 +23,23 @@ import {
   transferProjectOwnership,
 } from "@/server/repositories/project-repository";
 import { createNotification } from "@/server/services/notification-service";
+
+async function requireActiveProjectRole(
+  projectId: string,
+  userId: string,
+  minimum: ProjectRole,
+): Promise<ProjectRole> {
+  const access = await findProjectAccess(projectId, userId);
+  if (!access) {
+    assertProjectRole(null, minimum);
+    throw new AppError("FORBIDDEN", 403, "Project access is required.");
+  }
+  assertProjectRole(access.role, minimum);
+  if (access?.archivedAt) {
+    throw new AppError("CONFLICT", 409, "Archived projects are read-only.");
+  }
+  return access.role;
+}
 
 /**
  * Purpose: List projects visible to a user.
@@ -50,34 +69,11 @@ export async function createProject(
     invitations?: { userId: string; role: Exclude<ProjectRole, "OWNER"> }[];
   },
 ) {
-  const { project, invitations } = await insertProjectWithInvitations({
+  const { summary } = await insertProjectWithInvitations({
     ...payload,
     ownerId: userId,
     invitations: payload.invitations ?? [],
   });
-  await createActivityEvent({
-    actorId: userId,
-    projectId: project.id,
-    eventType: "PROJECT_CREATED",
-    metadata: { title: project.title },
-  });
-  for (const invitation of invitations) {
-    await createNotification({
-      recipientId: invitation.invitedUserId,
-      type: "PROJECT_INVITATION",
-      title: "Project invitation",
-      body: "You were invited to a Rudo Quest project.",
-      href: `/projects/${project.id}?invitation=${invitation.id}`,
-    });
-    await createActivityEvent({
-      actorId: userId,
-      projectId: project.id,
-      eventType: "MEMBER_INVITED",
-      metadata: { role: invitation.role },
-    });
-  }
-  const summary = await findProjectSummary(project.id, userId);
-  if (!summary) throw new AppError("INTERNAL_ERROR", 500, "Project creation failed.");
   return summary;
 }
 
@@ -104,12 +100,16 @@ export async function updateProject(
   projectId: string,
   values: Parameters<typeof updateProjectRow>[1],
 ) {
-  const role = await findProjectRole(projectId, userId);
-  assertProjectRole(role, "ADMIN");
-  const updated = await updateProjectRow(projectId, values);
-  if (!updated) throw new AppError("NOT_FOUND", 404, "Project not found.");
-  await createActivityEvent({ actorId: userId, projectId, eventType: "PROJECT_UPDATED" });
-  return updated;
+  await requireActiveProjectRole(projectId, userId, "ADMIN");
+  return runDbTransaction(async (tx) => {
+    const updated = await updateProjectRow(projectId, values, tx);
+    if (!updated) throw new AppError("NOT_FOUND", 404, "Project not found.");
+    await createActivityEvent(
+      { actorId: userId, projectId, eventType: "PROJECT_UPDATED" },
+      tx,
+    );
+    return updated;
+  });
 }
 
 /**
@@ -119,16 +119,16 @@ export async function updateProject(
  * Side effects: Sets archived_at and writes activity.
  */
 export async function archiveProject(userId: string, projectId: string) {
-  const role = await findProjectRole(projectId, userId);
-  assertProjectRole(role, "OWNER");
-  const updated = await archiveProjectRow(projectId);
-  if (!updated) throw new AppError("NOT_FOUND", 404, "Project not found.");
-  await createActivityEvent({
-    actorId: userId,
-    projectId,
-    eventType: "PROJECT_ARCHIVED",
+  await requireActiveProjectRole(projectId, userId, "OWNER");
+  return runDbTransaction(async (tx) => {
+    const updated = await archiveProjectRow(projectId, tx);
+    if (!updated) throw new AppError("NOT_FOUND", 404, "Project not found.");
+    await createActivityEvent(
+      { actorId: userId, projectId, eventType: "PROJECT_ARCHIVED" },
+      tx,
+    );
+    return updated;
   });
-  return updated;
 }
 
 /**
@@ -151,8 +151,7 @@ export async function getProjectMembers(userId: string, projectId: string) {
  */
 export async function getProjectInvitations(userId: string, projectId: string) {
   await expirePendingInvitations();
-  const role = await findProjectRole(projectId, userId);
-  assertProjectRole(role, "ADMIN");
+  await requireActiveProjectRole(projectId, userId, "ADMIN");
   return listProjectInvitations(projectId);
 }
 
@@ -168,30 +167,40 @@ export async function inviteProjectMember(
   payload: { invitedUserId: string; role: Exclude<ProjectRole, "OWNER"> },
 ) {
   await expirePendingInvitations();
-  const role = await findProjectRole(projectId, userId);
-  assertProjectRole(role, "ADMIN");
-  const invitation = await insertInvitation({
-    projectId,
-    invitedUserId: payload.invitedUserId,
-    role: payload.role,
-    invitedBy: userId,
+  await requireActiveProjectRole(projectId, userId, "ADMIN");
+  return runDbTransaction(async (tx) => {
+    const invitation = await insertInvitation(
+      {
+        projectId,
+        invitedUserId: payload.invitedUserId,
+        role: payload.role,
+        invitedBy: userId,
+      },
+      tx,
+    );
+    if (!invitation)
+      throw new AppError("CONFLICT", 409, "User is already invited or a member.");
+    await createNotification(
+      {
+        recipientId: payload.invitedUserId,
+        type: "PROJECT_INVITATION",
+        title: "Project invitation",
+        body: "You were invited to a Rudo Quest project.",
+        href: `/projects/${projectId}?invitation=${invitation.id}`,
+      },
+      tx,
+    );
+    await createActivityEvent(
+      {
+        actorId: userId,
+        projectId,
+        eventType: "MEMBER_INVITED",
+        metadata: { role: payload.role },
+      },
+      tx,
+    );
+    return invitation;
   });
-  if (!invitation)
-    throw new AppError("CONFLICT", 409, "User is already invited or a member.");
-  await createNotification({
-    recipientId: payload.invitedUserId,
-    type: "PROJECT_INVITATION",
-    title: "Project invitation",
-    body: "You were invited to a Rudo Quest project.",
-    href: `/projects/${projectId}?invitation=${invitation.id}`,
-  });
-  await createActivityEvent({
-    actorId: userId,
-    projectId,
-    eventType: "MEMBER_INVITED",
-    metadata: { role: payload.role },
-  });
-  return invitation;
 }
 
 /**
@@ -209,9 +218,11 @@ export async function changeInvitationStatus(
   await expirePendingInvitations();
   const existing = await findProjectInvitation(projectId, invitationId);
   if (!existing) throw new AppError("NOT_FOUND", 404, "Invitation not found.");
+  const archived = await isProjectArchived(projectId);
+  if (archived === null) throw new AppError("NOT_FOUND", 404, "Project not found.");
+  if (archived) throw new AppError("CONFLICT", 409, "Archived projects are read-only.");
   if (status === "REVOKED") {
-    const role = await findProjectRole(projectId, userId);
-    assertProjectRole(role, "ADMIN");
+    await requireActiveProjectRole(projectId, userId, "ADMIN");
   } else if (existing.invitedUserId !== userId) {
     throw new AppError("FORBIDDEN", 403, "You cannot change this invitation.");
   }
@@ -225,19 +236,6 @@ export async function changeInvitationStatus(
     status,
   });
   if (!invitation) throw new AppError("CONFLICT", 409, "Invitation cannot be changed.");
-  if (status === "ACCEPTED") {
-    await createActivityEvent({ actorId: userId, projectId, eventType: "MEMBER_JOINED" });
-    const ownerId = await findProjectOwnerId(projectId);
-    if (ownerId && ownerId !== userId) {
-      await createNotification({
-        recipientId: ownerId,
-        type: "INVITATION_ACCEPTED",
-        title: "Invitation accepted",
-        body: "A collaborator joined your project.",
-        href: `/projects/${projectId}`,
-      });
-    }
-  }
   return invitation;
 }
 
@@ -253,8 +251,7 @@ export async function transferOwnership(
   projectId: string,
   targetUserId: string,
 ) {
-  const role = await findProjectRole(projectId, userId);
-  assertProjectRole(role, "OWNER");
+  await requireActiveProjectRole(projectId, userId, "OWNER");
   if (targetUserId === userId)
     throw new AppError("BAD_REQUEST", 400, "Choose another member.");
   const transferred = await transferProjectOwnership({
@@ -263,7 +260,6 @@ export async function transferOwnership(
     targetUserId,
   });
   if (!transferred) throw new AppError("NOT_FOUND", 404, "Target member not found.");
-  await createActivityEvent({ actorId: userId, projectId, eventType: "PROJECT_UPDATED" });
   return transferred;
 }
 
@@ -279,8 +275,7 @@ export async function changeMemberRole(
   targetUserId: string,
   role: Exclude<ProjectRole, "OWNER">,
 ) {
-  const actorRole = await findProjectRole(projectId, userId);
-  assertProjectRole(actorRole, "ADMIN");
+  const actorRole = await requireActiveProjectRole(projectId, userId, "ADMIN");
   if (actorRole === "ADMIN" && role === "ADMIN") {
     throw new AppError("FORBIDDEN", 403, "Admins cannot promote other admins.");
   }
@@ -300,11 +295,13 @@ export async function removeProjectMember(
   projectId: string,
   targetUserId: string,
 ) {
-  const actorRole = await findProjectRole(projectId, userId);
-  assertProjectRole(actorRole, "ADMIN");
-  const removed = await removeMember({ projectId, userId: targetUserId });
+  await requireActiveProjectRole(projectId, userId, "ADMIN");
+  const removed = await removeMember({
+    projectId,
+    userId: targetUserId,
+    actorId: userId,
+  });
   if (!removed)
     throw new AppError("NOT_FOUND", 404, "Member not found or cannot be removed.");
-  await createActivityEvent({ actorId: userId, projectId, eventType: "MEMBER_REMOVED" });
   return removed;
 }

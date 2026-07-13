@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 import {
   notificationDeliveries,
   notifications,
@@ -8,8 +8,14 @@ import {
   pushSubscriptions,
   tasks,
 } from "@/db/schema";
-import { getDb } from "@/lib/db/client";
-import type { NotificationDto, NotificationType } from "@/types/domain";
+import { AppError } from "@/lib/api/errors";
+import { uuidSchema } from "@/lib/validation/common";
+import { getDb, type DbExecutor } from "@/lib/db/client";
+import type {
+  NotificationDto,
+  NotificationPageDto,
+  NotificationType,
+} from "@/types/domain";
 
 /**
  * Purpose: Create an in-app notification.
@@ -17,15 +23,18 @@ import type { NotificationDto, NotificationType } from "@/types/domain";
  * Output: Created notification DTO.
  * Side effects: Writes notifications.
  */
-export async function insertNotification(input: {
-  recipientId: string;
-  type: NotificationType;
-  title: string;
-  body?: string | null;
-  href?: string | null;
-  dedupeKey?: string | null;
-}): Promise<NotificationDto> {
-  const [created] = await getDb()
+export async function insertNotification(
+  input: {
+    recipientId: string;
+    type: NotificationType;
+    title: string;
+    body?: string | null;
+    href?: string | null;
+    dedupeKey?: string | null;
+  },
+  db: DbExecutor = getDb(),
+): Promise<NotificationDto> {
+  const [created] = await db
     .insert(notifications)
     .values({
       recipientId: input.recipientId,
@@ -39,7 +48,7 @@ export async function insertNotification(input: {
     .returning();
   if (created) return toNotificationDto(created);
   if (input.dedupeKey) {
-    const existing = await getDb()
+    const existing = await db
       .select()
       .from(notifications)
       .where(eq(notifications.dedupeKey, input.dedupeKey))
@@ -55,14 +64,72 @@ export async function insertNotification(input: {
  * Output: Notification DTOs ordered newest first.
  * Side effects: Reads notifications.
  */
-export async function listNotifications(userId: string): Promise<NotificationDto[]> {
+export async function listNotifications(
+  userId: string,
+  cursorValue?: string,
+  limit = 30,
+): Promise<NotificationPageDto> {
+  const cursor = cursorValue ? decodeNotificationCursor(cursorValue) : null;
   const rows = await getDb()
-    .select()
+    .select({
+      notification: notifications,
+      unreadCount: sql<number>`count(*) filter (where ${notifications.readAt} is null) over ()`,
+    })
     .from(notifications)
-    .where(eq(notifications.recipientId, userId))
-    .orderBy(desc(notifications.createdAt))
-    .limit(80);
-  return rows.map(toNotificationDto);
+    .where(
+      and(
+        eq(notifications.recipientId, userId),
+        cursor
+          ? or(
+              lt(notifications.createdAt, cursor.createdAt),
+              and(
+                eq(notifications.createdAt, cursor.createdAt),
+                lt(notifications.id, cursor.id),
+              ),
+            )
+          : undefined,
+      ),
+    )
+    .orderBy(desc(notifications.createdAt), desc(notifications.id))
+    .limit(limit + 1);
+  const items = rows.slice(0, limit).map((row) => toNotificationDto(row.notification));
+  const unreadCount = Number(rows[0]?.unreadCount ?? 0);
+  const last = rows.length > limit ? rows[limit - 1] : undefined;
+  return last
+    ? {
+        items,
+        unreadCount,
+        cursor: encodeNotificationCursor(
+          last.notification.createdAt,
+          last.notification.id,
+        ),
+      }
+    : { items, unreadCount };
+}
+
+function encodeNotificationCursor(createdAt: Date, id: string): string {
+  return Buffer.from(
+    JSON.stringify({ createdAt: createdAt.toISOString(), id }),
+    "utf8",
+  ).toString("base64url");
+}
+
+function decodeNotificationCursor(value: string): { createdAt: Date; id: string } {
+  try {
+    const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as {
+      createdAt?: string;
+      id?: string;
+    };
+    const id = uuidSchema.safeParse(parsed.id);
+    if (!parsed.createdAt || !id.success) {
+      throw new Error("invalid fields");
+    }
+    const createdAt = new Date(parsed.createdAt);
+    if (Number.isNaN(createdAt.getTime())) throw new Error("invalid date");
+    return { createdAt, id: id.data };
+  } catch {
+    throw new AppError("BAD_REQUEST", 400, "Notification cursor is invalid.");
+  }
 }
 
 /**

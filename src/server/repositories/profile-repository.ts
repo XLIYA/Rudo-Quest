@@ -39,8 +39,12 @@ export async function upsertProfile(input: {
       displayName: input.displayName,
       timeZone: input.timeZone,
     })
+    .onConflictDoNothing()
     .returning();
-  return created;
+  if (created) return created;
+  const raced = await findProfileById(input.id);
+  if (!raced) throw new Error("Profile insert conflicted with another identity.");
+  return raced;
 }
 
 /**

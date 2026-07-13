@@ -62,8 +62,8 @@ export async function getDashboardAggregate(input: {
   });
   const completed = days.reduce((sum, day) => sum + day.completed, 0);
   const total = days.reduce((sum, day) => sum + day.total, 0);
-  const heatmapToday = format(new Date(), "yyyy-MM-dd");
-  const from365 = format(subDays(new Date(), 364), "yyyy-MM-dd");
+  const heatmapToday = today;
+  const from365 = format(subDays(new Date(`${today}T00:00:00.000Z`), 364), "yyyy-MM-dd");
   const heatmapDays = await listCompletionCounts({
     userId: input.userId,
     from: from365,
@@ -77,7 +77,10 @@ export async function getDashboardAggregate(input: {
       percent: total ? Math.round((completed / total) * 100) : 0,
       days,
     },
-    heatmap: { days: heatmapDays, streak: calculateCompletionStreak(heatmapDays) },
+    heatmap: {
+      days: heatmapDays,
+      streak: calculateCompletionStreak(heatmapDays, today),
+    },
     projects: (
       await listProjectSummaries({ userId: input.userId, archived: "active" })
     ).slice(0, 4),

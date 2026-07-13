@@ -75,7 +75,10 @@ export function Providers({ children }: { children: ReactNode }) {
         }
       }
       if (disposed) return;
-      activeUserId = profile?.id ?? (navigator.onLine ? null : previousUserId);
+      // Persisted application data is private. Restore it only after the server
+      // has verified the current session; a remembered browser user ID is not
+      // authentication and must never unlock a cold offline session.
+      activeUserId = profile?.id ?? null;
       if (profile?.id && previousUserId && profile.id !== previousUserId) {
         await clearUserQueryCache(previousUserId);
         queryClient.clear();

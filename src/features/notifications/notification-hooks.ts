@@ -1,10 +1,15 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type InfiniteData,
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { AppToast } from "@/components/ui/app-toast";
 import { apiGet, apiMutation, normalizeApiClientError } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
-import type { NotificationDto } from "@/types/domain";
+import type { NotificationDto, NotificationPageDto } from "@/types/domain";
 
 /**
  * Purpose: Fetch notification center data.
@@ -13,9 +18,15 @@ import type { NotificationDto } from "@/types/domain";
  * Side effects: Performs browser HTTP GET.
  */
 export function useNotifications() {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: queryKeys.notifications,
-    queryFn: ({ signal }) => apiGet<NotificationDto[]>("/api/notifications", signal),
+    initialPageParam: "",
+    queryFn: ({ signal, pageParam }) =>
+      apiGet<NotificationPageDto>(
+        `/api/notifications${pageParam ? `?cursor=${encodeURIComponent(pageParam)}` : ""}`,
+        signal,
+      ),
+    getNextPageParam: (page) => page.cursor,
   });
 }
 
@@ -37,21 +48,31 @@ export function useReadNotifications() {
         : apiMutation<NotificationDto>("patch", `/api/notifications/${input.id}/read`),
     onMutate: async (input) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.notifications });
-      const previous =
-        queryClient.getQueryData<NotificationDto[]>(queryKeys.notifications) ?? [];
-      const now = new Date().toISOString();
-      queryClient.setQueryData<NotificationDto[]>(
+      const previous = queryClient.getQueryData<InfiniteData<NotificationPageDto>>(
         queryKeys.notifications,
-        previous.map((notification) =>
-          input.all || notification.id === input.id
-            ? { ...notification, readAt: notification.readAt ?? now }
-            : notification,
-        ),
+      );
+      const now = new Date().toISOString();
+      queryClient.setQueryData<InfiniteData<NotificationPageDto>>(
+        queryKeys.notifications,
+        (current) =>
+          current
+            ? {
+                ...current,
+                pages: current.pages.map((page) => ({
+                  ...page,
+                  items: page.items.map((notification) =>
+                    input.all || notification.id === input.id
+                      ? { ...notification, readAt: notification.readAt ?? now }
+                      : notification,
+                  ),
+                })),
+              }
+            : current,
       );
       return { previous };
     },
     onError: (error, _input, context) => {
-      queryClient.setQueryData(queryKeys.notifications, context?.previous ?? []);
+      queryClient.setQueryData(queryKeys.notifications, context?.previous);
       AppToast(normalizeApiClientError(error).message, "error");
     },
     onSettled: () =>

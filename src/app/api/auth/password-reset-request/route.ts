@@ -28,7 +28,10 @@ export async function POST(request: NextRequest) {
     const supabase = await createSupabaseServerClient();
     await supabase.auth.resetPasswordForEmail(body.email, {
       redirectTo: env.NEXT_PUBLIC_APP_URL
-        ? new URL("/reset-password", env.NEXT_PUBLIC_APP_URL).toString()
+        ? new URL(
+            "/auth/callback?next=%2Freset-password",
+            env.NEXT_PUBLIC_APP_URL,
+          ).toString()
         : undefined,
     });
     return apiSuccess({ ok: true }, { requestId });

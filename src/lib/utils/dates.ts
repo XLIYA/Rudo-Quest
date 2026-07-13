@@ -2,7 +2,6 @@ import {
   addDays,
   differenceInCalendarDays,
   format,
-  isAfter,
   parseISO,
   startOfWeek,
 } from "date-fns";
@@ -84,9 +83,10 @@ export function getDateInTimeZone(value: Date, timeZone: string): string {
  */
 export function calculateCompletionStreak(
   days: { date: string; count: number }[],
+  today = format(new Date(), "yyyy-MM-dd"),
 ): number {
   const byDate = new Map(days.map((day) => [day.date, day.count]));
-  let cursor = new Date();
+  let cursor = parseISO(today);
   if ((byDate.get(format(cursor, "yyyy-MM-dd")) ?? 0) === 0) {
     cursor = addDays(cursor, -1);
   }
@@ -113,14 +113,4 @@ export function formatRelativeDay(value: string): string {
   if (days === 1) return "yesterday";
   if (days > 1 && days < 7) return `${days} days ago`;
   return format(parseISO(value), "MMM d, yyyy");
-}
-
-/**
- * Purpose: Determine if an ISO date is before today.
- * Inputs: ISO yyyy-MM-dd date.
- * Output: True when the date is overdue.
- * Side effects: None.
- */
-export function isPastDate(value: string): boolean {
-  return isAfter(startOfWeek(new Date(), { weekStartsOn: 1 }), parseISO(value));
 }

@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       );
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-      redirectTo: new URL("/reset-password", appUrl).toString(),
+      redirectTo: new URL("/auth/callback?next=%2Freset-password", appUrl).toString(),
     });
     if (error)
       throw new AppError("INTERNAL_ERROR", 502, "Password reset could not be started.");

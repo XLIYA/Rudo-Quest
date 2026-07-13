@@ -86,6 +86,10 @@ function createPool(databaseUrl) {
       databaseUrl.includes("localhost") || databaseUrl.includes("127.0.0.1")
         ? false
         : { rejectUnauthorized: true },
+    max: 1,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 5_000,
+    allowExitOnIdle: true,
   });
 }
 
@@ -128,6 +132,10 @@ function readMigrations() {
  * Side effects: Creates tables, policies, indexes, and migration ledger rows.
  */
 async function applyMigrations(client, migrations) {
+  await client.query("select pg_advisory_lock(hashtext($1))", [
+    "rudo_quest_schema_migrations",
+  ]);
+
   await client.query(`
     create table if not exists public.__app_migrations (
       id text primary key,
@@ -189,6 +197,9 @@ async function main() {
       `Migrations complete. Applied: ${result.appliedCount}. Skipped: ${result.skippedCount}.\n`,
     );
   } finally {
+    await client.query("select pg_advisory_unlock(hashtext($1))", [
+      "rudo_quest_schema_migrations",
+    ]);
     client.release();
     await pool.end();
   }

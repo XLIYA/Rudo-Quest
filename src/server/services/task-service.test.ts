@@ -11,8 +11,16 @@ const taskRepository = vi.hoisted(() => ({
 }));
 
 const projectRepository = vi.hoisted(() => ({
+  findProjectAccess: vi.fn(),
   findProjectRole: vi.fn(),
   isProjectMember: vi.fn(),
+}));
+
+const transaction = vi.hoisted(() => ({
+  executor: {},
+  runDbTransaction: vi.fn(async (operation: (tx: object) => Promise<unknown>) =>
+    operation(transaction.executor),
+  ),
 }));
 
 const activityRepository = vi.hoisted(() => ({
@@ -27,6 +35,9 @@ vi.mock("@/server/repositories/task-repository", () => taskRepository);
 vi.mock("@/server/repositories/project-repository", () => projectRepository);
 vi.mock("@/server/repositories/activity-repository", () => activityRepository);
 vi.mock("@/server/services/notification-service", () => notificationService);
+vi.mock("@/lib/db/client", () => ({
+  runDbTransaction: transaction.runDbTransaction,
+}));
 
 const userId = "00000000-0000-4000-8000-000000000001";
 const targetProjectId = "00000000-0000-4000-8000-000000000002";
@@ -50,6 +61,11 @@ function task(overrides: Partial<TaskDto> = {}): TaskDto {
     version: 1,
     createdAt: "2026-07-10T00:00:00.000Z",
     updatedAt: "2026-07-10T00:00:00.000Z",
+    permissions: {
+      canEditDetails: true,
+      canTransition: true,
+      canArchive: true,
+    },
     project: null,
     ...overrides,
   };
@@ -62,7 +78,7 @@ beforeEach(() => {
 
 describe("updateTask project reassignment authorization", () => {
   it("rejects moving a task into a project where the actor has no role", async () => {
-    projectRepository.findProjectRole.mockResolvedValue(null);
+    projectRepository.findProjectAccess.mockResolvedValue(null);
 
     await expect(
       updateTask(userId, "00000000-0000-4000-8000-000000000010", {
@@ -76,7 +92,10 @@ describe("updateTask project reassignment authorization", () => {
   });
 
   it("rejects moving a task into a project where the actor is only a viewer", async () => {
-    projectRepository.findProjectRole.mockResolvedValue("VIEWER");
+    projectRepository.findProjectAccess.mockResolvedValue({
+      role: "VIEWER",
+      archivedAt: null,
+    });
 
     await expect(
       updateTask(userId, "00000000-0000-4000-8000-000000000010", {
@@ -91,7 +110,10 @@ describe("updateTask project reassignment authorization", () => {
 
   it("allows moving a task into a project where the actor can create tasks", async () => {
     const updated = task({ projectId: targetProjectId });
-    projectRepository.findProjectRole.mockResolvedValue("MEMBER");
+    projectRepository.findProjectAccess.mockResolvedValue({
+      role: "MEMBER",
+      archivedAt: null,
+    });
     taskRepository.updateTaskRow.mockResolvedValue(updated);
 
     await expect(
@@ -106,6 +128,8 @@ describe("updateTask project reassignment authorization", () => {
       "00000000-0000-4000-8000-000000000010",
       1,
       { projectId: targetProjectId, assigneeId: null },
+      userId,
+      transaction.executor,
     );
   });
 });

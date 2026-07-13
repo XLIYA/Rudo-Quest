@@ -25,4 +25,18 @@ describe("server environment helpers", () => {
 
     expect(getSupabaseAdminKey(getServerEnv())).toBe("sb_secret_example");
   });
+
+  it("requires Cron and Redis alongside core production infrastructure", async () => {
+    const { assertProductionEnv } = await import("./server");
+    expect(() =>
+      assertProductionEnv({
+        NODE_ENV: "production",
+        NEXT_PUBLIC_APP_URL: "https://rudo.example",
+        NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "publishable",
+        SUPABASE_SECRET_KEY: "secret",
+        DATABASE_URL: "postgresql://example",
+      }),
+    ).toThrow(/CRON_SECRET.*UPSTASH_REDIS/);
+  });
 });

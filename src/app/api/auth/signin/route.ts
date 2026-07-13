@@ -33,11 +33,16 @@ export async function POST(request: NextRequest) {
     if (error || !data.user?.email) {
       throw new AppError("UNAUTHORIZED", 401, "Invalid email or password.");
     }
-    await ensureProfileForAuthUser({
-      id: data.user.id,
-      email: data.user.email,
-      displayName: data.user.user_metadata.name,
-    });
+    try {
+      await ensureProfileForAuthUser({
+        id: data.user.id,
+        email: data.user.email,
+        displayName: data.user.user_metadata.name,
+      });
+    } catch {
+      await supabase.auth.signOut({ scope: "local" });
+      throw new AppError("INTERNAL_ERROR", 500, "Sign in could not be completed.");
+    }
     return apiSuccess({ ok: true }, { requestId });
   });
 }

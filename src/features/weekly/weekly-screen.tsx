@@ -1,6 +1,6 @@
 "use client";
 
-import { addDays, format, parseISO } from "date-fns";
+import { addDays, format, isValid, parseISO } from "date-fns";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -32,10 +32,21 @@ export function WeeklyScreen() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const today = format(new Date(), "yyyy-MM-dd");
-  const weekStart = searchParams.get("weekStart") ?? getMondayWeekStart(new Date());
+  const requestedDateValue = searchParams.get("date");
+  const requestedDate =
+    requestedDateValue === "closed" ||
+    (requestedDateValue &&
+      /^\d{4}-\d{2}-\d{2}$/.test(requestedDateValue) &&
+      isValid(parseISO(requestedDateValue)))
+      ? requestedDateValue
+      : null;
+  const weekStart =
+    searchParams.get("weekStart") ??
+    (requestedDate && requestedDate !== "closed"
+      ? getMondayWeekStart(parseISO(requestedDate))
+      : getMondayWeekStart(new Date()));
   const selectedDate =
-    searchParams.get("date") ??
-    (getWeekDates(weekStart).includes(today) ? today : weekStart);
+    requestedDate ?? (getWeekDates(weekStart).includes(today) ? today : weekStart);
   const [selectedTask, setSelectedTask] = useState<TaskDto | null>(null);
   const [quickDate, setQuickDate] = useState<string | null>(
     searchParams.get("quickAdd") ? selectedDate : null,
@@ -46,7 +57,7 @@ export function WeeklyScreen() {
   const createTask = useCreateTask(weekStart);
   const mutateTask = useTaskMutation(weekStart);
   const dates = useMemo(() => getWeekDates(weekStart), [weekStart]);
-  const expandedDate = dates.includes(selectedDate) ? selectedDate : (dates[0] ?? "");
+  const expandedDate = dates.includes(selectedDate) ? selectedDate : "";
 
   const navigateWeek = (direction: -1 | 1) => {
     const next = format(addDays(parseISO(weekStart), direction * 7), "yyyy-MM-dd");
@@ -96,7 +107,18 @@ export function WeeklyScreen() {
         }
       />
       {query.isLoading ? <AppSkeleton className="h-96 w-full" /> : null}
-      {query.data ? (
+      {query.isError ? (
+        <AppEmptyState
+          title="Week unavailable"
+          description="The task list could not be loaded. Check the connection and try again."
+          action={
+            <AppButton variant="secondary" onClick={() => void query.refetch()}>
+              Try again
+            </AppButton>
+          }
+        />
+      ) : null}
+      {!query.isError && query.data ? (
         <section className="grid gap-3">
           {dates.map((date) => {
             const tasks = query.data.filter(
@@ -111,8 +133,9 @@ export function WeeklyScreen() {
               <article key={date} className="rounded-lg border border-border bg-surface">
                 <button
                   type="button"
+                  aria-expanded={open}
                   onClick={() => {
-                    const nextDate = open ? date : date;
+                    const nextDate = open ? "closed" : date;
                     router.push(`/weekly?weekStart=${weekStart}&date=${nextDate}`);
                   }}
                   className="grid w-full grid-cols-[1fr_auto] items-center gap-3 p-4 text-left"

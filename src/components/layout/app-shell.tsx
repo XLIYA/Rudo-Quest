@@ -66,14 +66,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
+  const accountTriggerRef = useRef<HTMLButtonElement>(null);
+  const firstAccountItemRef = useRef<HTMLAnchorElement>(null);
   const profile = useQuery({
     queryKey: queryKeys.me,
     queryFn: ({ signal }) => apiGet<NavProfile>("/api/me", signal),
     staleTime: 60_000,
   });
   const notifications = useNotifications();
-  const unreadCount =
-    notifications.data?.filter((notification) => !notification.readAt).length ?? 0;
+  const unreadCount = notifications.data?.pages[0]?.unreadCount ?? 0;
   const signOut = useMutation({
     mutationFn: () => apiMutation("post", "/api/auth/signout"),
     onSuccess: async () => {
@@ -100,8 +101,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!accountOpen) return;
+    const focusFrame = window.requestAnimationFrame(() =>
+      firstAccountItemRef.current?.focus(),
+    );
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setAccountOpen(false);
+      if (event.key === "Escape") {
+        setAccountOpen(false);
+        accountTriggerRef.current?.focus();
+      }
     };
     const closeOnOutsidePointer = (event: PointerEvent) => {
       if (event.target instanceof Node && !accountMenuRef.current?.contains(event.target))
@@ -110,6 +117,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     document.addEventListener("keydown", closeOnEscape);
     document.addEventListener("pointerdown", closeOnOutsidePointer);
     return () => {
+      window.cancelAnimationFrame(focusFrame);
       document.removeEventListener("keydown", closeOnEscape);
       document.removeEventListener("pointerdown", closeOnOutsidePointer);
     };
@@ -196,9 +204,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             className={cn("relative", collapsed ? "flex justify-center" : null)}
           >
             <button
+              ref={accountTriggerRef}
               type="button"
               onClick={() => setAccountOpen((open) => !open)}
               aria-expanded={accountOpen}
+              aria-haspopup="menu"
+              aria-controls="account-menu"
               aria-label="Open account menu"
               className={cn(
                 "flex min-h-11 items-center gap-3 rounded-md p-2 text-left hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-brand",
@@ -219,12 +230,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
             {accountOpen ? (
               <div
+                id="account-menu"
+                role="menu"
+                aria-label="Account"
                 className={cn(
                   "absolute bottom-full z-40 mb-2 grid min-w-56 gap-1 rounded-md border border-border bg-surface p-2 shadow-[var(--shadow-overlay)]",
                   collapsed ? "left-0" : "inset-x-0",
                 )}
               >
                 <Link
+                  ref={firstAccountItemRef}
+                  role="menuitem"
                   href="/profile"
                   className="rounded-sm px-3 py-2 text-sm hover:bg-surface-muted"
                   onClick={() => setAccountOpen(false)}
@@ -232,6 +248,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   Profile
                 </Link>
                 <Link
+                  role="menuitem"
                   href="/settings"
                   className="rounded-sm px-3 py-2 text-sm hover:bg-surface-muted"
                   onClick={() => setAccountOpen(false)}
@@ -240,6 +257,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </Link>
                 <div className="grid grid-cols-3 gap-1 border-t border-border pt-1">
                   <AppIconButton
+                    role="menuitemradio"
+                    aria-checked={theme === "system"}
                     label="Use system theme"
                     disabled={!online}
                     className={
@@ -250,6 +269,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <Menu className="size-4" aria-hidden="true" />
                   </AppIconButton>
                   <AppIconButton
+                    role="menuitemradio"
+                    aria-checked={theme === "light"}
                     label="Use light theme"
                     disabled={!online}
                     className={theme === "light" ? "bg-brand-soft text-brand" : undefined}
@@ -258,6 +279,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <Sun className="size-4" aria-hidden="true" />
                   </AppIconButton>
                   <AppIconButton
+                    role="menuitemradio"
+                    aria-checked={theme === "dark"}
                     label="Use dark theme"
                     disabled={!online}
                     className={theme === "dark" ? "bg-brand-soft text-brand" : undefined}
@@ -268,6 +291,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </div>
                 <button
                   type="button"
+                  role="menuitem"
                   className="flex min-h-11 items-center gap-2 rounded-sm px-3 py-2 text-left text-sm text-error hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-error"
                   disabled={signOut.isPending}
                   onClick={() => signOut.mutate()}

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, isNull, isNotNull, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, isNotNull, lte, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
   activityEvents,
@@ -7,7 +7,7 @@ import {
   projectMemberships,
   tasks,
 } from "@/db/schema";
-import { getDb } from "@/lib/db/client";
+import { getDb, type DbExecutor } from "@/lib/db/client";
 import { createProfileAssetUrlMap, profileAssetUrl } from "@/server/profile-assets";
 import type {
   ProjectColorKey,
@@ -50,9 +50,17 @@ function toTaskDto(
     projectTitle: string | null;
     projectColorKey: string | null;
     projectIconKey: string | null;
+    viewerRole?: string | null;
   },
   avatarUrls: Map<string, string>,
+  viewerUserId?: string,
 ): TaskDto {
+  const canEditDetails = row.projectId
+    ? row.viewerRole === "OWNER" || row.viewerRole === "ADMIN"
+    : row.createdById === viewerUserId;
+  const canTransition = row.projectId
+    ? canEditDetails || (row.viewerRole === "MEMBER" && row.assigneeId === viewerUserId)
+    : row.createdById === viewerUserId;
   return {
     id: row.id,
     projectId: row.projectId,
@@ -83,6 +91,11 @@ function toTaskDto(
     version: row.version,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    permissions: {
+      canEditDetails,
+      canTransition,
+      canArchive: canTransition,
+    },
     project: row.projectId
       ? {
           id: row.projectId,
@@ -172,7 +185,7 @@ export async function listWeekTasks(input: {
   const avatarUrls = await createProfileAssetUrlMap(
     rows.flatMap((row) => [row.createdByAvatarPath, row.assigneeAvatarPath]),
   );
-  return rows.map((row) => toTaskDto(row, avatarUrls));
+  return rows.map((row) => toTaskDto(row, avatarUrls, input.userId));
 }
 
 /**
@@ -181,10 +194,14 @@ export async function listWeekTasks(input: {
  * Output: Task DTO or null.
  * Side effects: Reads task joins.
  */
-export async function findTaskDto(taskId: string): Promise<TaskDto | null> {
+export async function findTaskDto(
+  taskId: string,
+  viewerUserId?: string,
+  db: DbExecutor = getDb(),
+): Promise<TaskDto | null> {
   const creator = alias(profiles, "creator_profiles");
   const assignee = alias(profiles, "assignee_profiles");
-  const rows = await getDb()
+  const rows = await db
     .select({
       id: tasks.id,
       projectId: tasks.projectId,
@@ -212,11 +229,21 @@ export async function findTaskDto(taskId: string): Promise<TaskDto | null> {
       projectTitle: projects.title,
       projectColorKey: projects.colorKey,
       projectIconKey: projects.iconKey,
+      viewerRole: projectMemberships.role,
     })
     .from(tasks)
     .innerJoin(creator, eq(tasks.createdBy, creator.id))
     .leftJoin(assignee, eq(tasks.assigneeId, assignee.id))
     .leftJoin(projects, eq(tasks.projectId, projects.id))
+    .leftJoin(
+      projectMemberships,
+      viewerUserId
+        ? and(
+            eq(projectMemberships.projectId, tasks.projectId),
+            eq(projectMemberships.userId, viewerUserId),
+          )
+        : sql`false`,
+    )
     .where(eq(tasks.id, taskId))
     .limit(1);
   const row = rows[0];
@@ -225,7 +252,7 @@ export async function findTaskDto(taskId: string): Promise<TaskDto | null> {
     row.createdByAvatarPath,
     row.assigneeAvatarPath,
   ]);
-  return toTaskDto(row, avatarUrls);
+  return toTaskDto(row, avatarUrls, viewerUserId);
 }
 
 /**
@@ -234,18 +261,21 @@ export async function findTaskDto(taskId: string): Promise<TaskDto | null> {
  * Output: Created task DTO.
  * Side effects: Writes tasks.
  */
-export async function insertTask(input: {
-  createdBy: string;
-  projectId: string | null;
-  assigneeId: string | null;
-  title: string;
-  description?: string | null;
-  iconKey?: ProjectIconKey | null;
-  scheduledDate: string;
-  scheduledTime?: string | null;
-  scheduledTimeZone: string;
-}): Promise<TaskDto> {
-  const [created] = await getDb()
+export async function insertTask(
+  input: {
+    createdBy: string;
+    projectId: string | null;
+    assigneeId: string | null;
+    title: string;
+    description?: string | null;
+    iconKey?: ProjectIconKey | null;
+    scheduledDate: string;
+    scheduledTime?: string | null;
+    scheduledTimeZone: string;
+  },
+  db: DbExecutor = getDb(),
+): Promise<TaskDto> {
+  const [created] = await db
     .insert(tasks)
     .values({
       projectId: input.projectId,
@@ -260,7 +290,7 @@ export async function insertTask(input: {
       scheduledTimeZone: input.scheduledTimeZone,
     })
     .returning({ id: tasks.id });
-  const dto = created ? await findTaskDto(created.id) : null;
+  const dto = created ? await findTaskDto(created.id, input.createdBy, db) : null;
   if (!dto) throw new Error("Task insert failed.");
   return dto;
 }
@@ -288,13 +318,15 @@ export async function updateTaskRow(
     completedAt: Date | null;
     archivedAt: Date | null;
   }>,
+  viewerUserId: string,
+  db: DbExecutor = getDb(),
 ): Promise<TaskDto | null> {
-  const [updated] = await getDb()
+  const [updated] = await db
     .update(tasks)
     .set({ ...values, version: version + 1, updatedAt: new Date() })
     .where(and(eq(tasks.id, taskId), eq(tasks.version, version)))
     .returning({ id: tasks.id });
-  return updated ? findTaskDto(updated.id) : null;
+  return updated ? findTaskDto(updated.id, viewerUserId, db) : null;
 }
 
 /**

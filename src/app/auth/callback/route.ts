@@ -16,6 +16,12 @@ function callbackTarget(request: NextRequest, pathname: string): URL {
   return target;
 }
 
+function successPath(request: NextRequest): "/dashboard" | "/reset-password" {
+  return request.nextUrl.searchParams.get("next") === "/reset-password"
+    ? "/reset-password"
+    : "/dashboard";
+}
+
 /**
  * Purpose: Complete the Supabase PKCE email-confirmation flow.
  * Inputs: Auth code or Supabase confirmation error query parameters.
@@ -30,7 +36,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      return noStoreRedirect(callbackTarget(request, "/dashboard"));
+      return noStoreRedirect(callbackTarget(request, successPath(request)));
     }
   }
 

@@ -82,7 +82,9 @@ export function ProjectDetailScreen() {
           <p className="mt-3 text-sm text-text-secondary">
             {project.data.githubRepositoryFullName ?? "No GitHub repository connected."}
           </p>
-          {!project.data.githubRepositoryFullName && (
+          {!project.data.githubRepositoryFullName &&
+          !project.data.archivedAt &&
+          (project.data.role === "OWNER" || project.data.role === "ADMIN") ? (
             <Link
               href={`/projects/${project.data.id}/settings`}
               className="mt-3 inline-block"
@@ -91,7 +93,7 @@ export function ProjectDetailScreen() {
                 Connect GitHub Repository
               </AppButton>
             </Link>
-          )}
+          ) : null}
         </Panel>
         <Panel title="Members">
           <AppAvatarStack users={project.data.members} />
@@ -103,8 +105,24 @@ export function ProjectDetailScreen() {
           <p className="text-sm text-text-secondary">this week</p>
         </Panel>
       </section>
+      {project.data.archivedAt ? (
+        <p className="rounded-lg border border-warning bg-warning-soft p-4 text-sm text-text-primary">
+          This project is archived. Its tasks and history remain available in read-only
+          mode.
+        </p>
+      ) : null}
       <Panel title="Project tasks">
-        {tasks.data?.length ? (
+        {tasks.isError ? (
+          <AppEmptyState
+            title="Tasks unavailable"
+            description="Project tasks could not be loaded."
+            action={
+              <AppButton variant="secondary" onClick={() => void tasks.refetch()}>
+                Try again
+              </AppButton>
+            }
+          />
+        ) : tasks.data?.length ? (
           <div className="grid gap-2">
             {tasks.data.map((task) => (
               <TaskRow

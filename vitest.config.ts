@@ -10,6 +10,12 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
+      thresholds: {
+        statements: 40,
+        branches: 30,
+        functions: 30,
+        lines: 40,
+      },
     },
   },
   resolve: {

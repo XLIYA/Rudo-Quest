@@ -68,6 +68,11 @@ export function useCreateTask(weekStart: string) {
         version: 1,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        permissions: {
+          canEditDetails: true,
+          canTransition: true,
+          canArchive: true,
+        },
         project: null,
       };
       queryClient.setQueryData<TaskDto[]>(queryKeys.tasksWeek(weekStart), [

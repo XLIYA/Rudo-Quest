@@ -15,6 +15,7 @@ export type AppTextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
 export const AppTextarea = forwardRef<HTMLTextAreaElement, AppTextareaProps>(
   ({ label, error, className, id, ...props }, ref) => {
     const inputId = id ?? props.name;
+    const errorId = inputId ? `${inputId}-error` : undefined;
     return (
       <label className="grid gap-1.5 text-sm font-medium text-text-primary">
         {label ? <span>{label}</span> : null}
@@ -22,6 +23,7 @@ export const AppTextarea = forwardRef<HTMLTextAreaElement, AppTextareaProps>(
           ref={ref}
           id={inputId}
           aria-invalid={Boolean(error)}
+          aria-describedby={error ? errorId : props["aria-describedby"]}
           className={cn(
             "min-h-28 rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none transition-colors placeholder:text-text-tertiary focus:border-brand",
             error ? "border-error" : null,
@@ -30,7 +32,9 @@ export const AppTextarea = forwardRef<HTMLTextAreaElement, AppTextareaProps>(
           {...props}
         />
         {error && inputId ? (
-          <span className="text-xs font-medium text-error">{error}</span>
+          <span id={errorId} role="alert" className="text-xs font-medium text-error">
+            {error}
+          </span>
         ) : null}
       </label>
     );

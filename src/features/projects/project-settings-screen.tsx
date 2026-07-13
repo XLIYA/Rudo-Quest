@@ -165,7 +165,9 @@ export function ProjectSettingsScreen() {
           expiresAt: string;
         }[]
       >(`/api/projects/${projectId}/invitations`, signal),
-    enabled: !!projectId,
+    enabled: Boolean(
+      projectId && (project.data?.role === "OWNER" || project.data?.role === "ADMIN"),
+    ),
   });
 
   const githubRepo = useQuery({
@@ -182,6 +184,7 @@ export function ProjectSettingsScreen() {
     queryKey: ["github-installations"],
     queryFn: ({ signal }) =>
       apiGet<GitHubInstallation[]>(`/api/github/installations`, signal),
+    enabled: project.data?.role === "OWNER" || project.data?.role === "ADMIN",
   });
 
   const archiveProject = useMutation({
@@ -199,8 +202,8 @@ export function ProjectSettingsScreen() {
         Pick<ProjectSummary, "title" | "description" | "iconKey" | "colorKey">
       > & { timeZone?: string },
     ) => apiMutation<ProjectSummary>("patch", `/api/projects/${projectId}`, body),
-    onSuccess: (data) => {
-      queryClient.setQueryData(queryKeys.project(projectId), data);
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.project(projectId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       AppToast("Project details updated.", "success");
     },
@@ -448,7 +451,16 @@ export function ProjectSettingsScreen() {
         }
       />
 
-      <fieldset disabled={!online} className="grid gap-5">
+      {projectData.archivedAt ? (
+        <p className="rounded-lg border border-warning bg-warning-soft p-4 text-sm">
+          Archived projects are read-only. Existing details remain visible below.
+        </p>
+      ) : null}
+
+      <fieldset
+        disabled={!online || Boolean(projectData.archivedAt)}
+        className="grid gap-5"
+      >
         {/* General Settings */}
         <SettingsSection title="General">
           <div className="grid gap-4 sm:grid-cols-2">

@@ -38,6 +38,32 @@ describe("Supabase auth callback", () => {
     expect(response.headers.get("cache-control")).toBe("private, no-store");
   });
 
+  it("routes a valid recovery exchange to the password form", async () => {
+    authMocks.exchangeCodeForSession.mockResolvedValue({ error: null });
+    const { GET } = await import("./route");
+
+    const response = await GET(
+      callbackRequest("?code=recovery-code&next=%2Freset-password"),
+    );
+
+    expect(response.headers.get("location")).toBe(
+      "https://rudo-quest.vercel.app/reset-password",
+    );
+  });
+
+  it("does not accept arbitrary callback redirect targets", async () => {
+    authMocks.exchangeCodeForSession.mockResolvedValue({ error: null });
+    const { GET } = await import("./route");
+
+    const response = await GET(
+      callbackRequest("?code=one-time-code&next=https%3A%2F%2Fevil.example"),
+    );
+
+    expect(response.headers.get("location")).toBe(
+      "https://rudo-quest.vercel.app/dashboard",
+    );
+  });
+
   it("maps an expired confirmation to a clean login error", async () => {
     const { GET } = await import("./route");
 

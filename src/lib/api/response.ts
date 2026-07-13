@@ -41,18 +41,26 @@ export function apiSuccess<T>(
  * Side effects: Adds request ID header.
  */
 export function apiFailure(error: unknown, requestId: string): NextResponse<ApiFailure> {
-  if (
-    process.env.NODE_ENV !== "production" &&
-    !(error instanceof AppError) &&
-    !(error instanceof ZodError)
-  ) {
-    console.error(`[api:${requestId}] Unhandled API error`, error);
-  }
-
   const appError =
     error instanceof ZodError
       ? new AppError("VALIDATION_ERROR", 400, "Validation failed.", zodFieldErrors(error))
       : normalizeAppError(error);
+  const unexpected = !(error instanceof AppError) && !(error instanceof ZodError);
+  if (unexpected || appError.status >= 500) {
+    if (process.env.NODE_ENV !== "test") {
+      void import("@sentry/nextjs")
+        .then((Sentry) =>
+          Sentry.captureException(error, {
+            tags: { requestId, errorCode: appError.code },
+            extra: { status: appError.status },
+          }),
+        )
+        .catch(() => undefined);
+    }
+    if (process.env.NODE_ENV !== "production") {
+      console.error(`[api:${requestId}] Unhandled API error`, error);
+    }
+  }
   const response = NextResponse.json(
     {
       error: {

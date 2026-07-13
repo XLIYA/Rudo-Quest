@@ -30,8 +30,11 @@ export function PasswordResetForm() {
       const supabase = createSupabaseBrowserClient();
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
+      const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
+      if (signOutError) throw signOutError;
       AppToast("Password updated. Sign in with your new password.", "success");
-      router.push("/login");
+      router.replace("/login?password_reset=success");
+      router.refresh();
     } catch {
       AppToast("The password reset link is invalid or expired.", "error");
     } finally {
