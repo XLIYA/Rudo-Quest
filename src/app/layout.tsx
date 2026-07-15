@@ -7,13 +7,17 @@ import type { ReactNode } from "react";
 import { Providers } from "@/components/shared/providers";
 import "./globals.css";
 
-const manrope = localFont({
-  src: "../assets/fonts/manrope-latin.woff2",
-  variable: "--font-manrope",
-  weight: "200 800",
+const notoSerif = localFont({
+  src: [
+    { path: "../../public/fonts/noto-serif/noto-serif-regular.ttf", weight: "400" },
+    { path: "../../public/fonts/noto-serif/noto-serif-500.ttf", weight: "500" },
+    { path: "../../public/fonts/noto-serif/noto-serif-600.ttf", weight: "600" },
+    { path: "../../public/fonts/noto-serif/noto-serif-700.ttf", weight: "700" },
+  ],
+  variable: "--font-noto-serif",
   style: "normal",
   display: "swap",
-  fallback: ["system-ui", "sans-serif"],
+  fallback: ["Georgia", "serif"],
 });
 
 const robotoMono = localFont({
@@ -67,7 +71,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${manrope.variable} ${robotoMono.variable} h-full antialiased`}
+      className={`${notoSerif.variable} ${robotoMono.variable} h-full antialiased`}
     >
       <body>
         <Providers nonce={nonce}>{children}</Providers>

@@ -16,13 +16,11 @@ import {
   Sun,
   User,
 } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
 import RudoMark from "@/assets/brand/rudo-mark.svg";
-import RudoWordmark from "@/assets/brand/rudo-wordmark.svg";
 import { OfflineStatusToast } from "@/components/shared/offline-status-toast";
 import { AppToast } from "@/components/ui/app-toast";
 import { useOnline } from "@/hooks/use-online";
@@ -224,15 +222,15 @@ export function AppShell({
             className="inline-flex min-h-11 shrink-0 items-center"
           >
             {collapsed ? (
-              <Image src={RudoMark} alt="Rudo Quest" width={40} height={40} />
+              <RudoMark className="size-10" aria-hidden="true" />
             ) : (
-              <Image
-                src={RudoWordmark}
-                alt="Rudo Quest"
-                width={175}
-                height={40}
-                priority
-              />
+              <span
+                className="inline-flex items-center gap-2"
+                style={{ fontFamily: "var(--font-bitcount-ink)" }}
+              >
+                <RudoMark className="size-8" aria-hidden="true" />
+                <span className="text-xl font-medium">Rudo Quest</span>
+              </span>
             )}
           </Link>
           {!collapsed ? (
