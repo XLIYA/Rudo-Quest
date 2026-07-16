@@ -190,7 +190,22 @@ export async function upsertPushSubscription(input: {
   auth: string;
   userAgent?: string | null;
 }) {
-  const [row] = await getDb()
+  const db = getDb();
+  const [existing] = await db
+    .select({ id: pushSubscriptions.id, userId: pushSubscriptions.userId })
+    .from(pushSubscriptions)
+    .where(eq(pushSubscriptions.endpoint, input.endpoint))
+    .limit(1);
+  if (existing && existing.userId !== input.userId) {
+    // The endpoint was previously owned by a different account. Never
+    // reassign ownership in place: drop the old subscription (and its
+    // delivery history via cascade) and insert a fresh row for the new
+    // owner so a transferred endpoint cannot inherit prior trust.
+    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, existing.id));
+    const [inserted] = await db.insert(pushSubscriptions).values(input).returning();
+    return inserted;
+  }
+  const [row] = await db
     .insert(pushSubscriptions)
     .values(input)
     .onConflictDoUpdate({
@@ -345,6 +360,7 @@ export async function listRetryableNotificationDeliveries(now: Date, limit = 100
         eq(notificationDeliveries.status, "FAILED"),
         sql`${notificationDeliveries.attemptCount} < 3`,
         sql`${notificationDeliveries.nextRetryAt} <= ${now}`,
+        eq(pushSubscriptions.userId, notifications.recipientId),
       ),
     )
     .orderBy(notificationDeliveries.nextRetryAt)

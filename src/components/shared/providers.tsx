@@ -61,6 +61,13 @@ export function Providers({ children, nonce }: { children: ReactNode; nonce?: st
     let activeUserId: string | null = null;
     let unsubscribeCache: (() => void) | null = null;
 
+    if (!shouldBootstrapPrivateCache) {
+      // Public routes must never retain a previous session's cached reads.
+      // Clear synchronously so stale private data cannot flash before any
+      // async identity check resolves.
+      queryClient.clear();
+    }
+
     /**
      * Purpose: Debounce persistence of the active user's approved read queries.
      * Inputs: None.

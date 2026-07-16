@@ -50,6 +50,14 @@ export function normalizeAppError(error: unknown): AppError {
   ) {
     return new AppError("CONFLICT", 409, "That resource is already in use.");
   }
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "23503"
+  ) {
+    return new AppError("CONFLICT", 409, "That reference is no longer valid.");
+  }
   if (error instanceof Error && error.message.startsWith("INTEGRATION_NOT_CONFIGURED:")) {
     return new AppError(
       "INTEGRATION_NOT_CONFIGURED",

@@ -39,8 +39,7 @@ const serwist = new Serwist({
     },
     {
       matcher: ({ request, url }) =>
-        request.mode === "navigate" &&
-        ["/", "/login", "/signup", "/offline"].includes(url.pathname),
+        request.mode === "navigate" && url.pathname === "/offline",
       handler: new NetworkFirst({ cacheName: "rudo-pages" }),
     },
     {

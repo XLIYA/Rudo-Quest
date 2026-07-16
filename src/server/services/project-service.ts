@@ -38,7 +38,7 @@ async function requireActiveProjectRole(
   projectId: string,
   userId: string,
   minimum: ProjectRole,
-): Promise<ProjectRole> {
+): Promise<{ role: ProjectRole; ownerId: string }> {
   const access = await findProjectAccess(projectId, userId);
   if (!access) {
     assertProjectRole(null, minimum);
@@ -48,7 +48,7 @@ async function requireActiveProjectRole(
   if (access?.archivedAt) {
     throw new AppError("CONFLICT", 409, "Archived projects are read-only.");
   }
-  return access.role;
+  return { role: access.role, ownerId: access.ownerId };
 }
 
 /**
@@ -182,7 +182,14 @@ export async function inviteProjectMember(
   payload: { invitedUserId: string; role: Exclude<ProjectRole, "OWNER"> },
 ) {
   await expirePendingInvitations();
-  await requireActiveProjectRole(projectId, userId, "ADMIN");
+  const { ownerId } = await requireActiveProjectRole(projectId, userId, "ADMIN");
+  if (payload.role === "ADMIN" && userId !== ownerId) {
+    throw new AppError(
+      "FORBIDDEN",
+      403,
+      "Only the owner can invite a new administrator.",
+    );
+  }
   const result = await runDbTransaction(async (tx) => {
     const invitation = await insertInvitation(
       {
@@ -295,7 +302,7 @@ export async function changeMemberRole(
   targetUserId: string,
   role: Exclude<ProjectRole, "OWNER">,
 ) {
-  const actorRole = await requireActiveProjectRole(projectId, userId, "ADMIN");
+  const { role: actorRole } = await requireActiveProjectRole(projectId, userId, "ADMIN");
   const targetRole = await findProjectRole(projectId, targetUserId);
   if (actorRole === "ADMIN" && (role === "ADMIN" || targetRole === "ADMIN")) {
     throw new AppError(

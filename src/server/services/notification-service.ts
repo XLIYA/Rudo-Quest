@@ -2,7 +2,7 @@ import webPush from "web-push";
 import * as Sentry from "@sentry/nextjs";
 import { AppError } from "@/lib/api/errors";
 import { getServerEnv, hasPushEnv } from "@/lib/env/server";
-import { pushSubscriptionSchema } from "@/lib/validation/common";
+import { assertSafePushEndpoint, pushSubscriptionSchema } from "@/lib/validation/common";
 import type { NotificationDto, NotificationType } from "@/types/domain";
 import type { DbExecutor } from "@/lib/db/client";
 import { findProfileById } from "@/server/repositories/profile-repository";
@@ -86,6 +86,7 @@ export async function subscribeToPush(
   if (!hasPushEnv())
     throw new AppError("INTEGRATION_NOT_CONFIGURED", 503, "Push is not configured.");
   const parsed = pushSubscriptionSchema.parse(payload);
+  await assertSafePushEndpoint(parsed.endpoint);
   const subscription = await upsertPushSubscription({
     userId,
     endpoint: parsed.endpoint,
@@ -139,6 +140,8 @@ export async function sendPushForNotification(
         (delivery.nextRetryAt && delivery.nextRetryAt > new Date()))
     )
       continue;
+    let pushSent = false;
+    let sendStatusCode = 0;
     try {
       await webPush.sendNotification(
         {
@@ -150,27 +153,52 @@ export async function sendPushForNotification(
           body: notification.body,
           href: notification.href ?? "/profile#notifications",
         }),
+        { timeout: 5000 },
       );
-      sent += 1;
-      await recordNotificationDelivery({
-        notificationId: notification.id,
-        subscriptionId: subscription.id,
-        status: "SENT",
-      });
+      pushSent = true;
     } catch (error) {
-      const statusCode =
+      sendStatusCode =
         typeof error === "object" && error && "statusCode" in error
           ? Number(error.statusCode)
           : 0;
+    }
+    // The provider result is now settled. Persist it separately so a
+    // database failure after a successful send cannot be mistaken for a
+    // failed delivery and re-sent on the next retry pass.
+    if (pushSent) {
+      sent += 1;
+      try {
+        await recordNotificationDelivery({
+          notificationId: notification.id,
+          subscriptionId: subscription.id,
+          status: "SENT",
+        });
+      } catch (writeError) {
+        Sentry.captureException(writeError, {
+          tags: {
+            operation: "push-delivery-record",
+            notificationType: notification.type,
+          },
+          extra: { notificationId: notification.id, subscriptionId: subscription.id },
+        });
+      }
+      continue;
+    }
+    try {
       await recordNotificationDelivery({
         notificationId: notification.id,
         subscriptionId: subscription.id,
         status: "FAILED",
-        failureReason: statusCode ? `HTTP ${statusCode}` : "Push delivery failed",
+        failureReason: sendStatusCode ? `HTTP ${sendStatusCode}` : "Push delivery failed",
       });
-      if (statusCode === 404 || statusCode === 410) {
+      if (sendStatusCode === 404 || sendStatusCode === 410) {
         await deletePushSubscriptionById(subscription.id);
       }
+    } catch (writeError) {
+      Sentry.captureException(writeError, {
+        tags: { operation: "push-delivery-record", notificationType: notification.type },
+        extra: { notificationId: notification.id, subscriptionId: subscription.id },
+      });
     }
   }
   return { sent };

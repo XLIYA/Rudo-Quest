@@ -1,6 +1,9 @@
 import { z } from "zod";
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import { projectColorKeys, projectIconKeys, projectRoles } from "@/types/domain";
 import { isValidTimeZone } from "@/lib/utils/dates";
+import { AppError } from "@/lib/api/errors";
 
 export const uuidSchema = z.uuid();
 export const dateSchema = z.iso.date();
@@ -35,9 +38,93 @@ export const uploadMetadataSchema = z.object({
 });
 
 export const pushSubscriptionSchema = z.object({
-  endpoint: z.url(),
+  endpoint: z
+    .url()
+    .refine(
+      (value) => new URL(value).protocol === "https:",
+      "Push endpoint must use https.",
+    ),
   keys: z.object({
     p256dh: z.string().min(10),
     auth: z.string().min(10),
   }),
 });
+
+/**
+ * Purpose: Detect IPv4 addresses within private, loopback, link-local, or other
+ * non-routable ranges that must never be reachable via a user-supplied endpoint.
+ * Inputs: Dotted-quad IPv4 address.
+ * Output: True when the address is forbidden.
+ * Side effects: None.
+ */
+function isForbiddenIpv4(address: string): boolean {
+  const octets = address.split(".").map(Number);
+  if (octets.length !== 4 || octets.some((octet) => Number.isNaN(octet))) return true;
+  const [a, b] = octets;
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 0) ||
+    (a === 192 && b === 168) ||
+    (a === 198 && b >= 18 && b <= 19) ||
+    (a === 198 && b === 51) ||
+    (a === 203 && b === 0) ||
+    a >= 224
+  );
+}
+
+/**
+ * Purpose: Detect IPv6 addresses within loopback, link-local, unique-local, or
+ * IPv4-mapped private ranges.
+ * Inputs: IPv6 address string.
+ * Output: True when the address is forbidden.
+ * Side effects: None.
+ */
+function isForbiddenIpv6(address: string): boolean {
+  const normalized = address.toLowerCase();
+  if (normalized === "::1" || normalized === "::") return true;
+  if (normalized.startsWith("fe8") || normalized.startsWith("fe9")) return true;
+  if (normalized.startsWith("fea") || normalized.startsWith("feb")) return true;
+  if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
+  const mappedMatch = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mappedMatch) return isForbiddenIpv4(mappedMatch[1]);
+  return false;
+}
+
+/**
+ * Purpose: Reject resolved addresses in private, reserved, or loopback ranges.
+ * Inputs: Resolved IPv4/IPv6 address string.
+ * Output: True when the address must not be used as a push endpoint target.
+ * Side effects: None.
+ */
+function isForbiddenIpAddress(address: string): boolean {
+  return isIP(address) === 4 ? isForbiddenIpv4(address) : isForbiddenIpv6(address);
+}
+
+/**
+ * Purpose: Verify a user-supplied push endpoint cannot target internal infrastructure.
+ * Inputs: Endpoint URL string already validated by `pushSubscriptionSchema`.
+ * Output: Resolves when the endpoint is safe to call.
+ * Side effects: Performs a DNS lookup for non-literal hostnames.
+ * Failure behavior: Throws a BAD_REQUEST AppError for disallowed protocols or
+ * addresses, including addresses discovered only after DNS resolution so a
+ * benign-looking hostname cannot rebind to an internal target.
+ */
+export async function assertSafePushEndpoint(rawUrl: string): Promise<void> {
+  const url = new URL(rawUrl);
+  if (url.protocol !== "https:") {
+    throw new AppError("BAD_REQUEST", 400, "Push endpoint must use https.");
+  }
+  const hostname = url.hostname;
+  const literalIpVersion = isIP(hostname);
+  const addresses = literalIpVersion
+    ? [hostname]
+    : (await lookup(hostname, { all: true })).map((entry) => entry.address);
+  if (addresses.length === 0 || addresses.some(isForbiddenIpAddress)) {
+    throw new AppError("BAD_REQUEST", 400, "Push endpoint host is not allowed.");
+  }
+}

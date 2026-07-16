@@ -54,7 +54,11 @@ export async function findProjectRole(
  */
 export async function findProjectAccess(projectId: string, userId: string) {
   const rows = await getDb()
-    .select({ role: projectMemberships.role, archivedAt: projects.archivedAt })
+    .select({
+      role: projectMemberships.role,
+      archivedAt: projects.archivedAt,
+      ownerId: projects.ownerId,
+    })
     .from(projectMemberships)
     .innerJoin(projects, eq(projectMemberships.projectId, projects.id))
     .where(
@@ -65,7 +69,13 @@ export async function findProjectAccess(projectId: string, userId: string) {
     )
     .limit(1);
   const row = rows[0];
-  return row ? { role: row.role as ProjectRole, archivedAt: row.archivedAt } : null;
+  return row
+    ? {
+        role: row.role as ProjectRole,
+        archivedAt: row.archivedAt,
+        ownerId: row.ownerId,
+      }
+    : null;
 }
 
 /**

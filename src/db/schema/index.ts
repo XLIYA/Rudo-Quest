@@ -3,6 +3,7 @@ import {
   boolean,
   check,
   date,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -231,6 +232,11 @@ export const tasks = pgTable(
       "tasks_status_completion_consistency",
       sql`(${table.status} = 'DONE' and ${table.completedAt} is not null) or (${table.status} <> 'DONE' and ${table.completedAt} is null)`,
     ),
+    foreignKey({
+      columns: [table.projectId, table.assigneeId],
+      foreignColumns: [projectMemberships.projectId, projectMemberships.userId],
+      name: "tasks_assignee_membership_fk",
+    }),
   ],
 );
 
@@ -321,7 +327,7 @@ export const notificationDeliveries = pgTable(
     ),
     index("notification_deliveries_retry_idx")
       .on(table.nextRetryAt, table.createdAt)
-      .where(sql`${table.status} in ('PENDING', 'RETRYING')`),
+      .where(sql`${table.status} in ('PENDING', 'RETRYING', 'FAILED')`),
     check(
       "notification_deliveries_status_check",
       sql`${table.status} in ('PENDING', 'SENT', 'FAILED', 'RETRYING')`,

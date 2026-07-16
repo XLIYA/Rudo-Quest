@@ -16,6 +16,7 @@ import {
   Sun,
   User,
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -222,13 +223,13 @@ export function AppShell({
             className="inline-flex min-h-11 shrink-0 items-center"
           >
             {collapsed ? (
-              <RudoMark className="size-10" aria-hidden="true" />
+              <Image src={RudoMark} alt="" className="size-10" priority />
             ) : (
               <span
                 className="inline-flex items-center gap-2"
                 style={{ fontFamily: "var(--font-bitcount-ink)" }}
               >
-                <RudoMark className="size-8" aria-hidden="true" />
+                <Image src={RudoMark} alt="" className="size-8" priority />
                 <span className="text-xl font-medium">Rudo Quest</span>
               </span>
             )}

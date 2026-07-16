@@ -53,6 +53,16 @@ export async function PATCH(request: NextRequest) {
     await assertRateLimit("auth-password-update", user.id, 5, 3600);
     const body = passwordUpdateSchema.parse(await readJson(request));
     const supabase = await createSupabaseServerClient();
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+    const amr = claimsData?.claims.amr as { method?: string }[] | undefined;
+    const isRecoverySession = amr?.some((entry) => entry.method === "recovery") ?? false;
+    if (claimsError || !isRecoverySession) {
+      throw new AppError(
+        "UNAUTHORIZED",
+        401,
+        "The password reset link is invalid or expired.",
+      );
+    }
     const { error } = await supabase.auth.updateUser({ password: body.password });
     if (error) {
       throw new AppError(
