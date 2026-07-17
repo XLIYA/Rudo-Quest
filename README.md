@@ -290,3 +290,78 @@ Details: [docs/PUSH_NOTIFICATIONS.md](docs/PUSH_NOTIFICATIONS.md).
 - V1 scope: metadata read permission only; no issue import, no two-way sync.
 
 Setup: [docs/GITHUB_APP_SETUP.md](docs/GITHUB_APP_SETUP.md).
+
+## CI
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every pull request and every push to `main`:
+
+**`quality` job**
+
+1. `npm ci`
+2. `npm run lint`
+3. `npm run typecheck`
+4. `npm run test:coverage`
+5. `npm run format` (Prettier check)
+6. `npm run build`
+7. `npm audit --omit=dev` — production dependency audit; known-good overrides live in `package.json` (`esbuild`, `postcss`, and `@serwist/next`'s nested `browserslist`)
+8. `git diff --check` — whitespace/conflict-marker guard
+
+**`browser` job**
+
+1. `npm ci`
+2. `npx playwright install --with-deps chromium`
+3. `npx playwright test --project=chromium`
+
+Pre-commit, Husky + lint-staged run `eslint --fix` and `prettier --write` on staged files.
+
+## Deployment
+
+Rudo Quest is designed for **Vercel + Supabase**:
+
+1. Create the Supabase project and configure Auth URL/redirects; verify the private `profile-assets` Storage bucket (4 MB limit, `image/jpeg`/`png`/`webp`).
+2. Add environment variables in Vercel Project Settings (Production/Preview/Development separately — see [docs/VERCEL_ENVIRONMENT.md](docs/VERCEL_ENVIRONMENT.md)).
+3. Attach Upstash Redis (Vercel Marketplace integration or manual REST credentials).
+4. Register the GitHub App if using the integration (callback + webhook URLs point at `/api/github/installations/callback` and `/api/webhooks/github`).
+5. Generate VAPID keys and set `CRON_SECRET`.
+6. Apply migrations to the production database **before** the first deployment:
+
+   ```bash
+   node --env-file=.env.production src/db/migrate.mjs
+   ```
+
+7. Store cron credentials in Supabase Vault:
+
+   ```bash
+   node --env-file=.env.production scripts/configure-supabase-cron.mjs
+   ```
+
+8. Deploy (`vercel --prod` or via Git integration) and run the post-deployment verification checklist (401s on unauthenticated `/api/me` and cron, 200 with `CRON_SECRET`, full user-flow smoke test).
+
+Use **separate Supabase projects** (and ideally a separate GitHub App) for Development/Preview/Production so preview deployments never share production data.
+
+## Design Decisions
+
+Deliberate product and engineering choices (full rationale in [docs/DECISIONS.md](docs/DECISIONS.md)):
+
+- **Intentionally small.** Capture, weekly planning, single-assignee ownership, membership, notifications, one GitHub connection — nothing more.
+- **Task statuses are exactly** `TODO`, `IN_PROGRESS`, `PENDING_REVIEW`, `DONE`. Completing stores `completed_at`; reopening restores the previous non-done status; archive is soft deletion via `archived_at`.
+- **Project colors use fixed keys**, never arbitrary hex.
+- **TanStack Query is the only client state** — no global task/project/profile stores.
+- **Route Handlers are the single server boundary** for browser mutations, keeping validation, authorization, and envelopes in one place.
+- **The 91-day heatmap layout is intentional**, as is self-hosted Noto Serif for all body text (no layout shift, no third-party font requests); Bitcount Ink is limited to the product name and prominent headings.
+
+## Documentation
+
+| Document                                                 | Contents                                                                    |
+| -------------------------------------------------------- | --------------------------------------------------------------------------- |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)             | System architecture and layering                                            |
+| [docs/SECURITY.md](docs/SECURITY.md)                     | Security model and permission matrix                                        |
+| [docs/VERCEL_ENVIRONMENT.md](docs/VERCEL_ENVIRONMENT.md) | Full environment variable reference, Vercel/Supabase setup, secret rotation |
+| [docs/GITHUB_APP_SETUP.md](docs/GITHUB_APP_SETUP.md)     | GitHub App registration and flow details                                    |
+| [docs/PUSH_NOTIFICATIONS.md](docs/PUSH_NOTIFICATIONS.md) | Push/cron notification pipeline                                             |
+| [docs/PWA_OFFLINE.md](docs/PWA_OFFLINE.md)               | Service worker, caching, offline semantics                                  |
+| [docs/DECISIONS.md](docs/DECISIONS.md)                   | Product and engineering decision rationale                                  |
+
+---
+
+Private project — all rights reserved. Not licensed for external distribution.
