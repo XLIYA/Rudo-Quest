@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { Route } from "next";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { AppToast } from "@/components/ui/app-toast";
@@ -51,13 +51,12 @@ export function getSafePostLoginPath(next: string | null): Route {
 }
 
 /**
- * Purpose: Render and submit login/signup forms through the central Axios client.
+ * Purpose: Render and submit login/signup forms through the central browser API client.
  * Inputs: Auth mode.
  * Output: Accessible auth form.
  * Side effects: Calls auth API routes, redirects on success, shows toasts on failure.
  */
 export function AuthForm({ mode }: { mode: "login" | "signup" }) {
-  const router = useRouter();
   const search = useSearchParams();
   const schema = mode === "login" ? loginSchema : signupSchema;
   const form = useForm<AuthValues>({
@@ -86,11 +85,10 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         "requiresEmailVerification" in result &&
         result.requiresEmailVerification
       ) {
-        router.push("/verify-email");
+        window.location.replace("/verify-email");
       } else {
-        router.push(getSafePostLoginPath(search.get("next")));
+        window.location.replace(getSafePostLoginPath(search.get("next")));
       }
-      router.refresh();
     } catch (error) {
       const normalized = normalizeApiClientError(error);
       AppToast(normalized.message, "error");

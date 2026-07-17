@@ -22,7 +22,7 @@ export function AppEmptyState({ title, description, action }: AppEmptyStateProps
         alt=""
         width={160}
         height={120}
-        priority
+        loading="eager"
         className="mx-auto"
       />
       <h2 className="mt-4 text-lg font-semibold">{title}</h2>

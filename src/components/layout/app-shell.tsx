@@ -92,8 +92,8 @@ export function AppShell({
   initialNotifications,
 }: {
   children: React.ReactNode;
-  initialProfile: NavProfile;
-  initialNotifications: NotificationPageDto;
+  initialProfile?: NavProfile;
+  initialNotifications?: NotificationPageDto;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -113,11 +113,14 @@ export function AppShell({
   const profile = useQuery({
     queryKey: queryKeys.me,
     queryFn: ({ signal }) => apiGet<NavProfile>("/api/me", signal),
-    initialData: initialProfile,
     staleTime: 60_000,
+    ...(initialProfile ? { initialData: initialProfile } : undefined),
   });
+  const displayedProfile = hydrated ? profile.data : initialProfile;
   const notifications = useNotifications(initialNotifications);
   const unreadCount = notifications.data?.pages[0]?.unreadCount ?? 0;
+  const showQuickAdd =
+    pathname.startsWith("/dashboard") || pathname.startsWith("/weekly");
   const signOut = useMutation({
     mutationFn: async () => {
       try {
@@ -225,10 +228,7 @@ export function AppShell({
             {collapsed ? (
               <Image src={RudoMark} alt="" className="size-10" priority />
             ) : (
-              <span
-                className="inline-flex items-center gap-2"
-                style={{ fontFamily: "var(--font-bitcount-ink)" }}
-              >
+              <span className="inline-flex items-center gap-2 font-display">
                 <Image src={RudoMark} alt="" className="size-8" priority />
                 <span className="text-xl font-medium">Rudo Quest</span>
               </span>
@@ -300,13 +300,13 @@ export function AppShell({
               )}
             >
               <AppAvatar
-                name={profile.data?.displayName ?? "Rudo user"}
-                src={profile.data?.avatarPath}
+                name={displayedProfile?.displayName ?? "Rudo user"}
+                src={displayedProfile?.avatarPath}
                 className="size-8"
               />
               {!collapsed ? (
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold">
-                  {profile.data?.displayName ?? "Account"}
+                  {displayedProfile?.displayName ?? "Account"}
                 </span>
               ) : null}
               {!collapsed ? <ChevronDown className="size-4" aria-hidden="true" /> : null}
@@ -398,13 +398,15 @@ export function AppShell({
             <AppSkeleton className="h-[32rem] w-full" />
           </main>
         )}
-        <Link
-          href="/weekly?quickAdd=1"
-          className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-[calc(1.25rem+env(safe-area-inset-right))] z-30 inline-flex size-14 items-center justify-center rounded-lg bg-brand text-white shadow-[var(--shadow-raised)] md:hidden"
-          aria-label="Add task"
-        >
-          <Plus className="size-6" aria-hidden="true" />
-        </Link>
+        {showQuickAdd ? (
+          <Link
+            href="/weekly?quickAdd=1"
+            className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-[calc(1.25rem+env(safe-area-inset-right))] z-30 inline-flex size-14 items-center justify-center rounded-lg bg-brand text-white shadow-[var(--shadow-raised)] md:hidden"
+            aria-label="Add task"
+          >
+            <Plus className="size-6" aria-hidden="true" />
+          </Link>
+        ) : null}
         <nav
           className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] pl-[calc(0.25rem+env(safe-area-inset-left))] pr-[calc(0.25rem+env(safe-area-inset-right))] backdrop-blur md:hidden"
           aria-label="Mobile primary"

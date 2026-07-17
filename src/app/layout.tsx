@@ -7,6 +7,8 @@ import type { ReactNode } from "react";
 import { Providers } from "@/components/shared/providers";
 import "./globals.css";
 
+export const preferredRegion = "syd1";
+
 const notoSerif = localFont({
   src: [
     { path: "../../public/fonts/noto-serif/noto-serif-regular.ttf", weight: "400" },
@@ -18,15 +20,6 @@ const notoSerif = localFont({
   style: "normal",
   display: "swap",
   fallback: ["Georgia", "serif"],
-});
-
-const robotoMono = localFont({
-  src: "../assets/fonts/roboto-mono-latin.woff2",
-  variable: "--font-roboto-mono",
-  weight: "100 700",
-  style: "normal",
-  display: "swap",
-  fallback: ["ui-monospace", "monospace"],
 });
 
 export const metadata: Metadata = {
@@ -71,7 +64,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${notoSerif.variable} ${robotoMono.variable} h-full antialiased`}
+      className={`${notoSerif.variable} h-full antialiased`}
     >
       <body>
         <Providers nonce={nonce}>{children}</Providers>

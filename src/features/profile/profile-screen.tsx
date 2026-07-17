@@ -287,6 +287,7 @@ export function ProfileScreen() {
                 fill
                 className="object-cover"
                 sizes="(max-width: 768px) 100vw, 960px"
+                priority
               />
             ) : null}
           </div>

@@ -10,7 +10,7 @@ import { withDistributedLock } from "@/server/security/distributed-lock";
 export const maxDuration = 300;
 
 /**
- * Purpose: Execute scheduled notification jobs from Vercel Cron.
+ * Purpose: Execute authorized scheduled notification jobs.
  * Inputs: Bearer CRON_SECRET authorization header.
  * Output: Job summary.
  * Side effects: Creates notifications, sends push, logs deliveries.
@@ -32,7 +32,7 @@ async function handleCronRequest(request: NextRequest) {
 }
 
 /**
- * Purpose: Accept Vercel Cron's GET invocation.
+ * Purpose: Accept compatible authorized GET invocations.
  * Inputs: Authorized cron request.
  * Output: Notification job response.
  * Side effects: Runs the scheduled notification job under a distributed lock.

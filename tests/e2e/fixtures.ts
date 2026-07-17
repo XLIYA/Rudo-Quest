@@ -15,11 +15,14 @@ export function monitorBrowserErrors(page: Page): BrowserErrorAudit {
   const errors: string[] = [];
 
   page.on("pageerror", (error) => {
-    errors.push(`Uncaught: ${error.message}`);
+    errors.push(`Uncaught at ${page.url()}: ${error.stack ?? error.message}`);
   });
   page.on("console", (message) => {
-    if (message.type() === "error") {
-      errors.push(`Console: ${message.text()}`);
+    const text = message.text();
+    const expectedOfflineFailure =
+      text === "Failed to load resource: net::ERR_INTERNET_DISCONNECTED";
+    if (message.type() === "error" && !expectedOfflineFailure) {
+      errors.push(`Console: ${text}`);
     }
   });
 

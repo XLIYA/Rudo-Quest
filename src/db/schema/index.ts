@@ -72,6 +72,7 @@ export const profileAssetUploads = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    index("profile_asset_uploads_user_idx").on(table.userId),
     index("profile_asset_uploads_pending_expiry_idx")
       .on(table.expiresAt)
       .where(sql`${table.committedAt} is null`),
@@ -96,6 +97,7 @@ export const projects = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    index("projects_owner_idx").on(table.ownerId),
     check("projects_title_length", sql`length(${table.title}) between 2 and 60`),
     check(
       "projects_description_length",
@@ -128,6 +130,7 @@ export const projectMemberships = pgTable(
       table.userId,
     ),
     index("project_memberships_project_user_idx").on(table.projectId, table.userId),
+    index("project_memberships_user_idx").on(table.userId),
     uniqueIndex("project_one_owner_uidx")
       .on(table.projectId)
       .where(sql`${table.role} = 'OWNER'`),
@@ -158,6 +161,8 @@ export const projectInvitations = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    index("project_invitations_invited_user_idx").on(table.invitedUserId),
+    index("project_invitations_invited_by_idx").on(table.invitedBy),
     index("project_invitations_project_user_status_idx").on(
       table.projectId,
       table.invitedUserId,
@@ -201,6 +206,7 @@ export const tasks = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    index("tasks_project_assignee_idx").on(table.projectId, table.assigneeId),
     index("tasks_assignee_date_status_idx").on(
       table.assigneeId,
       table.scheduledDate,
@@ -213,6 +219,9 @@ export const tasks = pgTable(
     ),
     index("tasks_created_by_date_idx").on(table.createdBy, table.scheduledDate),
     index("tasks_archived_at_idx").on(table.archivedAt),
+    index("tasks_assignee_completed_at_idx")
+      .on(table.assigneeId, table.completedAt)
+      .where(sql`${table.status} = 'DONE' and ${table.archivedAt} is null`),
     check("tasks_title_length", sql`length(${table.title}) between 1 and 140`),
     check(
       "tasks_description_length",
@@ -274,6 +283,11 @@ export const notifications = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    index("notifications_recipient_created_idx").on(
+      table.recipientId,
+      table.createdAt,
+      table.id,
+    ),
     index("notifications_recipient_read_created_idx").on(
       table.recipientId,
       table.readAt,
@@ -325,6 +339,7 @@ export const notificationDeliveries = pgTable(
       table.notificationId,
       table.subscriptionId,
     ),
+    index("notification_deliveries_subscription_idx").on(table.subscriptionId),
     index("notification_deliveries_retry_idx")
       .on(table.nextRetryAt, table.createdAt)
       .where(sql`${table.status} in ('PENDING', 'RETRYING', 'FAILED')`),
@@ -352,19 +367,23 @@ export const githubInstallationStates = pgTable(
   (table) => [index("github_installation_states_user_idx").on(table.userId)],
 );
 
-export const githubInstallations = pgTable("github_installations", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  githubInstallationId: bigint("github_installation_id", { mode: "number" })
-    .notNull()
-    .unique(),
-  githubAccountLogin: text("github_account_login").notNull(),
-  githubAccountType: text("github_account_type").notNull(),
-  installedBy: uuid("installed_by")
-    .notNull()
-    .references(() => profiles.id),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const githubInstallations = pgTable(
+  "github_installations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    githubInstallationId: bigint("github_installation_id", { mode: "number" })
+      .notNull()
+      .unique(),
+    githubAccountLogin: text("github_account_login").notNull(),
+    githubAccountType: text("github_account_type").notNull(),
+    installedBy: uuid("installed_by")
+      .notNull()
+      .references(() => profiles.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("github_installations_installed_by_idx").on(table.installedBy)],
+);
 
 export const projectRepositories = pgTable(
   "project_repositories",

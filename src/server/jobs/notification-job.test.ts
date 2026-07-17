@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppError } from "@/lib/api/errors";
 
 const repository = vi.hoisted(() => ({
-  countDueTasksForDate: vi.fn(),
+  countDueTasksForUsersOnDate: vi.fn(),
   listNotificationEligibleProfiles: vi.fn(),
 }));
 const notifications = vi.hoisted(() => ({
   createNotification: vi.fn(),
+  preparePushDelivery: vi.fn(),
   retryPushDeliveries: vi.fn(),
   sendPushForNotification: vi.fn(),
 }));
@@ -31,8 +32,12 @@ const profile = {
 beforeEach(() => {
   vi.clearAllMocks();
   repository.listNotificationEligibleProfiles.mockResolvedValue([profile]);
-  repository.countDueTasksForDate.mockResolvedValue(2);
+  repository.countDueTasksForUsersOnDate.mockResolvedValue(new Map([[profile.id, 2]]));
   notifications.retryPushDeliveries.mockResolvedValue({ attempted: 0, sent: 0 });
+  notifications.preparePushDelivery.mockResolvedValue({
+    subscriptions: [],
+    notificationsEnabled: true,
+  });
   profileService.cleanupExpiredProfileAssetUploads.mockResolvedValue({ removed: 0 });
   notifications.createNotification.mockImplementation(
     async (input: { type: string }) => ({
@@ -53,8 +58,8 @@ describe("notification cron eligibility", () => {
     const { runNotificationCron } = await import("./notification-job");
     await runNotificationCron(new Date("2026-07-12T00:00:00.000Z"));
 
-    expect(repository.countDueTasksForDate).toHaveBeenCalledWith(
-      profile.id,
+    expect(repository.countDueTasksForUsersOnDate).toHaveBeenCalledWith(
+      [profile.id],
       "2026-07-12",
     );
     expect(notifications.createNotification).toHaveBeenCalledTimes(2);
@@ -69,7 +74,7 @@ describe("notification cron eligibility", () => {
   });
 
   it("creates a daily digest even when there are no due tasks", async () => {
-    repository.countDueTasksForDate.mockResolvedValue(0);
+    repository.countDueTasksForUsersOnDate.mockResolvedValue(new Map());
     const { runNotificationCron } = await import("./notification-job");
     await runNotificationCron(new Date("2026-07-12T00:00:00.000Z"));
 

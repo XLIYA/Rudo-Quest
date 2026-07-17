@@ -77,9 +77,11 @@ export function ProjectsScreen() {
         title="Projects"
         description="Small shared spaces for assignment, progress, members, and one GitHub repository."
         action={
-          <AppButton onClick={() => setCreateOpen(true)} disabled={!online}>
-            Create project
-          </AppButton>
+          query.data?.length ? (
+            <AppButton onClick={() => setCreateOpen(true)} disabled={!online}>
+              Create project
+            </AppButton>
+          ) : undefined
         }
       />
       <section className="grid gap-3 rounded-lg border border-border bg-surface p-4 md:grid-cols-[1fr_12rem_12rem]">

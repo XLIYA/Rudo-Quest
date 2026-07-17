@@ -95,7 +95,10 @@ export function Providers({ children, nonce }: { children: ReactNode; nonce?: st
       let profile: MeProfile | null = null;
       if (navigator.onLine) {
         try {
-          profile = await apiGet<MeProfile>("/api/me");
+          profile = await queryClient.fetchQuery<MeProfile>({
+            queryKey: queryKeys.me,
+            queryFn: ({ signal }) => apiGet<MeProfile>("/api/me", signal),
+          });
         } catch (error) {
           if (normalizeApiClientError(error).status === 401 && previousUserId) {
             await clearUserQueryCache(previousUserId);
@@ -115,7 +118,6 @@ export function Providers({ children, nonce }: { children: ReactNode; nonce?: st
       }
       if (!activeUserId) return;
       await restoreUserQueryCache(queryClient, activeUserId);
-      if (profile) queryClient.setQueryData(queryKeys.me, profile);
       unsubscribeCache = queryClient.getQueryCache().subscribe(persist);
       if (disposed) unsubscribeCache();
       else persist();

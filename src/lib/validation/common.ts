@@ -60,7 +60,9 @@ export const pushSubscriptionSchema = z.object({
 function isForbiddenIpv4(address: string): boolean {
   const octets = address.split(".").map(Number);
   if (octets.length !== 4 || octets.some((octet) => Number.isNaN(octet))) return true;
-  const [a, b] = octets;
+  const a = octets[0];
+  const b = octets[1];
+  if (a === undefined || b === undefined) return true;
   return (
     a === 0 ||
     a === 10 ||
@@ -91,7 +93,8 @@ function isForbiddenIpv6(address: string): boolean {
   if (normalized.startsWith("fea") || normalized.startsWith("feb")) return true;
   if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;
   const mappedMatch = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mappedMatch) return isForbiddenIpv4(mappedMatch[1]);
+  const mappedIpv4 = mappedMatch?.[1];
+  if (mappedIpv4) return isForbiddenIpv4(mappedIpv4);
   return false;
 }
 

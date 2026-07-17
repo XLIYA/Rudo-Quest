@@ -117,19 +117,26 @@ export async function unsubscribeFromPush(userId: string, payload: unknown) {
 export async function sendPushForNotification(
   notification: NotificationDto,
   userId: string,
-  selectedSubscriptions?: Awaited<ReturnType<typeof listPushSubscriptions>>,
+  options?: {
+    subscriptions?: Awaited<ReturnType<typeof listPushSubscriptions>>;
+    notificationsEnabled?: boolean;
+  },
 ) {
   const env = getServerEnv();
   if (!hasPushEnv(env)) return { sent: 0 };
-  const profile = await findProfileById(userId);
-  if (!profile?.notificationsEnabled) return { sent: 0 };
+  if (options?.notificationsEnabled === false) return { sent: 0 };
+  if (options?.notificationsEnabled === undefined) {
+    const profile = await findProfileById(userId);
+    if (!profile?.notificationsEnabled) return { sent: 0 };
+  }
   webPush.setVapidDetails(
     env.VAPID_SUBJECT ?? "mailto:admin@example.com",
     env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "",
     env.VAPID_PRIVATE_KEY ?? "",
   );
   let sent = 0;
-  const subscriptions = selectedSubscriptions ?? (await listPushSubscriptions(userId));
+  const subscriptions = options?.subscriptions ?? (await listPushSubscriptions(userId));
+  if (subscriptions.length === 0) return { sent: 0 };
   const deliveryStatuses = await listNotificationDeliveryStatuses(notification.id);
   for (const subscription of subscriptions) {
     const delivery = deliveryStatuses.get(subscription.id);
@@ -205,6 +212,25 @@ export async function sendPushForNotification(
 }
 
 /**
+ * Purpose: Load one recipient's push subscriptions once for a multi-notification job.
+ * Inputs: Recipient ID and known account notification preference.
+ * Output: Reusable delivery options.
+ * Side effects: Reads push subscriptions only when push is configured and enabled.
+ */
+export async function preparePushDelivery(
+  userId: string,
+  notificationsEnabled: boolean,
+): Promise<Parameters<typeof sendPushForNotification>[2]> {
+  if (!notificationsEnabled || !hasPushEnv()) {
+    return { subscriptions: [], notificationsEnabled };
+  }
+  return {
+    subscriptions: await listPushSubscriptions(userId),
+    notificationsEnabled,
+  };
+}
+
+/**
  * Purpose: Deliver browser push after its durable in-app notification has committed.
  * Inputs: Safe notification DTO and recipient ID.
  * Output: Promise that always resolves after delivery or failure capture.
@@ -238,7 +264,7 @@ export async function retryPushDeliveries(now = new Date(), limit = 100) {
     const result = await sendPushForNotification(
       delivery.notification,
       delivery.recipientId,
-      [delivery.subscription],
+      { subscriptions: [delivery.subscription] },
     );
     sent += result.sent;
   }

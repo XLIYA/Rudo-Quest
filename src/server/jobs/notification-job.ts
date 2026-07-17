@@ -2,11 +2,12 @@ import { AppError } from "@/lib/api/errors";
 import { getServerEnv } from "@/lib/env/server";
 import {
   createNotification,
+  preparePushDelivery,
   retryPushDeliveries,
   sendPushForNotification,
 } from "@/server/services/notification-service";
 import {
-  countDueTasksForDate,
+  countDueTasksForUsersOnDate,
   listNotificationEligibleProfiles,
 } from "@/server/repositories/notification-repository";
 import { cleanupExpiredProfileAssetUploads } from "@/server/jobs/profile-upload-cleanup";
@@ -14,7 +15,7 @@ import { cleanupExpiredProfileAssetUploads } from "@/server/jobs/profile-upload-
 const defaultReminderTime = "09:00";
 
 /**
- * Purpose: Verify Vercel Cron authorization.
+ * Purpose: Verify scheduled-job bearer authorization.
  * Inputs: Authorization header value.
  * Output: Void when valid.
  * Side effects: None.
@@ -116,25 +117,44 @@ function isQuietTime(localTime: string, start: string, end: string): boolean {
  * Business rule: Each reminder type is deduplicated by a database unique key and is suppressed during quiet hours.
  */
 export async function runNotificationCron(now = new Date()) {
-  const uploadCleanup = await cleanupExpiredProfileAssetUploads();
-  const retries = await retryPushDeliveries(now);
-  const profiles = await listNotificationEligibleProfiles();
+  const [uploadCleanup, retries, profiles] = await Promise.all([
+    cleanupExpiredProfileAssetUploads(),
+    retryPushDeliveries(now),
+    listNotificationEligibleProfiles(),
+  ]);
+  const eligible = profiles.flatMap((profile) => {
+    const local = getLocalDateTime(now, profile.timeZone);
+    const reminderTime = getReminderTime(profile.dailyReminderTime);
+    if (
+      isQuietTime(local.time, profile.quietHoursStart, profile.quietHoursEnd) ||
+      local.time < reminderTime
+    ) {
+      return [];
+    }
+    return [{ profile, localDate: local.date }];
+  });
+  const profilesByDate = new Map<string, typeof eligible>();
+  for (const entry of eligible) {
+    const entries = profilesByDate.get(entry.localDate) ?? [];
+    entries.push(entry);
+    profilesByDate.set(entry.localDate, entries);
+  }
+  const dueCounts = new Map<string, number>();
+  for (const [localDate, entries] of profilesByDate) {
+    for (let offset = 0; offset < entries.length; offset += 250) {
+      const ids = entries.slice(offset, offset + 250).map(({ profile }) => profile.id);
+      const batchCounts = await countDueTasksForUsersOnDate(ids, localDate);
+      for (const [userId, count] of batchCounts) dueCounts.set(userId, count);
+    }
+  }
   let created = 0;
-  for (let offset = 0; offset < profiles.length; offset += 10) {
-    const batch = profiles.slice(offset, offset + 10);
+  for (let offset = 0; offset < eligible.length; offset += 10) {
+    const batch = eligible.slice(offset, offset + 10);
     const counts = await Promise.all(
-      batch.map(async (profile) => {
-        const local = getLocalDateTime(now, profile.timeZone);
-        const reminderTime = getReminderTime(profile.dailyReminderTime);
-        if (
-          isQuietTime(local.time, profile.quietHoursStart, profile.quietHoursEnd) ||
-          local.time < reminderTime
-        ) {
-          return 0;
-        }
-        const localDate = local.date;
+      batch.map(async ({ profile, localDate }) => {
         const href = `/weekly?date=${localDate}`;
-        const dueCount = await countDueTasksForDate(profile.id, localDate);
+        const dueCount = dueCounts.get(profile.id) ?? 0;
+        const push = await preparePushDelivery(profile.id, profile.notificationsEnabled);
         if (dueCount > 0) {
           const dueNotification = await createNotification({
             recipientId: profile.id,
@@ -144,7 +164,7 @@ export async function runNotificationCron(now = new Date()) {
             href,
             dedupeKey: `${profile.id}:${localDate}:TASK_DUE_TODAY`,
           });
-          await sendPushForNotification(dueNotification, profile.id);
+          await sendPushForNotification(dueNotification, profile.id, push);
         }
         const digest = await createNotification({
           recipientId: profile.id,
@@ -154,7 +174,7 @@ export async function runNotificationCron(now = new Date()) {
           href,
           dedupeKey: `${profile.id}:${localDate}:DAILY_DIGEST`,
         });
-        await sendPushForNotification(digest, profile.id);
+        await sendPushForNotification(digest, profile.id, push);
         return dueCount > 0 ? 2 : 1;
       }),
     );

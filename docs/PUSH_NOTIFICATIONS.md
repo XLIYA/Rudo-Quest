@@ -12,14 +12,15 @@ Users opt in from profile/settings. The app never requests browser notification 
 
 Notification payloads avoid private task descriptions and use safe title/body text. Delivery attempts are logged in `notification_deliveries`; 404 and 410 push failures remove dead subscriptions.
 
-The scheduled endpoint supports `GET /api/cron/notifications` for Vercel Cron
-and `POST /api/cron/notifications` for an authorized manual run. Both require:
+The scheduled endpoint supports `POST /api/cron/notifications` for Supabase Cron
+and authorized manual runs. `GET` remains available for compatibility. Both require:
 
 ```text
 Authorization: Bearer CRON_SECRET
 ```
 
-Vercel invokes the endpoint every 15 minutes. Each user is evaluated in their
+Supabase Cron invokes the endpoint every 15 minutes using a target URL and
+bearer credential stored in Supabase Vault. Each user is evaluated in their
 configured IANA timezone, quiet hours are respected, and due-today plus daily
 digest notifications use database unique dedupe keys. Delivery rows enforce
 one notification/subscription pair, track attempts, use exponential backoff,

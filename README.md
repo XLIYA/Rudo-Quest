@@ -1,6 +1,6 @@
 # Rudo Quest
 
-Rudo Quest is a compact collaborative weekly task-management PWA built with Next.js App Router, Supabase Auth/PostgreSQL, Drizzle ORM, TanStack Query, Axios, Serwist, and Vercel.
+Rudo Quest is a compact collaborative weekly task-management PWA built with Next.js App Router, Supabase Auth/PostgreSQL, Drizzle ORM, TanStack Query, the browser Fetch API, Serwist, and Vercel.
 
 ## Local Setup
 
@@ -40,7 +40,7 @@ Schema lives in `src/db/schema/index.ts`. Hand-authored, forward-only SQL in `sr
 
 ## Application
 
-Browser mutations go through Route Handlers via `src/lib/api/client.ts`, the single Axios client. Server Components and Route Handlers resolve the current Supabase user server-side. Business logic is in `src/server/services`, database access is in `src/server/repositories`, and authorization is in `src/server/policies`.
+Browser mutations go through Route Handlers via the typed Fetch wrapper in `src/lib/api/client.ts`. Server Components and Route Handlers resolve the current Supabase user server-side. Business logic is in `src/server/services`, database access is in `src/server/repositories`, and authorization is in `src/server/policies`.
 
 ## PWA
 

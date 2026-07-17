@@ -2,7 +2,7 @@
 
 This application is designed for Vercel, Supabase Auth/PostgreSQL, private
 Supabase Storage for profile assets, a GitHub App integration, Upstash Redis
-rate limiting, Vercel Cron, Web Push VAPID keys, and optional Sentry reporting.
+rate limiting, Supabase Cron/Vault, Web Push VAPID keys, and optional Sentry reporting.
 
 `.env.production` is useful only for local production-mode verification. Do not
 commit it. Vercel deployments read environment variables from Project Settings,
@@ -36,7 +36,7 @@ and client-visible configuration.
 | `VAPID_SUBJECT`                        | Server-only | Required for push notifications             | A contact subject for push services, usually `mailto:ops@yourdomain.com` or `https://yourdomain.com`.                                                                                                                                                 |
 | `UPSTASH_REDIS_REST_URL`               | Server-only | Yes for production rate limiting            | Upstash Redis REST URL from the Upstash Console or the Upstash Vercel integration.                                                                                                                                                                    |
 | `UPSTASH_REDIS_REST_TOKEN`             | Server-only | Yes for production rate limiting            | Upstash Redis REST token from the Upstash Console or the Upstash Vercel integration.                                                                                                                                                                  |
-| `CRON_SECRET`                          | Server-only | Yes for scheduled notifications             | A random secret, for example `openssl rand -base64 32`. Vercel Cron sends it as a bearer token when the variable exists.                                                                                                                              |
+| `CRON_SECRET`                          | Server-only | Yes for scheduled notifications             | A random secret, for example `openssl rand -base64 32`. Store the same value in Vercel and encrypted Supabase Vault using the configuration command below.                                                                                            |
 | `NEXT_PUBLIC_SENTRY_DSN`               | Public      | Optional                                    | Sentry project DSN from Sentry Project Settings > Client Keys. Required only if browser/server error reporting is enabled.                                                                                                                            |
 | `SENTRY_AUTH_TOKEN`                    | Server-only | Optional                                    | Sentry auth token with source map upload permissions. Required only for production source map upload during `next build`.                                                                                                                             |
 
@@ -82,11 +82,13 @@ private, should have a 4 MB file size limit, and should allow
 this bucket, but production should be verified in the Supabase dashboard before
 release because profile assets are displayed through signed URLs.
 
-Run migrations against the production database before the first production
-deployment:
+Store the Cron URL and bearer credential in Supabase Vault, then run migrations
+against the production database before the first production deployment. Loading
+`.env.production` this way keeps values out of command output:
 
 ```bash
-DATABASE_URL='postgresql://...' npm run db:migrate
+node --env-file=.env.production scripts/configure-supabase-cron.mjs
+node --env-file=.env.production src/db/migrate.mjs
 ```
 
 Run production seeding only if you intentionally want to create a production
@@ -154,12 +156,12 @@ Put `publicKey` in `NEXT_PUBLIC_VAPID_PUBLIC_KEY` and `privateKey` in
 Rotating VAPID keys invalidates existing browser push subscriptions. After
 rotation, users need to subscribe again from the app.
 
-## Vercel Cron
+## Supabase Cron
 
-`vercel.json` schedules:
+Migration `0009_supabase_notification_cron.sql` schedules:
 
 ```text
-GET /api/cron/notifications every 15 minutes
+POST /api/cron/notifications every 15 minutes
 ```
 
 Create `CRON_SECRET` with a random value such as:
@@ -168,7 +170,8 @@ Create `CRON_SECRET` with a random value such as:
 openssl rand -base64 32
 ```
 
-Add it to Vercel. Vercel Cron automatically sends the value as:
+Add the value to Vercel, then run the Vault configuration command shown above.
+Supabase Cron sends it as:
 
 ```text
 Authorization: Bearer <CRON_SECRET>
@@ -240,8 +243,9 @@ For Upstash, create or rotate the REST token in Upstash, update
 `UPSTASH_REDIS_REST_TOKEN`, redeploy, then verify sensitive routes still rate
 limit and Upstash metrics receive requests.
 
-For `CRON_SECRET`, update the Vercel variable and redeploy. Vercel Cron will use
-the new bearer value after the redeploy.
+For `CRON_SECRET`, update the Vercel variable and redeploy, then rerun
+`node --env-file=.env.production scripts/configure-supabase-cron.mjs` so the
+encrypted Vault copy changes at the same time.
 
 For VAPID keys, update both public and private keys together, redeploy, and
 expect users to resubscribe to push notifications.
@@ -251,11 +255,10 @@ source map upload, then revoke the old token.
 
 ## Post-deployment Verification
 
-The project is configured with a fifteen-minute Vercel Cron schedule because
-the notification worker must evaluate each user's local reminder time and quiet
-hours. Vercel Hobby projects reject schedules that run more than once per day;
-use a Vercel Pro (or higher) project for this configuration instead of
-weakening the schedule and losing reminders.
+The project uses Supabase Cron for its fifteen-minute schedule because the
+notification worker must evaluate each user's local reminder time and quiet
+hours. The Vercel function remains the authenticated execution boundary, while
+the schedule no longer depends on Vercel plan-specific Cron frequency limits.
 
 After deployment, verify the environment from Vercel Project Settings or
 `vercel env ls`. Confirm that every production variable is present in the
@@ -296,7 +299,8 @@ production integrations, and no raw secret values in logs.
 ## References
 
 - Vercel environment variables: https://vercel.com/docs/environment-variables
-- Vercel cron jobs: https://vercel.com/docs/cron-jobs/manage-cron-jobs
+- Supabase Cron: https://supabase.com/docs/guides/cron
+- Supabase Vault: https://supabase.com/docs/guides/database/vault
 - Supabase API keys: https://supabase.com/docs/guides/getting-started/api-keys
 - Upstash Vercel integration: https://upstash.com/docs/redis/howto/vercelintegration
 - Web Push VAPID keys: https://github.com/web-push-libs/web-push

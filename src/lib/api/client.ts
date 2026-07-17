@@ -1,6 +1,5 @@
 "use client";
 
-import axios, { AxiosError, type AxiosInstance } from "axios";
 import type { ApiFailure, ApiSuccess } from "@/types/domain";
 
 export type ApiClientError = {
@@ -10,6 +9,8 @@ export type ApiClientError = {
   requestId: string;
   status: number;
 };
+
+const requestTimeoutMs = 20_000;
 
 /**
  * Purpose: Detect errors already normalized by the shared API client.
@@ -29,29 +30,20 @@ function isApiClientError(error: unknown): error is ApiClientError {
 }
 
 /**
- * Purpose: Normalize any Axios failure into the single typed API error shape.
+ * Purpose: Normalize any browser request failure into the single typed API error shape.
  * Inputs: Unknown caught error.
  * Output: ApiClientError for UI and mutation rollback handling.
  * Side effects: None.
  */
 export function normalizeApiClientError(error: unknown): ApiClientError {
   if (isApiClientError(error)) return error;
-  if (error instanceof AxiosError) {
-    const data = error.response?.data as ApiFailure | undefined;
-    const normalized: ApiClientError = {
-      code: data?.error.code ?? "NETWORK_ERROR",
-      message: data?.error.message ?? "Network request failed.",
-      requestId:
-        data?.requestId ?? error.response?.headers["x-request-id"] ?? crypto.randomUUID(),
-      status: error.response?.status ?? 0,
-    };
-    if (data?.error.fieldErrors) normalized.fieldErrors = data.error.fieldErrors;
-    return normalized;
-  }
   if (error instanceof Error) {
     return {
-      code: "CLIENT_ERROR",
-      message: error.message || "Unexpected client error.",
+      code: error instanceof TypeError ? "NETWORK_ERROR" : "CLIENT_ERROR",
+      message:
+        error instanceof TypeError
+          ? "Network request failed."
+          : error.message || "Unexpected client error.",
       requestId: crypto.randomUUID(),
       status: 0,
     };
@@ -65,51 +57,114 @@ export function normalizeApiClientError(error: unknown): ApiClientError {
 }
 
 /**
- * Purpose: Create Rudo Quest's single browser-side Axios client.
- * Inputs: None.
- * Output: Configured Axios instance.
- * Side effects: Attaches request IDs and response error normalization.
+ * Purpose: Send one same-origin request with credentials, request IDs, cancellation, and timeout handling.
+ * Inputs: Method, URL, optional JSON body, and optional external AbortSignal.
+ * Output: Typed API success payload data.
+ * Side effects: Performs a browser fetch.
+ * Failure behavior: Throws a normalized ApiClientError for HTTP, network, timeout, and malformed responses.
  */
-function createApiClient(): AxiosInstance {
-  const client = axios.create({
-    baseURL: "/",
-    withCredentials: true,
-    timeout: 20_000,
-  });
-  client.interceptors.request.use((config) => {
-    config.headers.set("x-request-id", crypto.randomUUID());
-    return config;
-  });
-  client.interceptors.response.use(
-    (response) => response,
-    (error) => Promise.reject(normalizeApiClientError(error)),
-  );
-  return client;
+async function apiRequest<T>(
+  method: "GET" | "POST" | "PATCH" | "DELETE",
+  url: string,
+  body?: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
+  const requestId = crypto.randomUUID();
+  const controller = new AbortController();
+  let timedOut = false;
+  const abortFromCaller = () => controller.abort(signal?.reason);
+  if (signal?.aborted) abortFromCaller();
+  else signal?.addEventListener("abort", abortFromCaller, { once: true });
+  const timeout = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, requestTimeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method,
+      credentials: "same-origin",
+      signal: controller.signal,
+      headers: {
+        "x-request-id": requestId,
+        ...(body === undefined ? {} : { "content-type": "application/json" }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  } catch (error) {
+    if (timedOut) {
+      throw {
+        code: "REQUEST_TIMEOUT",
+        message: "The request took too long. Try again.",
+        requestId,
+        status: 0,
+      } satisfies ApiClientError;
+    }
+    if (signal?.aborted) {
+      throw {
+        code: "REQUEST_ABORTED",
+        message: "The request was cancelled.",
+        requestId,
+        status: 0,
+      } satisfies ApiClientError;
+    }
+    const normalized = normalizeApiClientError(error);
+    throw { ...normalized, requestId } satisfies ApiClientError;
+  } finally {
+    window.clearTimeout(timeout);
+    signal?.removeEventListener("abort", abortFromCaller);
+  }
+
+  const payload = (await response.json().catch(() => null)) as
+    ApiSuccess<T> | ApiFailure | null;
+  const responseRequestId =
+    (payload && "requestId" in payload ? payload.requestId : undefined) ??
+    response.headers.get("x-request-id") ??
+    requestId;
+
+  if (!response.ok) {
+    const failure = payload && "error" in payload ? payload : null;
+    const normalized: ApiClientError = {
+      code: failure?.error.code ?? "HTTP_ERROR",
+      message: failure?.error.message ?? "The request could not be completed.",
+      requestId: responseRequestId,
+      status: response.status,
+    };
+    if (failure?.error.fieldErrors) {
+      normalized.fieldErrors = failure.error.fieldErrors;
+    }
+    throw normalized;
+  }
+
+  if (!payload || !("data" in payload)) {
+    throw {
+      code: "INVALID_RESPONSE",
+      message: "The server returned an invalid response.",
+      requestId: responseRequestId,
+      status: response.status,
+    } satisfies ApiClientError;
+  }
+  return payload.data;
 }
 
-export const apiClient = createApiClient();
-
 /**
- * Purpose: Fetch a typed API success payload with the shared Axios client.
+ * Purpose: Fetch a typed API success payload with the shared browser client.
  * Inputs: URL and optional AbortSignal.
  * Output: Data payload.
  * Side effects: Performs same-origin HTTP GET.
  */
-export async function apiGet<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const response = await apiClient.get<ApiSuccess<T>>(
-    url,
-    signal ? { signal } : undefined,
-  );
-  return response.data.data;
+export function apiGet<T>(url: string, signal?: AbortSignal): Promise<T> {
+  return apiRequest<T>("GET", url, undefined, signal);
 }
 
 /**
- * Purpose: Send a typed API mutation with the shared Axios client.
+ * Purpose: Send a typed API mutation with the shared browser client.
  * Inputs: HTTP method, URL, optional body, and AbortSignal.
  * Output: Data payload.
  * Side effects: Performs same-origin HTTP mutation.
  */
-export async function apiMutation<T>(
+export function apiMutation<T>(
   method: "post" | "patch" | "delete",
   url: string,
   body?: unknown,
@@ -123,12 +178,10 @@ export async function apiMutation<T>(
       status: 0,
     } satisfies ApiClientError;
   }
-  const config = {
-    method,
+  return apiRequest<T>(
+    method.toUpperCase() as "POST" | "PATCH" | "DELETE",
     url,
-    data: body,
-    ...(signal ? { signal } : {}),
-  };
-  const response = await apiClient.request<ApiSuccess<T>>(config);
-  return response.data.data;
+    body,
+    signal,
+  );
 }

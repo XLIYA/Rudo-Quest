@@ -20,12 +20,13 @@ function createNonce(): string {
  */
 function contentSecurityPolicy(nonce: string): string {
   const isDevelopment = process.env.NODE_ENV !== "production";
-  // Sonner 2.0.7 injects its bundled stylesheet by creating an empty style
-  // element and then appending the minified CSS. The package has no nonce
-  // option, so production permits only those two version-pinned payloads.
-  const sonnerStyleHashes = [
+  // Some version-pinned UI dependencies create style elements without a
+  // nonce. Permit only the exact payloads emitted by the installed versions.
+  const dynamicStyleHashes = [
     "'sha256-47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU='",
     "'sha256-CIxDM5jnsGiKqXs2v7NKCY5MzdR9gu6TtiMJrDw29AY='",
+    "'sha256-441zG27rExd4/il+NvIqyL8zFx5XmyNQtE381kSkUJk='",
+    "'sha256-nzTgYzXYDNe6BAHiiI7NNlfK8n/auuOAhh2t92YvuXo='",
   ];
   return [
     "default-src 'self'",
@@ -38,7 +39,7 @@ function contentSecurityPolicy(nonce: string): string {
       "'self'",
       ...(isDevelopment
         ? ["'unsafe-inline'"]
-        : [`'nonce-${nonce}'`, ...sonnerStyleHashes]),
+        : [`'nonce-${nonce}'`, ...dynamicStyleHashes]),
     ].join(" "),
     "style-src-attr 'unsafe-inline'",
     "img-src 'self' data: blob: https://*.supabase.co https://avatars.githubusercontent.com",
@@ -148,9 +149,8 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getClaims();
+  const authenticated = !error && typeof data?.claims?.sub === "string";
 
   const protectedRoute = [
     "/dashboard",
@@ -162,7 +162,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     "/reset-password",
   ].some((path) => request.nextUrl.pathname.startsWith(path));
 
-  if (protectedRoute && !user) {
+  if (protectedRoute && !authenticated) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
     redirectUrl.searchParams.set("next", request.nextUrl.pathname);
@@ -170,7 +170,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   }
 
   if (
-    user &&
+    authenticated &&
     ["/", "/login", "/signup", "/verify-email"].includes(request.nextUrl.pathname)
   ) {
     const redirectUrl = request.nextUrl.clone();

@@ -1,8 +1,12 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/notifications",
-      "schedule": "*/15 * * * *"
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["syd1"],
+  "functions": {
+    "src/app/api/**/*": {
+      "regions": ["syd1"]
+    },
+    "src/app/auth/callback/route.ts": {
+      "regions": ["syd1"]
     }
-  ]
+  }
 }

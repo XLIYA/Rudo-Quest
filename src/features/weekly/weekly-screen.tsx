@@ -85,7 +85,7 @@ export function WeeklyScreen() {
   const openTask = (task: TaskDto) => {
     const next = new URLSearchParams(searchParams.toString());
     next.set("task", task.id);
-    router.replace(`/weekly?${next.toString()}`);
+    window.history.replaceState(null, "", `/weekly?${next.toString()}`);
   };
 
   /**
@@ -98,7 +98,11 @@ export function WeeklyScreen() {
     const next = new URLSearchParams(searchParams.toString());
     next.delete("task");
     const queryString = next.toString();
-    router.replace(queryString ? `/weekly?${queryString}` : "/weekly");
+    window.history.replaceState(
+      null,
+      "",
+      queryString ? `/weekly?${queryString}` : "/weekly",
+    );
   };
 
   /**

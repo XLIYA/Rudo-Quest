@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 import {
   notificationDeliveries,
   notifications,
@@ -437,24 +437,28 @@ export async function listNotificationEligibleProfiles() {
  * Output: Incomplete task count.
  * Side effects: Reads tasks.
  */
-export async function countDueTasksForDate(
-  userId: string,
+export async function countDueTasksForUsersOnDate(
+  userIds: string[],
   date: string,
-): Promise<number> {
+): Promise<Map<string, number>> {
+  if (userIds.length === 0) return new Map();
   const rows = await getDb()
-    .select({ id: tasks.id })
+    .select({
+      userId: tasks.assigneeId,
+      count: sql<number>`count(*)::int`,
+    })
     .from(tasks)
     .leftJoin(projects, eq(tasks.projectId, projects.id))
     .leftJoin(
       projectMemberships,
       and(
         eq(projectMemberships.projectId, tasks.projectId),
-        eq(projectMemberships.userId, userId),
+        eq(projectMemberships.userId, tasks.assigneeId),
       ),
     )
     .where(
       and(
-        eq(tasks.assigneeId, userId),
+        inArray(tasks.assigneeId, userIds),
         eq(tasks.scheduledDate, date),
         ne(tasks.status, "DONE"),
         isNull(tasks.archivedAt),
@@ -463,8 +467,26 @@ export async function countDueTasksForDate(
           and(isNull(projects.archivedAt), isNotNull(projectMemberships.userId)),
         ),
       ),
-    );
-  return rows.filter((row) => row.id).length;
+    )
+    .groupBy(tasks.assigneeId);
+  return new Map(
+    rows.flatMap((row) =>
+      row.userId ? ([[row.userId, Number(row.count)]] as const) : [],
+    ),
+  );
+}
+
+/**
+ * Purpose: Count incomplete tasks due for one user on a local date.
+ * Inputs: User ID and ISO yyyy-MM-dd date.
+ * Output: Incomplete task count.
+ * Side effects: Reads tasks.
+ */
+export async function countDueTasksForDate(
+  userId: string,
+  date: string,
+): Promise<number> {
+  return (await countDueTasksForUsersOnDate([userId], date)).get(userId) ?? 0;
 }
 
 /**

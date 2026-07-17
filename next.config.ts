@@ -50,16 +50,15 @@ const withSerwist = withSerwistInit({
   additionalPrecacheEntries: [{ url: "/offline", revision: "rudo-offline-v1" }],
 });
 
-export default withSentryConfig(
-  withSerwist(nextConfig),
-  process.env.SENTRY_AUTH_TOKEN
-    ? {
-        silent: !process.env.CI,
-        authToken: process.env.SENTRY_AUTH_TOKEN,
-        widenClientFileUpload: true,
-      }
-    : {
-        silent: !process.env.CI,
-        widenClientFileUpload: true,
-      },
+const appConfig = withSerwist(nextConfig);
+const enableSentryBuild = Boolean(
+  process.env.NEXT_PUBLIC_SENTRY_DSN && process.env.SENTRY_AUTH_TOKEN,
 );
+
+export default enableSentryBuild
+  ? withSentryConfig(appConfig, {
+      silent: !process.env.CI,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      widenClientFileUpload: true,
+    })
+  : appConfig;

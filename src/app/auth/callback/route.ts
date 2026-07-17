@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/auth/supabase";
+import { ensureProfileForAuthUser } from "@/server/services/profile-service";
 
 /**
  * Purpose: Create an auth redirect that cannot be stored by intermediaries.
@@ -53,9 +54,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   if (code) {
     const supabase = await createSupabaseServerClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      return noStoreRedirect(callbackTarget(request, successPath(request)));
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error && data.user?.email) {
+      try {
+        await ensureProfileForAuthUser({
+          id: data.user.id,
+          email: data.user.email,
+          displayName: data.user.user_metadata.name,
+          timeZone: data.user.user_metadata.time_zone,
+        });
+        return noStoreRedirect(callbackTarget(request, successPath(request)));
+      } catch {
+        await supabase.auth.signOut({ scope: "local" });
+      }
     }
   }
 

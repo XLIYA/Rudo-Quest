@@ -30,6 +30,7 @@ export function registerSerwist(options?: {
   }
 
   const serwist = new Serwist("/sw.js");
+  let updateActivationRequested = false;
 
   serwist.addEventListener("waiting", () => {
     /**
@@ -38,13 +39,19 @@ export function registerSerwist(options?: {
      * Output: Void.
      * Side effects: Sends the skip-waiting message to Serwist.
      */
-    const activateUpdate = () => serwist.messageSkipWaiting();
+    const activateUpdate = () => {
+      updateActivationRequested = true;
+      serwist.messageSkipWaiting();
+    };
     if (options?.onUpdate) options.onUpdate(activateUpdate);
     else activateUpdate();
   });
 
   serwist.addEventListener("controlling", () => {
-    window.location.reload();
+    // `clientsClaim` also emits this event on the first installation. Reload
+    // only after an existing client explicitly activated a waiting update so
+    // a first-time visitor never loses an in-progress navigation or form.
+    if (updateActivationRequested) window.location.reload();
   });
 
   void serwist.register();

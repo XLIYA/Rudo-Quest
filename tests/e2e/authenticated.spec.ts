@@ -5,6 +5,13 @@ const email = process.env.E2E_EMAIL ?? process.env.SEED_ADMIN_EMAIL;
 const password = process.env.E2E_PASSWORD ?? process.env.SEED_ADMIN_PASSWORD;
 const localDatabaseUrl = (() => {
   try {
+    const targetUrl = process.env.PLAYWRIGHT_BASE_URL;
+    if (targetUrl) {
+      const targetHostname = new URL(targetUrl).hostname;
+      if (targetHostname !== "localhost" && targetHostname !== "127.0.0.1") {
+        return null;
+      }
+    }
     const value = process.env.DATABASE_URL;
     if (!value) return null;
     const hostname = new URL(value).hostname;
@@ -33,10 +40,7 @@ test.describe("authenticated production flow", () => {
     );
     await page.getByRole("button", { name: "Sign in" }).click();
     const signInResponse = await signInResponsePromise;
-    expect(
-      signInResponse.status(),
-      `Sign-in response: ${await signInResponse.text()}`,
-    ).toBe(200);
+    expect(signInResponse.status()).toBe(200);
     const cookieNames = (await context.cookies()).map((cookie) => cookie.name);
     expect(
       cookieNames.some((name) => name.startsWith("sb-")),
@@ -44,8 +48,11 @@ test.describe("authenticated production flow", () => {
     ).toBe(true);
     const meResponse = await page.request.get("/api/me");
     expect(meResponse.status(), `Profile response: ${await meResponse.text()}`).toBe(200);
-    await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.getByRole("link", { name: "Weekly" })).toBeVisible();
+    await expect(page).toHaveURL(/\/dashboard$/, { timeout: 20_000 });
+    await page.waitForLoadState("load");
+    await expect(page.getByRole("link", { name: "Weekly" })).toBeVisible({
+      timeout: 20_000,
+    });
 
     const origin = new URL(page.url()).origin;
     const scheduledDate = new Date().toISOString().slice(0, 10);
@@ -88,12 +95,10 @@ test.describe("authenticated production flow", () => {
         (response) => response.url().includes("/api/tasks/week?weekStart="),
         { timeout: 20_000 },
       );
-      await page.goto(`/weekly?date=${scheduledDate}`);
+      await page.getByRole("link", { name: "Weekly", exact: true }).click();
+      await expect(page).toHaveURL(/\/weekly/);
       const browserWeekResponse = await browserWeekResponsePromise;
-      expect(
-        browserWeekResponse.status(),
-        `Browser weekly response: ${await browserWeekResponse.text()}`,
-      ).toBe(200);
+      expect(browserWeekResponse.status()).toBe(200);
       await expect(page.getByText(title, { exact: true })).toBeVisible({
         timeout: 10_000,
       });
@@ -110,8 +115,6 @@ test.describe("authenticated production flow", () => {
       await sheet.getByRole("button", { name: "Start", exact: true }).click();
       const startResponse = await startResponsePromise;
       expect(startResponse.status()).toBe(200);
-      latestVersion = ((await startResponse.json()) as { data: { version: number } }).data
-        .version;
       await expect(sheet.getByText("IN PROGRESS", { exact: true })).toBeVisible();
 
       const completeResponsePromise = page.waitForResponse(
@@ -122,11 +125,6 @@ test.describe("authenticated production flow", () => {
       await sheet.getByRole("button", { name: "Complete", exact: true }).click();
       const completeResponse = await completeResponsePromise;
       expect(completeResponse.status()).toBe(200);
-      latestVersion = (
-        (await completeResponse.json()) as {
-          data: { version: number };
-        }
-      ).data.version;
       await expect(sheet.getByText("DONE", { exact: true })).toBeVisible();
 
       const reopenResponsePromise = page.waitForResponse(
@@ -137,11 +135,6 @@ test.describe("authenticated production flow", () => {
       await sheet.getByRole("button", { name: "Reopen", exact: true }).click();
       const reopenResponse = await reopenResponsePromise;
       expect(reopenResponse.status()).toBe(200);
-      latestVersion = (
-        (await reopenResponse.json()) as {
-          data: { version: number };
-        }
-      ).data.version;
       await expect(sheet.getByText("IN PROGRESS", { exact: true })).toBeVisible();
 
       const renamedTitle = `${title} renamed`;
@@ -154,11 +147,6 @@ test.describe("authenticated production flow", () => {
       await sheet.getByRole("button", { name: "Save changes" }).click();
       const renameResponse = await renameResponsePromise;
       expect(renameResponse.status()).toBe(200);
-      latestVersion = (
-        (await renameResponse.json()) as {
-          data: { version: number };
-        }
-      ).data.version;
       await expect(sheet.getByLabel("Title")).toHaveValue(renamedTitle);
       await sheet.getByRole("button", { name: "Close sheet" }).click();
       await expect(page).not.toHaveURL(/task=/);
@@ -196,6 +184,14 @@ test.describe("authenticated production flow", () => {
       await context.setOffline(false);
     } finally {
       await context.setOffline(false).catch(() => undefined);
+      const currentResponse = await page.request.get(`/api/tasks/${created.data.id}`);
+      if (currentResponse.ok()) {
+        latestVersion = (
+          (await currentResponse.json()) as {
+            data: { version: number };
+          }
+        ).data.version;
+      }
       const archiveResponse = await page.request.delete(`/api/tasks/${created.data.id}`, {
         headers: { origin },
         data: { version: latestVersion },

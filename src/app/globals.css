@@ -23,38 +23,6 @@
     U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-@font-face {
-  font-family: "Noto Serif";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/fonts/noto-serif/noto-serif-regular.ttf") format("truetype");
-}
-
-@font-face {
-  font-family: "Noto Serif";
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url("/fonts/noto-serif/noto-serif-500.ttf") format("truetype");
-}
-
-@font-face {
-  font-family: "Noto Serif";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("/fonts/noto-serif/noto-serif-600.ttf") format("truetype");
-}
-
-@font-face {
-  font-family: "Noto Serif";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("/fonts/noto-serif/noto-serif-700.ttf") format("truetype");
-}
-
 :root {
   --background: #ffffff;
   --surface: #ffffff;
@@ -134,9 +102,10 @@
   --shadow-surface: 0 1px 2px rgb(0 0 0 / 0.06);
   --shadow-raised: 0 10px 30px rgb(0 0 0 / 0.08);
   --shadow-overlay: 0 24px 80px rgb(0 0 0 / 0.18);
-  --font-display: "Bitcount Ink", system-ui, sans-serif;
+  --font-bitcount-ink: "Bitcount Ink", system-ui, sans-serif;
+  --font-display: var(--font-bitcount-ink);
   --font-sans: "Noto Serif", Georgia, serif;
-  --font-mono: "Roboto Mono", monospace;
+  --font-mono: "Noto Serif", Georgia, serif;
   color-scheme: light;
 }
 
@@ -237,7 +206,7 @@
   --color-project-green: var(--project-green-main);
   --color-project-yellow: var(--project-yellow-main);
   --font-sans: var(--font-noto-serif);
-  --font-mono: var(--font-roboto-mono);
+  --font-mono: var(--font-noto-serif);
   --font-display: var(--font-bitcount-ink);
 }
 

@@ -20,8 +20,8 @@ import type { NotificationDto, NotificationPageDto } from "@/types/domain";
 export function useNotifications(initialPage?: NotificationPageDto) {
   return useInfiniteQuery({
     queryKey: queryKeys.notifications,
-    staleTime: 0,
-    refetchOnMount: "always",
+    staleTime: 30_000,
+    refetchOnMount: initialPage ? false : "always",
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
     initialPageParam: "",
