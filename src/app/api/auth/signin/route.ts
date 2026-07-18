@@ -2,6 +2,10 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { AppError } from "@/lib/api/errors";
 import { createSupabaseServerClient } from "@/lib/auth/supabase";
+import {
+  authProviderUnavailableError,
+  isAuthProviderUnavailable,
+} from "@/lib/auth/provider-errors";
 import { apiSuccess } from "@/lib/api/response";
 import { withApiHandler, readJson } from "@/server/api/handler";
 import { assertRateLimit, requestRateLimitIdentity } from "@/server/security/rate-limit";
@@ -29,7 +33,15 @@ export async function POST(request: NextRequest) {
     );
     const body = signinSchema.parse(await readJson(request));
     const supabase = await createSupabaseServerClient();
-    const { data, error } = await supabase.auth.signInWithPassword(body);
+    let authResult: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>;
+    try {
+      authResult = await supabase.auth.signInWithPassword(body);
+    } catch (error) {
+      if (isAuthProviderUnavailable(error)) throw authProviderUnavailableError(error);
+      throw error;
+    }
+    const { data, error } = authResult;
+    if (isAuthProviderUnavailable(error)) throw authProviderUnavailableError(error);
     if (error || !data.user?.email) {
       throw new AppError("UNAUTHORIZED", 401, "Invalid email or password.");
     }
@@ -40,9 +52,15 @@ export async function POST(request: NextRequest) {
         displayName: data.user.user_metadata.name,
         timeZone: data.user.user_metadata.time_zone,
       });
-    } catch {
+    } catch (error) {
       await supabase.auth.signOut({ scope: "local" });
-      throw new AppError("INTERNAL_ERROR", 500, "Sign in could not be completed.");
+      throw new AppError(
+        "INTERNAL_ERROR",
+        503,
+        "Account setup is temporarily unavailable. Please try again.",
+        undefined,
+        { cause: error },
+      );
     }
     return apiSuccess({ ok: true }, { requestId });
   });

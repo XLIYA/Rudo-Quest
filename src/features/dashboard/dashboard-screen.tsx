@@ -2,7 +2,6 @@
 
 import { addDays, format, parseISO } from "date-fns";
 import type { Route } from "next";
-import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { apiGet } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
 import { useQuery } from "@tanstack/react-query";
@@ -81,8 +80,9 @@ export function DashboardScreen() {
       return groups;
     }, new Map<string, { title: string; tasks: TaskDto[] }>()),
   );
+  const chartMax = Math.max(1, ...query.data.weeklyProgress.days.map((day) => day.total));
   return (
-    <main className="mx-auto grid min-w-0 max-w-7xl gap-4 overflow-x-hidden px-4 py-5 sm:gap-5 sm:px-5 md:gap-6 md:p-8">
+    <main className="app-enter mx-auto grid min-w-0 max-w-7xl gap-4 overflow-x-hidden px-4 py-5 sm:gap-5 sm:px-5 md:gap-6 md:p-8">
       <PageHeader
         title="Dashboard"
         description="Today, weekly progress, completion rhythm, and project load."
@@ -142,28 +142,38 @@ export function DashboardScreen() {
             </div>
           </div>
           <div
-            className="mt-5 h-32 min-w-0 overflow-hidden"
+            className="mt-5 grid h-36 min-w-0 grid-cols-7 items-end gap-2 overflow-hidden rounded-lg bg-surface-muted/45 px-3 pb-2 pt-4"
             role="img"
             aria-label={`Seven-day completion chart. ${query.data.weeklyProgress.completed} of ${query.data.weeklyProgress.total} tasks completed this week.`}
           >
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={query.data.weeklyProgress.days}
-                margin={{ top: 8, right: 4, bottom: 0, left: 4 }}
-              >
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={(value) => value.slice(5)}
-                  fontSize={11}
-                  interval={0}
-                  minTickGap={0}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <Tooltip />
-                <Bar dataKey="completed" fill="var(--brand)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {query.data.weeklyProgress.days.map((day) => {
+              const totalHeight = Math.max(10, (day.total / chartMax) * 100);
+              const completedHeight = day.total
+                ? Math.max(8, (day.completed / day.total) * 100)
+                : 0;
+              return (
+                <div
+                  key={day.date}
+                  className="grid h-full min-w-0 grid-rows-[1fr_auto] items-end gap-2"
+                  title={`${format(parseISO(day.date), "EEEE")}: ${day.completed} of ${day.total} completed`}
+                >
+                  <div className="flex h-full items-end justify-center">
+                    <span
+                      className="relative block w-full max-w-8 overflow-hidden rounded-t-md bg-quest-muted/55"
+                      style={{ height: `${totalHeight}%` }}
+                    >
+                      <span
+                        className="absolute inset-x-0 bottom-0 rounded-t-md bg-quest transition-[height] duration-400 ease-out"
+                        style={{ height: `${completedHeight}%` }}
+                      />
+                    </span>
+                  </div>
+                  <span className="truncate text-center font-mono text-[10px] text-text-tertiary">
+                    {format(parseISO(day.date), "EEE").slice(0, 1)}
+                  </span>
+                </div>
+              );
+            })}
             <span className="sr-only">
               {query.data.weeklyProgress.days
                 .map(

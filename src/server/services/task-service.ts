@@ -1,7 +1,7 @@
 import { AppError } from "@/lib/api/errors";
 import { runDbTransaction } from "@/lib/db/client";
 import { getWeekDates } from "@/lib/utils/dates";
-import type { TaskDto } from "@/types/domain";
+import type { TaskDto, TaskStatus } from "@/types/domain";
 import {
   assertCanMutateTask,
   toggleCompletionState,
@@ -276,6 +276,46 @@ export async function reopenTask(
   const next = toggleCompletionState(task.status, task.previousStatus, new Date());
   if (task.status !== "DONE") return task;
   return commitTaskTransition(userId, taskId, version, next, "TASK_REOPENED");
+}
+
+/**
+ * Purpose: Move a task to an explicit Kanban status.
+ * Inputs: Actor ID, task ID, expected version, and target status.
+ * Output: Versioned task DTO in the requested column.
+ * Side effects: Writes task state and one matching activity event.
+ */
+export async function moveTask(
+  userId: string,
+  taskId: string,
+  version: number,
+  status: TaskStatus,
+): Promise<TaskDto> {
+  const task = await getTask(userId, taskId);
+  await assertCanEditTask(userId, task, false);
+  assertTaskVersion(task, version);
+  if (task.status === status) return task;
+
+  if (status === "DONE") {
+    return commitTaskTransition(
+      userId,
+      taskId,
+      version,
+      {
+        status,
+        previousStatus: task.status === "DONE" ? task.previousStatus : task.status,
+        completedAt: new Date(),
+      },
+      "TASK_COMPLETED",
+    );
+  }
+
+  return commitTaskTransition(
+    userId,
+    taskId,
+    version,
+    { status, previousStatus: null, completedAt: null },
+    status === "IN_PROGRESS" ? "TASK_STARTED" : "TASK_REOPENED",
+  );
 }
 
 /**

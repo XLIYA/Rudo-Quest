@@ -1,50 +1,46 @@
 "use client";
 
-import Image from "next/image";
+import { addDays, format, parseISO } from "date-fns";
+import { Activity, BellRing, Clock3, Link2, Upload, UserRound } from "lucide-react";
 import Link from "next/link";
+import { useTheme } from "next-themes";
 import {
   useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
-import { addDays, format, parseISO } from "date-fns";
-import { AppToast } from "@/components/ui/app-toast";
-import { useOnline } from "@/hooks/use-online";
-import { apiGet, apiMutation, normalizeApiClientError } from "@/lib/api/client";
-import { queryKeys } from "@/lib/api/query-keys";
+import { useEffect, useState, type ReactNode } from "react";
+import { ActivityHeatmap } from "@/components/shared/activity-heatmap";
+import { PageHeader } from "@/components/shared/page-header";
 import { AppAvatar } from "@/components/ui/app-avatar";
 import { AppButton } from "@/components/ui/app-button";
 import { AppCheckbox } from "@/components/ui/app-checkbox";
 import { AppEmptyState } from "@/components/ui/app-empty-state";
 import { AppInput } from "@/components/ui/app-input";
-import { AppTimeZoneInput } from "@/components/ui/app-time-zone-input";
+import { AppPagination } from "@/components/ui/app-pagination";
 import { AppSelect } from "@/components/ui/app-select";
 import { AppSkeleton } from "@/components/ui/app-skeleton";
-import { AppPagination } from "@/components/ui/app-pagination";
-import { PageHeader } from "@/components/shared/page-header";
-import { ActivityHeatmap } from "@/components/shared/activity-heatmap";
-import type {
-  ActivityPageDto,
-  BannerPresetKey,
-  ProfileDto,
-  ThemePreference,
-} from "@/types/domain";
-import { bannerPresetKeys } from "@/types/domain";
-import { cropProfileImage, uploadProfileAsset } from "./profile-assets";
+import { AppTimePicker } from "@/components/ui/app-time-picker";
+import { AppTimeZoneInput } from "@/components/ui/app-time-zone-input";
+import { AppToast } from "@/components/ui/app-toast";
+import { useOnline } from "@/hooks/use-online";
+import { apiGet, apiMutation, normalizeApiClientError } from "@/lib/api/client";
+import { queryKeys } from "@/lib/api/query-keys";
 import {
   getPushBrowserState,
   subscribeCurrentBrowserToPush,
   unsubscribeCurrentBrowserFromPush,
   type PushBrowserState,
 } from "@/lib/pwa/push";
+import { cn } from "@/lib/utils/cn";
 import {
   formatRelativeDay,
   getDateInTimeZone,
   getMondayWeekStart,
 } from "@/lib/utils/dates";
+import type { ActivityPageDto, ProfileDto, ThemePreference } from "@/types/domain";
+import { cropProfileImage, uploadProfileAsset } from "./profile-assets";
 
 type Profile = ProfileDto;
 type ProfileDraft = Pick<
@@ -61,28 +57,15 @@ type ProfileHeatmapData = {
   heatmap: { days: { date: string; count: number }[]; streak: number };
 };
 
-const bannerLabels: Record<BannerPresetKey, string> = {
-  sunrise: "Sunrise route",
-  trail: "Trail map",
-  night: "Night watch",
-};
-
-/**
- * Purpose: Convert a caught API failure into safe profile-page feedback.
- * Inputs: Unknown caught value.
- * Output: Normalized user-facing message.
- * Side effects: None.
- */
 function errorMessage(error: unknown): string {
   return normalizeApiClientError(error).message;
 }
 
 /**
- * Purpose: Render the authenticated profile surface with identity, private media, preferences, activity, and push controls.
+ * Purpose: Render a compact profile workspace for identity, schedule, alerts, and activity.
  * Inputs: None.
- * Output: Profile management page.
- * Side effects: Reads and updates profile APIs, signed storage assets, and browser push state.
- * Failure behavior: Shows typed toasts while preserving the last successful profile cache.
+ * Output: Responsive dashboard-style profile card grid.
+ * Side effects: Reads and updates profile APIs, private avatar storage, and push state.
  */
 export function ProfileScreen() {
   const queryClient = useQueryClient();
@@ -158,24 +141,16 @@ export function ProfileScreen() {
       AppToast(errorMessage(error), "error");
     },
   });
-  const preset = useMutation({
-    mutationFn: (presetKey: BannerPresetKey) =>
-      apiMutation<Profile>("patch", "/api/me/banner/preset", { presetKey }),
-    onSuccess: (data) => queryClient.setQueryData(queryKeys.me, data),
-    onError: (error) => AppToast(errorMessage(error), "error"),
-  });
   const upload = useMutation({
-    mutationFn: (input: { kind: "avatar" | "banner"; file: File }) =>
-      uploadProfileAsset(input.kind, input.file),
+    mutationFn: (file: File) => uploadProfileAsset("avatar", file),
     onSuccess: (data) => {
       queryClient.setQueryData(queryKeys.me, data);
-      AppToast("Profile image updated.", "success");
+      AppToast("Avatar updated.", "success");
     },
     onError: (error) => AppToast(errorMessage(error), "error"),
   });
-  const removeAsset = useMutation({
-    mutationFn: (kind: "avatar" | "banner") =>
-      apiMutation<Profile>("delete", `/api/me/${kind}`),
+  const removeAvatar = useMutation({
+    mutationFn: () => apiMutation<Profile>("delete", "/api/me/avatar"),
     onSuccess: (data) => queryClient.setQueryData(queryKeys.me, data),
     onError: (error) => AppToast(errorMessage(error), "error"),
   });
@@ -200,24 +175,26 @@ export function ProfileScreen() {
           quietHoursEnd: profile.data.quietHoursEnd,
         }
     : null;
-  /**
-   * Purpose: Merge profile form edits without copying server state into a global store.
-   * Inputs: Partial identity/reminder draft.
-   * Output: Void.
-   * Side effects: Updates version-keyed local form state.
-   */
+
   const updateDraft = (values: Partial<ProfileDraft>) => {
     if (!profileKey || !draft) return;
     setDraftState({ key: profileKey, value: { ...draft, ...values } });
   };
 
-  if (profile.isLoading)
+  if (profile.isLoading) {
     return (
-      <main className="mx-auto max-w-4xl p-5 md:p-8">
-        <AppSkeleton className="h-[42rem]" />
+      <main className="mx-auto grid w-full max-w-[100rem] gap-4 p-5 md:p-8">
+        <AppSkeleton className="h-14 w-64" />
+        <div className="grid gap-4 lg:grid-cols-12">
+          <AppSkeleton className="h-64 lg:col-span-4" />
+          <AppSkeleton className="h-64 lg:col-span-8" />
+          <AppSkeleton className="h-72 lg:col-span-7" />
+          <AppSkeleton className="h-72 lg:col-span-5" />
+        </div>
       </main>
     );
-  if (profile.isError || !profile.data || !draft)
+  }
+  if (profile.isError || !profile.data || !draft) {
     return (
       <main className="p-5 md:p-8">
         <AppEmptyState
@@ -226,43 +203,12 @@ export function ProfileScreen() {
         />
       </main>
     );
+  }
+
   const current = profile.data;
   const activityItems = activity.data?.pages.flatMap((page) => page.items) ?? [];
-  const bannerSrc =
-    current.bannerPath ??
-    (current.bannerPresetKey ? `/banners/${current.bannerPresetKey}.svg` : null);
-
-  /**
-   * Purpose: Crop a selected image to the required profile aspect ratio before upload.
-   * Inputs: Asset kind and optional browser file.
-   * Output: Promise resolving after the upload mutation starts.
-   * Side effects: Decodes/crops client-side image bytes and starts signed upload.
-   * Failure behavior: Displays validation or crop failures without changing the profile.
-   */
-  const handleFile = async (kind: "avatar" | "banner", file: File | undefined) => {
-    if (!file) return;
-    try {
-      const cropped = await cropProfileImage(file, kind === "avatar" ? 1 : 2.8);
-      upload.mutate({ kind, file: cropped });
-    } catch (error) {
-      AppToast(error instanceof Error ? error.message : "Image crop failed.", "error");
-    }
-  };
-
-  /**
-   * Purpose: Persist the current display-name and handle draft.
-   * Inputs: None.
-   * Output: Void.
-   * Side effects: Starts the identity mutation.
-   */
   const saveIdentity = () =>
     updateProfile.mutate({ displayName: draft.displayName, handle: draft.handle });
-  /**
-   * Purpose: Persist timezone and reminder-window draft values.
-   * Inputs: None.
-   * Output: Void.
-   * Side effects: Starts the preference mutation.
-   */
   const savePreferences = () =>
     updatePreferences.mutate({
       timeZone: draft.timeZone,
@@ -271,131 +217,109 @@ export function ProfileScreen() {
       quietHoursEnd: draft.quietHoursEnd,
     });
 
+  const handleAvatar = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      upload.mutate(await cropProfileImage(file, 1));
+    } catch (error) {
+      AppToast(error instanceof Error ? error.message : "Image crop failed.", "error");
+    }
+  };
+
+  const subscribeDevice = async () => {
+    setPushPending(true);
+    try {
+      const nextState = await subscribeCurrentBrowserToPush();
+      try {
+        await updatePreferences.mutateAsync({ notificationsEnabled: true });
+        setPushState(nextState);
+      } catch {
+        setPushState(await unsubscribeCurrentBrowserFromPush());
+      }
+    } catch (error) {
+      if (normalizeApiClientError(error).code === "CLIENT_ERROR") {
+        AppToast(errorMessage(error), "error");
+      }
+    } finally {
+      setPushPending(false);
+    }
+  };
+
+  const unsubscribeDevice = async () => {
+    setPushPending(true);
+    try {
+      setPushState(await unsubscribeCurrentBrowserFromPush());
+    } catch (error) {
+      AppToast(errorMessage(error), "error");
+    } finally {
+      setPushPending(false);
+    }
+  };
+
   return (
-    <main className="mx-auto grid max-w-5xl gap-5 p-5 md:p-8">
+    <main className="app-enter mx-auto grid w-full max-w-[100rem] gap-5 p-5 md:p-8">
       <PageHeader
         title="Profile"
-        description="Your identity, rhythm, and notification controls."
+        description="Tune your public identity, working rhythm, and account signals."
       />
-      <fieldset disabled={!online} className="grid gap-5">
-        <section className="overflow-hidden rounded-lg border border-border bg-surface">
-          <div className="relative h-40 bg-brand-soft">
-            {bannerSrc ? (
-              <Image
-                src={bannerSrc}
-                alt="Profile banner"
-                fill
-                className="object-cover"
-                sizes="(max-width: 768px) 100vw, 960px"
-                priority
-              />
-            ) : null}
-          </div>
-          <div className="grid gap-5 p-5 md:grid-cols-[auto_1fr] md:items-end">
+      <fieldset
+        disabled={!online}
+        className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-12"
+      >
+        <ProfileCard
+          title="Explorer"
+          description="Your collaborator-facing identity."
+          icon={<UserRound className="size-4" />}
+          className="overflow-hidden lg:col-span-4"
+        >
+          <div className="flex items-center gap-4">
             <AppAvatar
               name={current.displayName}
               src={current.avatarPath}
-              className="-mt-14 size-24 border-4 border-surface text-xl"
+              className="size-20 border-4 border-surface-muted text-xl"
             />
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <h2 className="text-2xl font-semibold">{current.displayName}</h2>
-                <p className="font-mono text-sm text-text-secondary">@{current.handle}</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <label className="relative inline-flex min-h-12 cursor-pointer items-center overflow-hidden rounded-md border border-border px-3 text-sm font-semibold hover:bg-surface-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand">
-                  Upload avatar
-                  <input
-                    className="absolute inset-0 size-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
-                    type="file"
-                    aria-label="Choose avatar image"
-                    accept="image/jpeg,image/png,image/webp"
-                    disabled={upload.isPending}
-                    onChange={(event) => {
-                      const file = event.currentTarget.files?.[0];
-                      event.currentTarget.value = "";
-                      void handleFile("avatar", file);
-                    }}
-                  />
-                </label>
-                {current.avatarPath ? (
-                  <AppButton
-                    variant="ghost"
-                    onClick={() => removeAsset.mutate("avatar")}
-                    disabled={removeAsset.isPending}
-                  >
-                    Remove avatar
-                  </AppButton>
-                ) : null}
-              </div>
+            <div className="min-w-0">
+              <p className="truncate text-xl font-semibold">{current.displayName}</p>
+              <p className="truncate font-mono text-xs text-text-secondary">
+                @{current.handle}
+              </p>
+              <p className="mt-1 truncate text-xs text-text-tertiary">{current.email}</p>
             </div>
           </div>
-        </section>
-        <section className="grid gap-4 rounded-lg border border-border bg-surface p-5">
-          <div>
-            <h2 className="text-lg font-semibold">Banner</h2>
-            <p className="mt-1 text-sm text-text-secondary">
-              Choose a quiet preset or crop a private image to fit the explorer header.
-            </p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {bannerPresetKeys.map((key) => (
-              <button
-                key={key}
-                type="button"
-                aria-pressed={current.bannerPresetKey === key}
-                disabled={preset.isPending}
-                onClick={() => preset.mutate(key)}
-                className={`overflow-hidden rounded-md border text-left focus-visible:outline-2 focus-visible:outline-brand ${current.bannerPresetKey === key ? "border-brand" : "border-border"}`}
-              >
-                <Image
-                  src={`/banners/${key}.svg`}
-                  alt=""
-                  width={360}
-                  height={128}
-                  className="h-24 w-full object-cover"
-                />
-                <span className="block p-2 text-sm font-semibold">
-                  {bannerLabels[key]}
-                </span>
-              </button>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <label className="relative inline-flex min-h-12 cursor-pointer items-center overflow-hidden rounded-md border border-border px-3 text-sm font-semibold hover:bg-surface-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand">
-              Upload banner
+          <div className="grid grid-cols-2 gap-2">
+            <label className="relative inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-md border border-border px-3 text-xs font-semibold transition-colors hover:border-border-strong hover:bg-surface-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand">
+              <Upload className="size-4" aria-hidden="true" /> Change avatar
               <input
                 className="absolute inset-0 size-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
                 type="file"
-                aria-label="Choose banner image"
+                aria-label="Choose avatar image"
                 accept="image/jpeg,image/png,image/webp"
                 disabled={upload.isPending}
                 onChange={(event) => {
                   const file = event.currentTarget.files?.[0];
                   event.currentTarget.value = "";
-                  void handleFile("banner", file);
+                  void handleAvatar(file);
                 }}
               />
             </label>
-            {current.bannerPath ? (
-              <AppButton
-                variant="ghost"
-                onClick={() => removeAsset.mutate("banner")}
-                disabled={removeAsset.isPending}
-              >
-                Remove banner
-              </AppButton>
-            ) : null}
+            <AppButton
+              variant="ghost"
+              className="px-2 text-xs"
+              onClick={() => removeAvatar.mutate()}
+              disabled={!current.avatarPath || removeAvatar.isPending}
+            >
+              Remove
+            </AppButton>
           </div>
-        </section>
-        <section className="grid gap-4 rounded-lg border border-border bg-surface p-5">
-          <div>
-            <h2 className="text-lg font-semibold">Identity</h2>
-            <p className="mt-1 text-sm text-text-secondary">
-              Public profile fields used in collaborator search.
-            </p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
+        </ProfileCard>
+
+        <ProfileCard
+          title="Identity"
+          description="Used in collaborator search and project activity."
+          icon={<UserRound className="size-4" />}
+          className="lg:col-span-8"
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
             <AppInput
               label="Display name"
               value={draft.displayName}
@@ -416,15 +340,15 @@ export function ProfileScreen() {
           >
             Save identity
           </AppButton>
-        </section>
-        <section className="grid gap-4 rounded-lg border border-border bg-surface p-5">
-          <div>
-            <h2 className="text-lg font-semibold">Preferences</h2>
-            <p className="mt-1 text-sm text-text-secondary">
-              Theme and reminders follow your timezone.
-            </p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        </ProfileCard>
+
+        <ProfileCard
+          title="Schedule"
+          description="Theme, timezone, reminders, and quiet hours."
+          icon={<Clock3 className="size-4" />}
+          className="lg:col-span-8"
+        >
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <AppSelect
               label="Theme"
               value={current.themePreference}
@@ -441,28 +365,25 @@ export function ProfileScreen() {
               value={draft.timeZone}
               onChange={(event) => updateDraft({ timeZone: event.currentTarget.value })}
             />
-            <AppInput
-              label="Daily reminder time"
-              type="time"
-              value={draft.dailyReminderTime ?? ""}
-              onChange={(event) =>
-                updateDraft({ dailyReminderTime: event.currentTarget.value || null })
-              }
+            <AppTimePicker
+              label="Daily reminder"
+              value={draft.dailyReminderTime}
+              onValueChange={(value) => updateDraft({ dailyReminderTime: value })}
+              allowEmpty
+              emptyLabel="No reminder"
             />
-            <AppInput
+            <AppTimePicker
               label="Quiet hours start"
-              type="time"
               value={draft.quietHoursStart}
-              onChange={(event) =>
-                updateDraft({ quietHoursStart: event.currentTarget.value })
+              onValueChange={(value) =>
+                value ? updateDraft({ quietHoursStart: value }) : undefined
               }
             />
-            <AppInput
+            <AppTimePicker
               label="Quiet hours end"
-              type="time"
               value={draft.quietHoursEnd}
-              onChange={(event) =>
-                updateDraft({ quietHoursEnd: event.currentTarget.value })
+              onValueChange={(value) =>
+                value ? updateDraft({ quietHoursEnd: value }) : undefined
               }
             />
           </div>
@@ -473,63 +394,15 @@ export function ProfileScreen() {
           >
             Save schedule
           </AppButton>
-        </section>
-        <section className="grid gap-4 rounded-lg border border-border bg-surface p-5">
-          <div>
-            <h2 className="text-lg font-semibold">Notifications</h2>
-            <p className="mt-1 text-sm text-text-secondary">
-              Permission is requested only when you explicitly subscribe this device.
-            </p>
-          </div>
-          <p className="text-sm text-text-secondary">
-            {pushStatusText(current, pushState)}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <AppButton
-              onClick={async () => {
-                setPushPending(true);
-                try {
-                  const nextState = await subscribeCurrentBrowserToPush();
-                  try {
-                    await updatePreferences.mutateAsync({ notificationsEnabled: true });
-                    setPushState(nextState);
-                  } catch {
-                    setPushState(await unsubscribeCurrentBrowserFromPush());
-                  }
-                } catch (error) {
-                  if (normalizeApiClientError(error).code === "CLIENT_ERROR") {
-                    AppToast(errorMessage(error), "error");
-                  }
-                } finally {
-                  setPushPending(false);
-                }
-              }}
-              disabled={
-                pushPending ||
-                updatePreferences.isPending ||
-                !pushState.supported ||
-                !pushState.configured ||
-                pushState.subscribed
-              }
-            >
-              Enable this device
-            </AppButton>
-            <AppButton
-              variant="secondary"
-              onClick={async () => {
-                setPushPending(true);
-                try {
-                  setPushState(await unsubscribeCurrentBrowserFromPush());
-                } catch (error) {
-                  AppToast(errorMessage(error), "error");
-                } finally {
-                  setPushPending(false);
-                }
-              }}
-              disabled={!pushState.subscribed || pushPending}
-            >
-              Unsubscribe this device
-            </AppButton>
+        </ProfileCard>
+
+        <ProfileCard
+          title="Notifications"
+          description={pushStatusText(current, pushState)}
+          icon={<BellRing className="size-4" />}
+          className="lg:col-span-4"
+        >
+          <div className="grid gap-2">
             <AppCheckbox
               label="Account notifications"
               checked={current.notificationsEnabled}
@@ -547,22 +420,47 @@ export function ProfileScreen() {
               disabled={!current.notificationsEnabled || updatePreferences.isPending}
             />
           </div>
+          <div className="grid grid-cols-2 gap-2">
+            <AppButton
+              className="px-2 text-xs"
+              onClick={() => void subscribeDevice()}
+              disabled={
+                pushPending ||
+                updatePreferences.isPending ||
+                !pushState.supported ||
+                !pushState.configured ||
+                pushState.subscribed
+              }
+            >
+              Enable device
+            </AppButton>
+            <AppButton
+              variant="secondary"
+              className="px-2 text-xs"
+              onClick={() => void unsubscribeDevice()}
+              disabled={!pushState.subscribed || pushPending}
+            >
+              Unsubscribe
+            </AppButton>
+          </div>
           <Link
             href="/notifications"
             className="inline-flex min-h-11 w-fit items-center text-sm font-semibold text-brand hover:underline"
           >
             Open notification center
           </Link>
-        </section>
-        <section className="grid gap-4 rounded-lg border border-border bg-surface p-5">
-          <div>
-            <h2 className="text-lg font-semibold">Completion rhythm</h2>
-            <p className="mt-1 text-sm text-text-secondary">
-              {heatmap.data
-                ? `${heatmap.data.heatmap.streak} day current completion streak.`
-                : "Your last 13 weeks of completed work."}
-            </p>
-          </div>
+        </ProfileCard>
+
+        <ProfileCard
+          title="Completion rhythm"
+          description={
+            heatmap.data
+              ? `${heatmap.data.heatmap.streak} day current completion streak.`
+              : "Your last 13 weeks of completed work."
+          }
+          icon={<Activity className="size-4" />}
+          className="lg:col-span-7"
+        >
           {heatmap.isLoading ? <AppSkeleton className="h-40" /> : null}
           {heatmap.data ? (
             <ActivityHeatmap days={heatmap.data.heatmap.days} endDate={currentDate} />
@@ -572,15 +470,19 @@ export function ProfileScreen() {
               Completion history could not be loaded right now.
             </p>
           ) : null}
-        </section>
-        <section className="grid gap-4 rounded-lg border border-border bg-surface p-5">
-          <div>
-            <h2 className="text-lg font-semibold">Account and integrations</h2>
-            <p className="mt-1 text-sm text-text-secondary">
-              {current.email} · GitHub connections are managed per project.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
+        </ProfileCard>
+
+        <ProfileCard
+          title="Account links"
+          description="Security and project integrations."
+          icon={<Link2 className="size-4" />}
+          className="lg:col-span-5"
+        >
+          <p className="rounded-md bg-surface-muted p-3 text-sm text-text-secondary">
+            GitHub connections are scoped to individual projects so collaborators only see
+            the repository context they need.
+          </p>
+          <div className="grid gap-2">
             <AppButton
               variant="secondary"
               onClick={() => passwordReset.mutate()}
@@ -588,35 +490,37 @@ export function ProfileScreen() {
             >
               Send password reset email
             </AppButton>
-            <Link
-              href="/projects"
-              className="inline-flex min-h-11 items-center rounded-md border border-border px-4 text-sm font-semibold hover:bg-surface-muted"
-            >
-              Manage GitHub by project
-            </Link>
+            <AppButton asChild variant="secondary">
+              <Link href="/projects">Manage project integrations</Link>
+            </AppButton>
           </div>
-        </section>
-        <section className="grid gap-4 rounded-lg border border-border bg-surface p-5">
-          <div>
-            <h2 className="text-lg font-semibold">Activity</h2>
-            <p className="mt-1 text-sm text-text-secondary">
-              Recent work and collaboration events.
-            </p>
-          </div>
-          {activity.isLoading ? <AppSkeleton className="h-32" /> : null}
+        </ProfileCard>
+
+        <ProfileCard
+          title="Recent activity"
+          description="Your latest task and collaboration events."
+          icon={<Activity className="size-4" />}
+          className="lg:col-span-12"
+        >
+          {activity.isLoading ? <AppSkeleton className="h-36" /> : null}
           {activityItems.length ? (
-            <div className="grid gap-2">
+            <div className="grid max-h-72 gap-1 overflow-y-auto pr-1">
               {activityItems.slice(0, 20).map((event) => (
-                <p key={event.id} className="rounded-md bg-surface-muted p-3 text-sm">
-                  <span className="font-semibold">
-                    {event.actor?.displayName ?? "Someone"}
-                  </span>{" "}
-                  {event.label}
-                  <span className="mt-1 block font-mono text-xs text-text-tertiary">
+                <div
+                  key={event.id}
+                  className="grid gap-1 border-b border-border px-2 py-3 last:border-0 sm:grid-cols-[1fr_auto] sm:items-center"
+                >
+                  <p className="text-sm">
+                    <span className="font-semibold">
+                      {event.actor?.displayName ?? "Someone"}
+                    </span>{" "}
+                    {event.label}
+                  </p>
+                  <span className="font-mono text-xs text-text-tertiary">
                     {formatRelativeDay(event.createdAt)} ·{" "}
                     {new Date(event.createdAt).toLocaleString()}
                   </span>
-                </p>
+                </div>
               ))}
             </div>
           ) : null}
@@ -633,18 +537,45 @@ export function ProfileScreen() {
             pendingLabel="Loading older activity…"
             onNext={() => void activity.fetchNextPage()}
           />
-        </section>
+        </ProfileCard>
       </fieldset>
     </main>
   );
 }
 
-/**
- * Purpose: Explain the effective browser/account push state in plain language.
- * Inputs: Current profile preferences and browser capability/subscription state.
- * Output: User-facing status sentence.
- * Side effects: None.
- */
+function ProfileCard({
+  title,
+  description,
+  icon,
+  className,
+  children,
+}: {
+  title: string;
+  description?: string;
+  icon: ReactNode;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      className={cn("app-card grid h-full content-start gap-4 p-4 md:p-5", className)}
+    >
+      <header className="flex items-start gap-3">
+        <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-md bg-surface-muted text-text-secondary">
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <h2 className="font-semibold">{title}</h2>
+          {description ? (
+            <p className="mt-0.5 text-xs leading-5 text-text-secondary">{description}</p>
+          ) : null}
+        </div>
+      </header>
+      {children}
+    </section>
+  );
+}
+
 function pushStatusText(profile: Profile, state: PushBrowserState): string {
   if (!state.supported) return "Push notifications are not supported in this browser.";
   if (!state.configured)
@@ -654,6 +585,6 @@ function pushStatusText(profile: Profile, state: PushBrowserState): string {
   if (!profile.notificationsEnabled)
     return "Notifications are disabled for this account.";
   if (!state.subscribed)
-    return "Notifications are enabled; subscribe this device to receive browser alerts.";
-  return "This browser is subscribed for safe assignment and reminder alerts.";
+    return "Notifications are enabled; subscribe this device for browser alerts.";
+  return "This browser is subscribed for assignments and reminders.";
 }

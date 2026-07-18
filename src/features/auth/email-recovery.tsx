@@ -52,20 +52,20 @@ export function EmailRecoveryActions({ initialKind }: { initialKind?: RecoveryKi
   };
   return (
     <div className="mt-5 grid gap-3 border-t border-border pt-4">
-      <div className="flex flex-wrap gap-3 text-sm">
+      <div className="flex flex-col items-start text-sm">
         <button
           type="button"
-          className="inline-flex min-h-11 items-center font-semibold text-brand hover:underline"
-          onClick={() => setKind(kind === "password" ? null : "password")}
-        >
-          Forgot password?
-        </button>
-        <button
-          type="button"
-          className="inline-flex min-h-11 items-center font-semibold text-brand hover:underline"
+          className="inline-flex min-h-9 items-center font-semibold text-brand hover:underline"
           onClick={() => setKind(kind === "verification" ? null : "verification")}
         >
           Resend verification email
+        </button>
+        <button
+          type="button"
+          className="inline-flex min-h-9 items-center font-semibold text-brand hover:underline"
+          onClick={() => setKind(kind === "password" ? null : "password")}
+        >
+          Forgot password?
         </button>
       </div>
       {kind ? (

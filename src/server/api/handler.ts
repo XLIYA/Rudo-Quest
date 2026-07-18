@@ -2,6 +2,7 @@ import type { NextRequest, NextResponse } from "next/server";
 import { AppError } from "@/lib/api/errors";
 import { apiFailure, requestIdFrom } from "@/lib/api/response";
 import { assertSameOrigin } from "@/server/security/origin";
+import { writeStructuredLog } from "@/server/observability/structured-log";
 
 /**
  * Purpose: Wrap route-handler logic with request IDs, origin validation, and safe error serialization.
@@ -16,6 +17,7 @@ export async function withApiHandler(
   options: { allowMissingOrigin?: boolean } = {},
 ): Promise<NextResponse> {
   const requestId = requestIdFrom(request.headers.get("x-request-id"));
+  const startedAt = Date.now();
   try {
     assertSameOrigin(request, options);
     const response = await handler(requestId);
@@ -26,9 +28,24 @@ export async function withApiHandler(
     );
     response.headers.set("Expires", "0");
     response.headers.set("Pragma", "no-cache");
+    writeStructuredLog("api_request_completed", {
+      requestId,
+      method: request.method,
+      route: request.nextUrl.pathname,
+      status: response.status,
+      durationMs: Date.now() - startedAt,
+    });
     return response;
   } catch (error) {
-    return apiFailure(error, requestId);
+    const response = apiFailure(error, requestId);
+    writeStructuredLog("api_request_completed", {
+      requestId,
+      method: request.method,
+      route: request.nextUrl.pathname,
+      status: response.status,
+      durationMs: Date.now() - startedAt,
+    });
+    return response;
   }
 }
 

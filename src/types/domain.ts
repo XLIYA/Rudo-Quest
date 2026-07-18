@@ -43,13 +43,29 @@ export type NotificationType = (typeof notificationTypes)[number];
 
 export const projectColorKeys = [
   "orange",
+  "coral",
   "red",
+  "ruby",
   "rose",
+  "pink",
+  "magenta",
+  "plum",
   "violet",
+  "indigo",
   "blue",
+  "sky",
   "cyan",
+  "teal",
+  "emerald",
   "green",
+  "lime",
   "yellow",
+  "amber",
+  "terracotta",
+  "brown",
+  "sand",
+  "slate",
+  "gray",
 ] as const;
 export type ProjectColorKey = (typeof projectColorKeys)[number];
 

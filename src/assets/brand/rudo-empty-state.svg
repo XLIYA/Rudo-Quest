@@ -1,8 +1,14 @@
 <svg width="240" height="180" viewBox="0 0 240 180" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Rudo waiting with an empty map">
-  <rect x="52" y="34" width="136" height="104" rx="24" fill="#FFF0EA"/>
-  <path d="M82 104C82 75.834 99.013 56 120 56C140.987 56 158 75.834 158 104V116C158 129.255 147.255 140 134 140H106C92.745 140 82 129.255 82 116V104Z" fill="#FF5A1F"/>
-  <path d="M102 94C102 82.402 110.059 74 120 74C129.941 74 138 82.402 138 94V102H102V94Z" fill="#482217"/>
-  <path d="M112 115H128" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
-  <path d="M120 44V58M72 64L84 76M168 64L156 76" stroke="#FF5A1F" stroke-width="8" stroke-linecap="round"/>
-  <path d="M46 150H194" stroke="#E5E5E5" stroke-width="8" stroke-linecap="round"/>
+  <rect x="48" y="24" width="144" height="124" rx="32" fill="#F4E7DF"/>
+  <path d="M120 33L126 43L120 53L114 43L120 33Z" fill="#C8613F"/>
+  <path d="M120 50V61" stroke="#C8613F" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="83" cy="92" r="10" fill="#E7CFC1"/>
+  <circle cx="157" cy="92" r="10" fill="#E7CFC1"/>
+  <path d="M83 92C83 70.461 99.566 54 120 54C140.434 54 157 70.461 157 92V116C157 129.255 146.255 140 133 140H107C93.745 140 83 129.255 83 116V92Z" fill="#C8613F"/>
+  <rect x="92" y="70" width="56" height="41" rx="20.5" fill="#24231F"/>
+  <circle cx="108" cy="88" r="4.5" fill="#F8F5ED"/>
+  <circle cx="132" cy="88" r="4.5" fill="#F8F5ED"/>
+  <path d="M108 100C111.5 104 115.5 106 120 106C124.5 106 128.5 104 132 100" stroke="#E07A57" stroke-width="5" stroke-linecap="round"/>
+  <path d="M106 122H134" stroke="#E7CFC1" stroke-width="7" stroke-linecap="round"/>
+  <path d="M44 158H196" stroke="#DED8CE" stroke-width="8" stroke-linecap="round"/>
 </svg>

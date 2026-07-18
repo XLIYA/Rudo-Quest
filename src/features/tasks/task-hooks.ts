@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppToast } from "@/components/ui/app-toast";
 import { apiGet, apiMutation, normalizeApiClientError } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
-import type { TaskDto } from "@/types/domain";
+import type { TaskDto, TaskStatus } from "@/types/domain";
 
 /**
  * Purpose: Fetch weekly task data through the central API client.
@@ -109,7 +109,7 @@ export function useTaskMutation(weekStart: string) {
   return useMutation({
     mutationFn: (input: {
       task: TaskDto;
-      action: "start" | "complete" | "reopen" | "update" | "archive";
+      action: "start" | "complete" | "reopen" | "move" | "update" | "archive";
       body?: Record<string, unknown>;
     }) => {
       if (input.action === "update") {
@@ -121,6 +121,12 @@ export function useTaskMutation(weekStart: string) {
       if (input.action === "archive") {
         return apiMutation<TaskDto>("delete", `/api/tasks/${input.task.id}`, {
           version: input.task.version,
+        });
+      }
+      if (input.action === "move") {
+        return apiMutation<TaskDto>("post", `/api/tasks/${input.task.id}/move`, {
+          version: input.task.version,
+          status: input.body?.status,
         });
       }
       return apiMutation<TaskDto>("post", `/api/tasks/${input.task.id}/${input.action}`, {
@@ -220,6 +226,23 @@ function optimisticTask(
       status: task.previousStatus ?? "TODO",
       previousStatus: null,
       completedAt: null,
+      version: task.version + 1,
+      updatedAt: now,
+    };
+  }
+  if (action === "move") {
+    const status = body?.status as TaskStatus | undefined;
+    if (!status || status === task.status) return task;
+    return {
+      ...task,
+      status,
+      previousStatus:
+        status === "DONE"
+          ? task.status === "DONE"
+            ? task.previousStatus
+            : task.status
+          : null,
+      completedAt: status === "DONE" ? now : null,
       version: task.version + 1,
       updatedAt: now,
     };

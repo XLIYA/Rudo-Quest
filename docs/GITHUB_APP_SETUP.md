@@ -2,11 +2,23 @@
 
 Create a GitHub App with the minimum repository metadata read permission.
 
-Configure the setup/callback URL:
+Configure the user authorization **Callback URL**:
 
 ```text
 https://<your-app-domain>/api/github/installations/callback
 ```
+
+Configure the post-install **Setup URL** to the same endpoint:
+
+```text
+https://<your-app-domain>/api/github/installations/callback
+```
+
+GitHub treats these as separate settings. The app intentionally omits the
+optional OAuth `redirect_uri`, so GitHub uses the registered Callback URL
+exactly and does not reject the flow when a stale deployment URL is present in
+an environment variable. Update both GitHub App fields whenever the production
+domain changes.
 
 Configure webhook URL:
 

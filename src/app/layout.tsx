@@ -1,7 +1,7 @@
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata, Viewport } from "next";
-import localFont from "next/font/local";
+import { Noto_Serif } from "next/font/google";
 import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import { Providers } from "@/components/shared/providers";
@@ -9,15 +9,9 @@ import "./globals.css";
 
 export const preferredRegion = "syd1";
 
-const notoSerif = localFont({
-  src: [
-    { path: "../../public/fonts/noto-serif/noto-serif-regular.ttf", weight: "400" },
-    { path: "../../public/fonts/noto-serif/noto-serif-500.ttf", weight: "500" },
-    { path: "../../public/fonts/noto-serif/noto-serif-600.ttf", weight: "600" },
-    { path: "../../public/fonts/noto-serif/noto-serif-700.ttf", weight: "700" },
-  ],
+const notoSerif = Noto_Serif({
+  subsets: ["latin"],
   variable: "--font-noto-serif",
-  style: "normal",
   display: "swap",
   fallback: ["Georgia", "serif"],
 });
@@ -31,7 +25,7 @@ export const metadata: Metadata = {
   description: "A compact collaborative weekly task-management PWA.",
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/favicon.ico",
+    icon: "/icons/rudo-mark.svg",
     apple: "/icons/apple-touch-icon.png",
   },
   appleWebApp: {

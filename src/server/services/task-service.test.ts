@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskDto } from "@/types/domain";
-import { createTask, updateTask } from "./task-service";
+import { createTask, moveTask, updateTask } from "./task-service";
 
 const taskRepository = vi.hoisted(() => ({
   findTaskDto: vi.fn(),
@@ -201,5 +201,38 @@ describe("createTask assignment defaults", () => {
       notification,
       assignedTask.assignee?.id,
     );
+  });
+});
+
+describe("moveTask Kanban transitions", () => {
+  it("moves an in-progress task back to TODO with optimistic concurrency", async () => {
+    const current = task({ status: "IN_PROGRESS", version: 3 });
+    const moved = task({ status: "TODO", version: 4 });
+    taskRepository.findTaskDto.mockResolvedValue(current);
+    taskRepository.updateTaskRow.mockResolvedValue(moved);
+
+    await expect(moveTask(userId, current.id, 3, "TODO")).resolves.toEqual(moved);
+
+    expect(taskRepository.updateTaskRow).toHaveBeenCalledWith(
+      current.id,
+      3,
+      { status: "TODO", previousStatus: null, completedAt: null },
+      userId,
+      transaction.executor,
+    );
+    expect(activityRepository.createActivityEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "TASK_REOPENED", taskId: current.id }),
+      transaction.executor,
+    );
+  });
+
+  it("rejects a stale explicit move", async () => {
+    const current = task({ version: 4 });
+    taskRepository.findTaskDto.mockResolvedValue(current);
+
+    await expect(moveTask(userId, current.id, 3, "DONE")).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+    expect(taskRepository.updateTaskRow).not.toHaveBeenCalled();
   });
 });

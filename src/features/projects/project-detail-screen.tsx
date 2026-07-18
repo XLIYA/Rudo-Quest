@@ -11,23 +11,34 @@ import type {
   ProjectRole,
   ProjectSummary,
   TaskDto,
+  TaskStatus,
 } from "@/types/domain";
+import {
+  CheckCircle2,
+  Circle,
+  CircleDotDashed,
+  Clock3,
+  GripVertical,
+  Play,
+  Settings2,
+} from "lucide-react";
 import { AppAvatarStack } from "@/components/ui/app-avatar-stack";
 import { AppEmptyState } from "@/components/ui/app-empty-state";
 import { AppSkeleton } from "@/components/ui/app-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { AppButton } from "@/components/ui/app-button";
 import { AppPagination } from "@/components/ui/app-pagination";
-import { TaskRow } from "@/components/ui/task-row";
 import { useTaskMutation } from "@/features/tasks/task-hooks";
 import { getDateInTimeZone, getMondayWeekStart } from "@/lib/utils/dates";
 import { TaskDetailSheet } from "@/components/ui/task-detail-sheet";
 import { useOnline } from "@/hooks/use-online";
-import { useState } from "react";
+import { useState, type DragEvent } from "react";
 import Link from "next/link";
 import { ProjectIconGlyph } from "./project-pickers";
 import { getProjectColor } from "@/lib/theme/project-colors";
 import { parseISO } from "date-fns";
+import { AppAvatar } from "@/components/ui/app-avatar";
+import { cn } from "@/lib/utils/cn";
 
 /**
  * Purpose: Render project detail with tasks, members, GitHub status, and activity.
@@ -112,27 +123,31 @@ export function ProjectDetailScreen() {
   const activityItems = activity.data?.pages.flatMap((page) => page.items) ?? [];
   const projectColor = getProjectColor(project.data.colorKey);
   return (
-    <main className="mx-auto grid max-w-6xl gap-5 p-5 md:p-8">
-      <div className="flex items-start gap-3 sm:gap-4">
+    <main className="mx-auto grid w-full max-w-[100rem] gap-5 p-5 md:p-8">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 sm:gap-4">
         <span
           className="flex size-12 shrink-0 items-center justify-center rounded-lg sm:size-14"
           style={{ background: projectColor.soft, color: projectColor.text }}
         >
           <ProjectIconGlyph iconKey={project.data.iconKey} className="size-6" />
         </span>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0">
           <PageHeader
             title={project.data.title}
             description={project.data.description ?? "Project task space."}
-            action={
-              project.data.role === "OWNER" || project.data.role === "ADMIN" ? (
-                <AppButton asChild variant="secondary">
-                  <Link href={`/projects/${project.data.id}/settings`}>Settings</Link>
-                </AppButton>
-              ) : undefined
-            }
           />
         </div>
+        {project.data.role === "OWNER" || project.data.role === "ADMIN" ? (
+          <AppButton asChild variant="secondary" className="px-3">
+            <Link
+              href={`/projects/${project.data.id}/settings`}
+              aria-label="Project settings"
+              title="Project settings"
+            >
+              <Settings2 className="size-5" aria-hidden="true" />
+            </Link>
+          </AppButton>
+        ) : null}
       </div>
       <section className="grid gap-4 md:grid-cols-3">
         <Panel title="Status">
@@ -177,7 +192,18 @@ export function ProjectDetailScreen() {
           mode.
         </p>
       ) : null}
-      <Panel title="This week's project tasks">
+      <section className="app-card overflow-hidden">
+        <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border p-4 md:p-5">
+          <div>
+            <h2 className="text-lg font-semibold">This week’s board</h2>
+            <p className="mt-1 text-sm text-text-secondary">
+              Drag work between columns or use each card’s move controls.
+            </p>
+          </div>
+          <span className="rounded-full bg-quest-soft px-3 py-1 font-mono text-xs text-quest">
+            {tasks.data?.length ?? 0} tasks
+          </span>
+        </header>
         {tasks.isLoading ? <AppSkeleton className="h-36" /> : null}
         {tasks.isError ? (
           <AppEmptyState
@@ -189,31 +215,18 @@ export function ProjectDetailScreen() {
               </AppButton>
             }
           />
-        ) : tasks.data?.length ? (
-          <div className="grid gap-2">
-            {tasks.data.map((task) => (
-              <TaskRow
-                key={task.id}
-                task={task}
-                disabled={!online}
-                onOpen={(target) => setSelectedTask(target)}
-                onStart={(target) => mutation.mutate({ task: target, action: "start" })}
-                onCompleteToggle={(target) =>
-                  mutation.mutate({
-                    task: target,
-                    action: target.status === "DONE" ? "reopen" : "complete",
-                  })
-                }
-              />
-            ))}
-          </div>
-        ) : !tasks.isLoading ? (
-          <AppEmptyState
-            title="No project tasks"
-            description="Create a task from Weekly and attach it to this project."
+        ) : tasks.data ? (
+          <ProjectKanban
+            tasks={tasks.data}
+            disabled={!online || Boolean(project.data.archivedAt)}
+            pending={mutation.isPending}
+            onOpen={setSelectedTask}
+            onMove={(task, status) =>
+              mutation.mutate({ task, action: "move", body: { status } })
+            }
           />
         ) : null}
-      </Panel>
+      </section>
       <Panel title="Activity">
         {activity.isLoading ? <AppSkeleton className="h-28" /> : null}
         {activity.isError ? (
@@ -283,5 +296,228 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
       </h2>
       {children}
     </section>
+  );
+}
+
+const kanbanColumns: {
+  status: TaskStatus;
+  title: string;
+  description: string;
+  icon: typeof Circle;
+}[] = [
+  {
+    status: "TODO",
+    title: "To do",
+    description: "Ready to be picked up",
+    icon: Circle,
+  },
+  {
+    status: "IN_PROGRESS",
+    title: "In progress",
+    description: "Actively moving",
+    icon: Play,
+  },
+  {
+    status: "DONE",
+    title: "Done",
+    description: "Completed this week",
+    icon: CheckCircle2,
+  },
+];
+
+function ProjectKanban({
+  tasks,
+  disabled,
+  pending,
+  onOpen,
+  onMove,
+}: {
+  tasks: TaskDto[];
+  disabled: boolean;
+  pending: boolean;
+  onOpen: (task: TaskDto) => void;
+  onMove: (task: TaskDto, status: TaskStatus) => void;
+}) {
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [overStatus, setOverStatus] = useState<TaskStatus | null>(null);
+
+  const dropTask = (event: DragEvent<HTMLElement>, status: TaskStatus) => {
+    event.preventDefault();
+    const id = event.dataTransfer.getData("text/rudo-task") || draggedId;
+    const task = tasks.find((candidate) => candidate.id === id);
+    setDraggedId(null);
+    setOverStatus(null);
+    if (task && task.status !== status && task.permissions.canTransition) {
+      onMove(task, status);
+    }
+  };
+
+  return (
+    <div className="grid gap-3 bg-surface-muted/35 p-3 lg:grid-cols-3 lg:p-4">
+      {kanbanColumns.map((column) => {
+        const columnTasks = tasks.filter((task) => task.status === column.status);
+        const Icon = column.icon;
+        const activeDrop = overStatus === column.status && draggedId;
+        return (
+          <section
+            key={column.status}
+            className={cn(
+              "min-h-72 rounded-lg border bg-surface p-3 transition-[border-color,background-color,box-shadow] duration-150",
+              activeDrop
+                ? "border-quest bg-quest-soft/45 shadow-[0_0_0_3px_var(--quest-soft)]"
+                : "border-border",
+            )}
+            onDragOver={(event) => {
+              if (disabled || pending) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+              setOverStatus(column.status);
+            }}
+            onDragLeave={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+                setOverStatus(null);
+              }
+            }}
+            onDrop={(event) => dropTask(event, column.status)}
+          >
+            <header className="mb-3 flex items-start justify-between gap-3">
+              <div className="flex items-start gap-2">
+                <span className="mt-0.5 inline-flex size-7 items-center justify-center rounded-md bg-quest-soft text-quest">
+                  <Icon className="size-4" aria-hidden="true" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold">{column.title}</h3>
+                  <p className="text-[11px] text-text-tertiary">{column.description}</p>
+                </div>
+              </div>
+              <span className="rounded-full bg-surface-muted px-2 py-0.5 font-mono text-xs text-text-secondary">
+                {columnTasks.length}
+              </span>
+            </header>
+            <div className="grid gap-2">
+              {columnTasks.map((task) => (
+                <KanbanTaskCard
+                  key={task.id}
+                  task={task}
+                  disabled={disabled || pending}
+                  dragging={draggedId === task.id}
+                  onDragStart={(event) => {
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setData("text/rudo-task", task.id);
+                    setDraggedId(task.id);
+                  }}
+                  onDragEnd={() => {
+                    setDraggedId(null);
+                    setOverStatus(null);
+                  }}
+                  onOpen={() => onOpen(task)}
+                  onMove={(status) => onMove(task, status)}
+                />
+              ))}
+              {!columnTasks.length ? (
+                <div className="grid min-h-28 place-items-center rounded-md border border-dashed border-border p-4 text-center text-xs text-text-tertiary">
+                  <span>
+                    <CircleDotDashed className="mx-auto mb-2 size-5" aria-hidden="true" />
+                    Drop tasks here
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function KanbanTaskCard({
+  task,
+  disabled,
+  dragging,
+  onDragStart,
+  onDragEnd,
+  onOpen,
+  onMove,
+}: {
+  task: TaskDto;
+  disabled: boolean;
+  dragging: boolean;
+  onDragStart: (event: DragEvent<HTMLElement>) => void;
+  onDragEnd: () => void;
+  onOpen: () => void;
+  onMove: (status: TaskStatus) => void;
+}) {
+  const canMove = !disabled && task.permissions.canTransition;
+  return (
+    <article
+      draggable={canMove}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className={cn(
+        "group rounded-lg border border-border bg-surface p-3 shadow-[var(--shadow-surface)] transition-[border-color,box-shadow,transform,opacity] duration-150 hover:-translate-y-0.5 hover:border-quest-muted hover:shadow-[var(--shadow-raised)]",
+        dragging ? "scale-[0.98] opacity-45" : null,
+      )}
+    >
+      <div className="flex items-start gap-2">
+        <GripVertical
+          className="mt-0.5 size-4 shrink-0 text-text-tertiary group-hover:text-quest"
+          aria-hidden="true"
+        />
+        <button
+          type="button"
+          onClick={onOpen}
+          className="min-h-11 min-w-0 flex-1 text-left"
+        >
+          <span className="flex items-start gap-2 text-sm font-semibold">
+            {task.iconKey ? (
+              <ProjectIconGlyph
+                iconKey={task.iconKey}
+                className="mt-0.5 size-4 shrink-0 text-quest"
+              />
+            ) : null}
+            <span className="line-clamp-2">{task.title}</span>
+          </span>
+          {task.description ? (
+            <span className="mt-1 line-clamp-2 text-xs leading-5 text-text-secondary">
+              {task.description}
+            </span>
+          ) : null}
+        </button>
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-2">
+        <div className="flex min-w-0 items-center gap-2">
+          {task.assignee ? (
+            <AppAvatar
+              name={task.assignee.displayName}
+              src={task.assignee.avatarUrl}
+              className="size-7"
+            />
+          ) : null}
+          {task.scheduledTime ? (
+            <span className="inline-flex items-center gap-1 font-mono text-[10px] text-text-tertiary">
+              <Clock3 className="size-3" aria-hidden="true" />
+              {task.scheduledTime.slice(0, 5)}
+            </span>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-1" aria-label={`Move ${task.title}`}>
+          {kanbanColumns
+            .filter((column) => column.status !== task.status)
+            .map((column) => (
+              <button
+                key={column.status}
+                type="button"
+                title={`Move to ${column.title}`}
+                aria-label={`Move ${task.title} to ${column.title}`}
+                className="inline-flex size-8 items-center justify-center rounded-md text-text-tertiary hover:bg-quest-soft hover:text-quest disabled:opacity-40"
+                disabled={!canMove}
+                onClick={() => onMove(column.status)}
+              >
+                <column.icon className="size-3.5" aria-hidden="true" />
+              </button>
+            ))}
+        </div>
+      </div>
+    </article>
   );
 }

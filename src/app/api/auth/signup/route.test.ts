@@ -122,4 +122,39 @@ describe("signup route", () => {
       },
     });
   });
+
+  it("returns a retryable 503 when local Supabase is unavailable", async () => {
+    authMocks.signUp.mockRejectedValue(new TypeError("fetch failed"));
+    const { POST } = await import("./route");
+
+    const response = await POST(signupRequest());
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "Authentication service is temporarily unavailable. Please try again.",
+      },
+    });
+  });
+
+  it("clears the local session when profile setup is unavailable", async () => {
+    authMocks.signUp.mockResolvedValue({
+      data: {
+        user: {
+          id: "00000000-0000-4000-8000-000000000001",
+          email: "new@example.com",
+        },
+        session: { access_token: "local-session" },
+      },
+      error: null,
+    });
+    authMocks.ensureProfile.mockRejectedValue(new Error('relation "profiles" missing'));
+    const { POST } = await import("./route");
+
+    const response = await POST(signupRequest());
+
+    expect(response.status).toBe(503);
+    expect(authMocks.signOut).toHaveBeenCalledWith({ scope: "local" });
+  });
 });

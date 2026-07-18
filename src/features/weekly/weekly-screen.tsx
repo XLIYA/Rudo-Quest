@@ -140,7 +140,7 @@ export function WeeklyScreen() {
   };
 
   return (
-    <main className="mx-auto grid max-w-5xl gap-5 p-5 md:p-8">
+    <main className="app-enter mx-auto grid max-w-5xl gap-5 p-5 md:p-8">
       <PageHeader
         title="Weekly"
         description={`${format(parseISO(weekStart), "MMM d")} - ${format(addDays(parseISO(weekStart), 6), "MMM d, yyyy")}`}
@@ -192,7 +192,7 @@ export function WeeklyScreen() {
             return (
               <article
                 key={date}
-                className={`rounded-lg border bg-surface ${currentDay ? "border-brand shadow-[0_0_0_1px_var(--brand-soft)]" : "border-border"}`}
+                className={`overflow-hidden rounded-xl border bg-surface shadow-[var(--shadow-surface)] transition-[border-color,box-shadow,transform] duration-250 ${currentDay ? "border-quest-muted shadow-[0_10px_30px_color-mix(in_srgb,var(--quest)_10%,transparent)]" : "border-border hover:-translate-y-0.5 hover:border-border-strong"}`}
               >
                 <button
                   type="button"
@@ -201,10 +201,10 @@ export function WeeklyScreen() {
                     const nextDate = open ? "closed" : date;
                     router.push(`/weekly?weekStart=${weekStart}&date=${nextDate}`);
                   }}
-                  className="grid min-h-20 w-full grid-cols-[1fr_auto] items-center gap-3 rounded-lg p-4 text-left"
+                  className="grid min-h-20 w-full grid-cols-[1fr_auto] items-center gap-3 rounded-xl p-4 text-left transition-colors duration-150 hover:bg-surface-muted/55"
                 >
                   <span>
-                    <span className="font-display text-3xl uppercase leading-none">
+                    <span className="font-display text-2xl font-semibold leading-none">
                       {format(parseISO(date), "EEEE")}
                     </span>
                     <span className="mt-1 block font-mono text-xs text-text-secondary">
@@ -220,72 +220,78 @@ export function WeeklyScreen() {
                         className="hidden h-1.5 w-12 overflow-hidden rounded-full bg-surface-muted sm:block"
                       >
                         <span
-                          className="block h-full rounded-full bg-brand"
+                          className="block h-full rounded-full bg-quest transition-[width] duration-400 ease-out"
                           style={{ width: `${Math.round((done / tasks.length) * 100)}%` }}
                         />
                       </span>
                     ) : null}
                     <ChevronDown
-                      className={`size-5 text-text-secondary transition-transform ${open ? "rotate-180" : ""}`}
+                      className={`size-5 text-text-secondary transition-transform duration-250 ease-out ${open ? "rotate-180 text-quest" : ""}`}
                       aria-hidden="true"
                     />
                   </span>
                 </button>
-                {open ? (
-                  <div className="grid gap-2 border-t border-border p-3">
-                    {ordered.map((task) => (
-                      <TaskRow
-                        key={task.id}
-                        task={task}
-                        disabled={!online}
-                        onOpen={openTask}
-                        onStart={(target) =>
-                          mutateTask.mutate({ task: target, action: "start" })
-                        }
-                        onCompleteToggle={(target) =>
-                          mutateTask.mutate({
-                            task: target,
-                            action: target.status === "DONE" ? "reopen" : "complete",
-                          })
-                        }
-                      />
-                    ))}
-                    {quickDate === date ? (
-                      <AppInput
-                        autoFocus
-                        label="Add a task"
-                        value={quickTitle}
-                        disabled={createTask.isPending}
-                        onChange={(event) => setQuickTitle(event.currentTarget.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" && !createTask.isPending) {
-                            event.preventDefault();
-                            void submitQuick(date);
+                <div
+                  className={`grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
+                  aria-hidden={!open}
+                  inert={!open}
+                >
+                  <div className="min-h-0 overflow-hidden">
+                    <div className="grid gap-2 border-t border-border bg-surface-muted/25 p-3">
+                      {ordered.map((task) => (
+                        <TaskRow
+                          key={task.id}
+                          task={task}
+                          disabled={!online}
+                          onOpen={openTask}
+                          onStart={(target) =>
+                            mutateTask.mutate({ task: target, action: "start" })
                           }
-                          if (event.key === "Escape") {
-                            setQuickTitle("");
-                            setQuickDate(null);
+                          onCompleteToggle={(target) =>
+                            mutateTask.mutate({
+                              task: target,
+                              action: target.status === "DONE" ? "reopen" : "complete",
+                            })
                           }
-                        }}
-                      />
-                    ) : (
-                      <AppButton
-                        variant="ghost"
-                        disabled={!online}
-                        onClick={() => setQuickDate(date)}
-                      >
-                        <Plus className="size-4" />
-                        Add a task...
-                      </AppButton>
-                    )}
-                    {!ordered.length && quickDate !== date ? (
-                      <AppEmptyState
-                        title="Open day"
-                        description="No tasks scheduled here."
-                      />
-                    ) : null}
+                        />
+                      ))}
+                      {quickDate === date ? (
+                        <AppInput
+                          autoFocus
+                          label="Add a task"
+                          value={quickTitle}
+                          disabled={createTask.isPending}
+                          onChange={(event) => setQuickTitle(event.currentTarget.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" && !createTask.isPending) {
+                              event.preventDefault();
+                              void submitQuick(date);
+                            }
+                            if (event.key === "Escape") {
+                              setQuickTitle("");
+                              setQuickDate(null);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <AppButton
+                          variant="ghost"
+                          disabled={!online}
+                          onClick={() => setQuickDate(date)}
+                        >
+                          <Plus className="size-4" />
+                          Add a task...
+                        </AppButton>
+                      )}
+                      {!ordered.length && quickDate !== date ? (
+                        <AppEmptyState
+                          title="Open day"
+                          description="No tasks scheduled here."
+                        />
+                      ) : null}
+                    </div>
                   </div>
-                ) : null}
+                </div>
               </article>
             );
           })}

@@ -8,6 +8,7 @@ import {
   timeZoneSchema,
   uuidSchema,
 } from "./common";
+import { taskStatuses } from "@/types/domain";
 
 export const createTaskSchema = z.object({
   projectId: uuidSchema.nullable().optional(),
@@ -32,6 +33,10 @@ export const updateTaskSchema = createTaskSchema
 
 export const taskActionSchema = z.object({
   version: z.number().int().positive(),
+});
+
+export const taskMoveSchema = taskActionSchema.extend({
+  status: z.enum(taskStatuses),
 });
 
 export const weekQuerySchema = z.object({

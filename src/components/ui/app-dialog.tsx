@@ -29,8 +29,8 @@ export function AppDialog({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[88vh] w-[min(92vw,34rem)] -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-lg border border-border bg-surface p-5 shadow-[var(--shadow-overlay)]">
+        <Dialog.Overlay className="dialog-overlay fixed inset-0 z-40 bg-black/45 backdrop-blur-[2px]" />
+        <Dialog.Content className="dialog-surface fixed left-1/2 top-1/2 z-50 max-h-[88vh] w-[min(92vw,36rem)] overflow-auto rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow-overlay)]">
           <div className="mb-4 flex items-center justify-between gap-4">
             <div>
               <Dialog.Title className="text-lg font-semibold">{title}</Dialog.Title>

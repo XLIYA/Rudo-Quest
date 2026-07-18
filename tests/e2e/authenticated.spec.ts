@@ -34,7 +34,7 @@ test.describe("authenticated production flow", () => {
     test.setTimeout(120_000);
     await page.goto("/login");
     await page.getByLabel("Email").fill(email ?? "");
-    await page.getByLabel("Password").fill(password ?? "");
+    await page.getByLabel("Password", { exact: true }).fill(password ?? "");
     const signInResponsePromise = page.waitForResponse((response) =>
       response.url().endsWith("/api/auth/signin"),
     );
@@ -53,6 +53,13 @@ test.describe("authenticated production flow", () => {
     await expect(page.getByRole("link", { name: "Weekly" })).toBeVisible({
       timeout: 20_000,
     });
+    if (testInfo.project.name === "mobile") {
+      const activeNavigationItem = page
+        .getByRole("navigation", { name: "Mobile primary" })
+        .getByRole("link", { name: "Dashboard" });
+      await expect(activeNavigationItem).toHaveClass(/text-brand/);
+      await expect(activeNavigationItem).not.toHaveClass(/bg-quest-soft/);
+    }
 
     const origin = new URL(page.url()).origin;
     const scheduledDate = new Date().toISOString().slice(0, 10);
@@ -106,6 +113,18 @@ test.describe("authenticated production flow", () => {
       await expect(page).toHaveURL(new RegExp(`task=${created.data.id}`));
       const sheet = page.getByRole("dialog", { name: "Task details" });
       await expect(sheet).toBeVisible();
+      if (testInfo.project.name === "mobile") {
+        const archiveUsesFullActionWidth = await sheet
+          .getByRole("button", { name: "Archive", exact: true })
+          .evaluate(
+            (button) =>
+              Math.abs(
+                button.getBoundingClientRect().width -
+                  (button.parentElement?.getBoundingClientRect().width ?? 0),
+              ) < 2,
+          );
+        expect(archiveUsesFullActionWidth).toBe(true);
+      }
 
       const startResponsePromise = page.waitForResponse(
         (response) =>
@@ -148,7 +167,7 @@ test.describe("authenticated production flow", () => {
       const renameResponse = await renameResponsePromise;
       expect(renameResponse.status()).toBe(200);
       await expect(sheet.getByLabel("Title")).toHaveValue(renamedTitle);
-      await sheet.getByRole("button", { name: "Close sheet" }).click();
+      await sheet.getByRole("button", { name: "Close dialog" }).click();
       await expect(page).not.toHaveURL(/task=/);
 
       await page.getByRole("button", { name: "Next week" }).click();

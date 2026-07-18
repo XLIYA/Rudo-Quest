@@ -26,8 +26,9 @@ export class AppError extends Error {
     status: number,
     message: string,
     fieldErrors?: Record<string, string[]>,
+    options?: ErrorOptions,
   ) {
-    super(message);
+    super(message, options);
     this.code = code;
     this.status = status;
     this.fieldErrors = fieldErrors;

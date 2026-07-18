@@ -71,7 +71,9 @@ test.describe("local collaborative project lifecycle", () => {
     try {
       await collaboratorPage.goto("/login");
       await collaboratorPage.getByLabel("Email").fill(collaboratorEmail);
-      await collaboratorPage.getByLabel("Password").fill(collaboratorPassword);
+      await collaboratorPage
+        .getByLabel("Password", { exact: true })
+        .fill(collaboratorPassword);
       const collaboratorSignInPromise = collaboratorPage.waitForResponse(
         (response) => new URL(response.url()).pathname === "/api/auth/signin",
       );
@@ -83,7 +85,7 @@ test.describe("local collaborative project lifecycle", () => {
 
       await page.goto("/login");
       await page.getByLabel("Email").fill(ownerEmail!);
-      await page.getByLabel("Password").fill(ownerPassword!);
+      await page.getByLabel("Password", { exact: true }).fill(ownerPassword!);
       const ownerSignInPromise = page.waitForResponse(
         (response) => new URL(response.url()).pathname === "/api/auth/signin",
       );
@@ -184,6 +186,40 @@ test.describe("local collaborative project lifecycle", () => {
         status: "TODO",
         permissions: { canTransition: true, canEditDetails: true },
       });
+
+      await collaboratorPage.goto(`/projects/${projectId}`);
+      await expect(
+        collaboratorPage.getByRole("heading", { name: "This week’s board" }),
+      ).toBeVisible();
+      await expect(collaboratorPage.getByText(taskTitle, { exact: true })).toBeVisible();
+
+      const moveToProgressResponsePromise = collaboratorPage.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === `/api/tasks/${taskId}/move`,
+      );
+      await collaboratorPage
+        .getByRole("button", { name: `Move ${taskTitle} to In progress` })
+        .click();
+      expect((await moveToProgressResponsePromise).status()).toBe(200);
+      await expect(
+        collaboratorPage.getByRole("button", { name: `Move ${taskTitle} to To do` }),
+      ).toBeVisible();
+
+      const moveBackResponsePromise = collaboratorPage.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === `/api/tasks/${taskId}/move`,
+      );
+      await collaboratorPage
+        .getByRole("button", { name: `Move ${taskTitle} to To do` })
+        .click();
+      expect((await moveBackResponsePromise).status()).toBe(200);
+      await expect(
+        collaboratorPage.getByRole("button", {
+          name: `Move ${taskTitle} to In progress`,
+        }),
+      ).toBeVisible();
 
       await collaboratorPage.goto(`/weekly?date=${scheduledDate}&task=${taskId}`);
       await collaboratorPage.waitForLoadState("networkidle");

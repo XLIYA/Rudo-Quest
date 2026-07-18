@@ -11,5 +11,10 @@ export type AppSkeletonProps = {
  * Side effects: None.
  */
 export function AppSkeleton({ className }: AppSkeletonProps) {
-  return <div className={cn("animate-pulse rounded-md bg-surface-muted", className)} />;
+  return (
+    <div
+      aria-hidden="true"
+      className={cn("skeleton-shimmer rounded-md bg-surface-muted", className)}
+    />
+  );
 }

@@ -100,7 +100,8 @@ production configuration.
 Create a GitHub App from GitHub Settings > Developer settings > GitHub Apps.
 Set the Homepage URL to `https://<your-app-domain>`.
 
-Set the setup/callback URL to:
+Set both the GitHub App user authorization Callback URL and the post-install
+Setup URL to:
 
 ```text
 https://<your-app-domain>/api/github/installations/callback

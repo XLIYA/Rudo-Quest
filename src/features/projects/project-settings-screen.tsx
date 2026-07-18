@@ -8,7 +8,6 @@ import Link from "next/link";
 import {
   GitBranch,
   Trash2,
-  Settings,
   ExternalLink,
   Loader2,
   ChevronLeft,
@@ -40,6 +39,7 @@ import type {
   ProjectSummary,
 } from "@/types/domain";
 import { useOnline } from "@/hooks/use-online";
+import { cn } from "@/lib/utils/cn";
 
 type GitHubInstallation = {
   id: string;
@@ -74,47 +74,23 @@ const nonOwnerRoles: Exclude<ProjectRole, "OWNER">[] = ["ADMIN", "MEMBER", "VIEW
  */
 function SettingsSection({
   title,
+  className,
   children,
 }: {
   title: string;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-lg border border-border bg-surface p-5">
-      <h2 className="mb-4 text-lg font-semibold uppercase text-text-secondary flex items-center gap-2">
-        <Settings className="size-4" />
-        {title}
-      </h2>
+    <section
+      className={cn("app-card h-full min-w-0 overflow-hidden p-4 md:p-5", className)}
+    >
+      <div className="mb-4 flex items-center gap-3 border-b border-border pb-3">
+        <span className="h-6 w-1 rounded-full bg-quest" aria-hidden="true" />
+        <h2 className="text-base font-semibold">{title}</h2>
+      </div>
       {children}
     </section>
-  );
-}
-
-/**
- * Purpose: Render a project metadata label, description, and value.
- * Inputs: Row label, optional description, and value content.
- * Output: Responsive settings row.
- * Side effects: None.
- */
-function SettingsRow({
-  label,
-  description,
-  children,
-}: {
-  label: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-md border border-border bg-surface-muted">
-      <div className="flex flex-col gap-1">
-        <span className="font-medium">{label}</span>
-        {description && (
-          <span className="text-sm text-text-secondary">{description}</span>
-        )}
-      </div>
-      <div className="flex items-center gap-3">{children}</div>
-    </div>
   );
 }
 
@@ -134,12 +110,14 @@ function DangerZoneItem({
   action: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-md border border-border bg-surface-muted">
-      <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-3 rounded-md border border-border bg-surface-muted p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0 flex-1">
         <span className="font-medium text-error">{label}</span>
-        <span className="text-sm text-text-secondary">{description}</span>
+        <span className="mt-1 block text-sm text-text-secondary">{description}</span>
       </div>
-      <div className="w-full sm:w-auto">{action}</div>
+      <div className="flex w-full shrink-0 sm:w-auto sm:min-w-44 sm:justify-end [&>*]:w-full [&>*]:whitespace-nowrap">
+        {action}
+      </div>
     </div>
   );
 }
@@ -522,7 +500,7 @@ export function ProjectSettingsScreen({
   const canManageMembers = isAdmin;
 
   return (
-    <main className="mx-auto grid max-w-4xl gap-5 p-5 md:p-8">
+    <main className="app-enter mx-auto grid w-full max-w-[100rem] gap-4 p-4 sm:p-6 md:p-8">
       <PageHeader
         title="Settings"
         description="Manage project details, members, GitHub, and archive options."
@@ -544,446 +522,431 @@ export function ProjectSettingsScreen({
 
       <fieldset
         disabled={!online || Boolean(projectData.archivedAt)}
-        className="grid gap-5"
+        className="grid w-full grid-cols-1 items-stretch gap-4 lg:grid-cols-12"
       >
-        {/* General Settings */}
-        <SettingsSection title="General">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <SettingsRow
-              label="Project ID"
-              description="Unique identifier for this project"
-            >
-              <code className="max-w-full break-all rounded bg-surface-muted px-2 py-1 font-mono text-xs text-text-secondary">
-                {projectData.id}
-              </code>
-            </SettingsRow>
-            <SettingsRow label="Role" description="Your role in this project">
-              <span className="rounded-sm bg-surface-muted px-2 py-1 font-mono text-xs text-text-secondary">
-                {projectData.role}
-              </span>
-            </SettingsRow>
-            <SettingsRow label="Created" description="When this project was created">
-              <span className="font-mono text-sm text-text-secondary">
-                {new Date(projectData.createdAt).toLocaleDateString()}
-              </span>
-            </SettingsRow>
-            <SettingsRow label="Status" description="Current project state">
-              <span
-                className={`${projectData.archivedAt ? "text-error" : "text-success"} font-mono text-sm`}
-              >
-                {projectData.archivedAt ? "Archived" : "Active"}
-              </span>
-            </SettingsRow>
-          </div>
-        </SettingsSection>
-
-        {isAdmin ? (
-          <SettingsSection title="Edit project">
-            <div className="grid gap-4">
-              <AppInput
-                label="Title"
-                maxLength={60}
-                value={editDraft?.title ?? ""}
-                onChange={(event) =>
-                  updateEditDraft({ title: event.currentTarget.value })
-                }
-              />
-              <AppTextarea
-                label="Description"
-                maxLength={500}
-                value={editDraft?.description ?? ""}
-                onChange={(event) =>
-                  updateEditDraft({ description: event.currentTarget.value })
-                }
-                rows={4}
-              />
-              <ProjectIconPicker
-                value={editDraft?.iconKey ?? "Compass"}
-                onChange={(value) => updateEditDraft({ iconKey: value })}
-              />
-              <ProjectColorPicker
-                value={editDraft?.colorKey ?? "orange"}
-                onChange={(value) => updateEditDraft({ colorKey: value })}
-              />
-              <AppTimeZoneInput
-                value={editDraft?.timeZone ?? "UTC"}
-                onChange={(event) =>
-                  updateEditDraft({ timeZone: event.currentTarget.value })
-                }
-              />
-              <AppButton
-                className="w-fit"
-                disabled={
-                  updateProject.isPending || (editDraft?.title.trim().length ?? 0) < 2
-                }
-                onClick={() =>
-                  editDraft &&
-                  updateProject.mutate({
-                    title: editDraft.title,
-                    description: editDraft.description || null,
-                    iconKey: editDraft.iconKey,
-                    colorKey: editDraft.colorKey,
-                    timeZone: editDraft.timeZone,
-                  })
-                }
-              >
-                <Save className="size-4" aria-hidden="true" /> Save project
-              </AppButton>
-            </div>
-          </SettingsSection>
-        ) : null}
-
-        {/* GitHub Integration */}
-        <SettingsSection title="GitHub integration">
-          {!githubConfigured && isAdmin ? (
-            <p
-              role="status"
-              className="mb-3 rounded-md border border-warning bg-warning-soft p-3 text-sm"
-            >
-              GitHub App is not configured for this deployment. Add the documented GitHub
-              environment variables before connecting a repository.
-            </p>
-          ) : null}
-          {githubInstallations.isError && isAdmin ? (
-            <p
-              role="alert"
-              className="mb-3 rounded-md border border-warning bg-warning-soft p-3 text-sm"
-            >
-              {normalizeApiClientError(githubInstallations.error).code ===
-              "INTEGRATION_NOT_CONFIGURED"
-                ? "GitHub App is not configured for this deployment. Add the documented GitHub environment variables before connecting a repository."
-                : "GitHub installations could not be loaded. Try again when the connection is available."}
-            </p>
-          ) : null}
-          {githubRepo.isLoading ? (
-            <AppSkeleton className="h-24" />
-          ) : githubRepo.isError ? (
-            <AppEmptyState
-              title="Repository status unavailable"
-              description="The GitHub connection status could not be loaded."
-            />
-          ) : githubRepo.data ? (
-            <>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-md border border-border bg-surface-muted">
-                <div className="flex items-center gap-3">
-                  <GitBranch className="size-5 text-brand" />
-                  <div>
-                    <span className="font-medium text-sm">
-                      {githubRepo.data.repositoryFullName}
-                    </span>
-                    <span className="ml-2 rounded-sm bg-brand-soft px-2 py-0.5 font-mono text-xs text-brand">
-                      Connected
-                    </span>
-                  </div>
-                </div>
-                {isAdmin ? (
-                  <AppButton
-                    variant="danger"
-                    size="sm"
-                    disabled={disconnectGithub.isPending}
-                    onClick={() =>
-                      setConfirmAction({
-                        type: "disconnect",
-                        id: String(githubRepo.data!.repositoryId),
-                        label: githubRepo.data!.repositoryFullName,
-                      })
+        <div className="grid min-w-0 gap-4 lg:col-span-7 lg:grid-rows-[auto_auto_1fr]">
+          {isAdmin ? (
+            <SettingsSection title="Project details">
+              <div className="grid gap-4 lg:grid-cols-12">
+                <div className="lg:col-span-4">
+                  <AppInput
+                    label="Title"
+                    maxLength={60}
+                    value={editDraft?.title ?? ""}
+                    onChange={(event) =>
+                      updateEditDraft({ title: event.currentTarget.value })
                     }
-                  >
-                    {disconnectGithub.isPending ? (
-                      <>
-                        <Loader2 className="mr-2 size-4 animate-spin" />
-                        Disconnecting…
-                      </>
-                    ) : (
-                      "Disconnect repository"
-                    )}
-                  </AppButton>
-                ) : null}
-              </div>
-              <p className="mt-1 text-sm text-text-secondary">
-                <ExternalLink className="size-3 inline mr-1" />
-                <a
-                  href={githubRepo.data.repositoryUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-h-11 items-center text-brand hover:underline"
-                >
-                  View on GitHub
-                </a>
-              </p>
-            </>
-          ) : (
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-md border border-border bg-surface-muted">
-              <div className="flex items-center gap-3">
-                <GitBranch className="size-5 text-text-tertiary" />
-                <div>
-                  <span className="font-medium">No repository connected</span>
-                  <span className="block text-sm text-text-secondary">
-                    Link one authorized repository for project context and ownership.
-                  </span>
+                  />
                 </div>
+                <div className="lg:col-span-8">
+                  <AppTextarea
+                    label="Description"
+                    maxLength={500}
+                    value={editDraft?.description ?? ""}
+                    onChange={(event) =>
+                      updateEditDraft({ description: event.currentTarget.value })
+                    }
+                    rows={3}
+                  />
+                </div>
+                <div className="lg:col-span-6">
+                  <ProjectIconPicker
+                    value={editDraft?.iconKey ?? "Compass"}
+                    onChange={(value) => updateEditDraft({ iconKey: value })}
+                  />
+                </div>
+                <div className="lg:col-span-6">
+                  <ProjectColorPicker
+                    value={editDraft?.colorKey ?? "orange"}
+                    onChange={(value) => updateEditDraft({ colorKey: value })}
+                  />
+                </div>
+                <div className="lg:col-span-6">
+                  <AppTimeZoneInput
+                    value={editDraft?.timeZone ?? "UTC"}
+                    onChange={(event) =>
+                      updateEditDraft({ timeZone: event.currentTarget.value })
+                    }
+                  />
+                </div>
+                <AppButton
+                  className="w-fit lg:col-span-6 lg:justify-self-end lg:self-end"
+                  disabled={
+                    updateProject.isPending || (editDraft?.title.trim().length ?? 0) < 2
+                  }
+                  onClick={() =>
+                    editDraft &&
+                    updateProject.mutate({
+                      title: editDraft.title,
+                      description: editDraft.description || null,
+                      iconKey: editDraft.iconKey,
+                      colorKey: editDraft.colorKey,
+                      timeZone: editDraft.timeZone,
+                    })
+                  }
+                >
+                  <Save className="size-4" aria-hidden="true" /> Save project
+                </AppButton>
               </div>
-              <AppButton
-                onClick={() => setShowConnectGithub(true)}
-                disabled={
-                  !githubConfigured ||
-                  githubInstallations.isLoading ||
-                  githubInstallations.isError ||
-                  !isAdmin
-                }
-              >
-                Connect Repository
-              </AppButton>
-            </div>
-          )}
-        </SettingsSection>
+            </SettingsSection>
+          ) : null}
 
-        {/* Members */}
-        {isAdmin && (
-          <SettingsSection title="Members">
-            {members.isLoading ? <AppSkeleton className="h-32" /> : null}
-            {members.isError ? (
-              <AppEmptyState
-                title="Members unavailable"
-                description="The active member list could not be loaded."
-              />
+          {/* GitHub Integration */}
+          <SettingsSection title="GitHub integration">
+            {!githubConfigured && isAdmin ? (
+              <p
+                role="status"
+                className="mb-3 rounded-md border border-warning bg-warning-soft p-3 text-sm"
+              >
+                GitHub App is not configured for this deployment. Add the documented
+                GitHub environment variables before connecting a repository.
+              </p>
             ) : null}
-            {members.data?.length ? (
-              <div className="grid gap-3">
-                {members.data.map((member) => {
-                  const isCurrentUser = member.id === me.data?.id;
-                  const canChangeRole =
-                    canManageMembers &&
-                    !isCurrentUser &&
-                    member.role !== "OWNER" &&
-                    (isOwner || member.role !== "ADMIN");
-                  const canRemove =
-                    canManageMembers && !isCurrentUser && member.role !== "OWNER";
-                  return (
-                    <div
-                      key={member.id}
-                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-md border border-border bg-surface-muted"
-                    >
-                      <div className="flex items-center gap-3">
-                        <AppAvatar name={member.displayName} src={member.avatarUrl} />
-                        <div>
-                          <span className="font-medium">{member.displayName}</span>
-                          <span className="ml-2 rounded-sm bg-surface-muted px-2 py-0.5 font-mono text-xs text-text-secondary">
-                            {member.handle}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {canChangeRole ? (
-                          <AppSelect
-                            label="Role"
-                            value={member.role}
-                            onValueChange={(value) =>
-                              changeMemberRole.mutate({
-                                userId: member.id,
-                                role: value as Exclude<ProjectRole, "OWNER">,
-                              })
-                            }
-                            options={nonOwnerRoles.map((role) => ({
-                              value: role,
-                              label: role,
-                            }))}
-                            disabled={changeMemberRole.isPending}
-                          />
-                        ) : (
-                          <span className="rounded-sm bg-surface-muted px-2 py-1 font-mono text-xs text-text-secondary">
-                            {member.role}
-                          </span>
-                        )}
-                        {canRemove && (
-                          <AppIconButton
-                            label={`Remove ${member.displayName}`}
-                            onClick={() =>
-                              setConfirmAction({
-                                type: "remove",
-                                id: member.id,
-                                label: member.displayName,
-                              })
-                            }
-                            disabled={removeMember.isPending}
-                          >
-                            <Trash2 className="size-4 text-error" />
-                          </AppIconButton>
-                        )}
-                      </div>
+            {githubInstallations.isError && isAdmin ? (
+              <p
+                role="alert"
+                className="mb-3 rounded-md border border-warning bg-warning-soft p-3 text-sm"
+              >
+                {normalizeApiClientError(githubInstallations.error).code ===
+                "INTEGRATION_NOT_CONFIGURED"
+                  ? "GitHub App is not configured for this deployment. Add the documented GitHub environment variables before connecting a repository."
+                  : "GitHub installations could not be loaded. Try again when the connection is available."}
+              </p>
+            ) : null}
+            {githubRepo.isLoading ? (
+              <AppSkeleton className="h-24" />
+            ) : githubRepo.isError ? (
+              <AppEmptyState
+                title="Repository status unavailable"
+                description="The GitHub connection status could not be loaded."
+              />
+            ) : githubRepo.data ? (
+              <>
+                <div className="flex min-w-0 flex-col gap-3 rounded-md border border-border bg-surface-muted p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <GitBranch className="size-5 text-brand" />
+                    <div>
+                      <span className="font-medium text-sm">
+                        {githubRepo.data.repositoryFullName}
+                      </span>
+                      <span className="ml-2 rounded-sm bg-brand-soft px-2 py-0.5 font-mono text-xs text-brand">
+                        Connected
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
-            ) : !members.isLoading && !members.isError ? (
-              <AppEmptyState
-                title="No members"
-                description="Invite collaborators to this project."
-              />
-            ) : null}
-          </SettingsSection>
-        )}
-
-        {isOwner && members.data?.length ? (
-          <SettingsSection title="Ownership transfer">
-            <p className="mb-3 text-sm text-text-secondary">
-              Transfer ownership to an active member. You will remain an administrator.
-            </p>
-            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-              <AppSelect
-                label="New owner"
-                value={transferTarget}
-                onValueChange={setTransferTarget}
-                options={members.data
-                  .filter(
-                    (member) => member.id !== me.data?.id && member.role !== "OWNER",
-                  )
-                  .map((member) => ({
-                    value: member.id,
-                    label: `${member.displayName} (@${member.handle})`,
-                  }))}
-                placeholder="Select a member"
-              />
-              <AppButton
-                variant="danger"
-                disabled={!transferTarget || transfer.isPending}
-                onClick={() =>
-                  setConfirmAction({
-                    type: "transfer",
-                    id: transferTarget,
-                    label:
-                      members.data?.find((member) => member.id === transferTarget)
-                        ?.displayName ?? "selected member",
-                  })
-                }
-              >
-                Transfer ownership
-              </AppButton>
-            </div>
-          </SettingsSection>
-        ) : null}
-
-        {/* Invitations */}
-        {isAdmin && (
-          <SettingsSection title="Pending Invitations">
-            <div className="mb-4 grid gap-3 rounded-md border border-border bg-surface-muted p-3 sm:grid-cols-[1fr_10rem_auto] sm:items-end">
-              <AppCombobox
-                label="Invite collaborator"
-                value={inviteSearch}
-                onChange={(value) => {
-                  setInviteSearch(value);
-                  setInviteUserId(null);
-                }}
-                onOptionSelect={(option) => {
-                  setInviteSearch(option.label);
-                  setInviteUserId(option.value);
-                }}
-                options={inviteOptions}
-                placeholder="Search by name or handle"
-                disabled={!online || invite.isPending}
-              />
-              {inviteSuggestions.isError ? (
-                <p role="alert" className="text-sm text-error sm:col-span-3">
-                  Collaborator suggestions could not be loaded.
-                </p>
-              ) : null}
-              <AppSelect
-                label="Role"
-                value={inviteRole}
-                onValueChange={(value) =>
-                  setInviteRole(value as Exclude<ProjectRole, "OWNER">)
-                }
-                options={nonOwnerRoles.map((role) => ({ value: role, label: role }))}
-                disabled={!online || invite.isPending}
-              />
-              <AppButton
-                disabled={!online || !inviteUserId || invite.isPending}
-                onClick={() => invite.mutate()}
-              >
-                {invite.isPending ? "Sending…" : "Invite"}
-              </AppButton>
-            </div>
-            {invitations.isLoading ? <AppSkeleton className="h-28" /> : null}
-            {invitations.isError ? (
-              <AppEmptyState
-                title="Invitations unavailable"
-                description="Pending invitations could not be loaded."
-              />
-            ) : null}
-            {invitations.data?.length ? (
-              <div className="grid gap-3">
-                {invitations.data.map((invitation) => (
-                  <div
-                    key={invitation.id}
-                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-md border border-border bg-surface-muted"
-                  >
-                    <div className="flex items-center gap-3">
-                      <AppAvatar
-                        name={invitation.displayName}
-                        src={invitation.avatarUrl}
-                      />
-                      <div>
-                        <span className="font-medium">{invitation.displayName}</span>
-                        <span className="ml-2 rounded-sm bg-surface-muted px-2 py-0.5 font-mono text-xs text-text-secondary">
-                          {invitation.handle}
-                        </span>
-                        <span className="ml-2 rounded-sm bg-warning-soft px-2 py-0.5 font-mono text-xs text-warning">
-                          {invitation.role}
-                        </span>
-                      </div>
-                    </div>
+                  </div>
+                  {isAdmin ? (
                     <AppButton
                       variant="danger"
                       size="sm"
+                      className="shrink-0"
+                      disabled={disconnectGithub.isPending}
                       onClick={() =>
                         setConfirmAction({
-                          type: "revoke",
-                          id: invitation.id,
-                          label: invitation.displayName,
+                          type: "disconnect",
+                          id: String(githubRepo.data!.repositoryId),
+                          label: githubRepo.data!.repositoryFullName,
                         })
                       }
-                      disabled={revokeInvitation.isPending}
                     >
-                      Revoke
+                      {disconnectGithub.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                          Disconnecting…
+                        </>
+                      ) : (
+                        "Disconnect repository"
+                      )}
                     </AppButton>
-                  </div>
-                ))}
-              </div>
-            ) : !invitations.isLoading && !invitations.isError ? (
-              <AppEmptyState
-                title="No pending invitations"
-                description="Invited users will appear here."
-              />
-            ) : null}
-          </SettingsSection>
-        )}
-
-        {isOwner ? (
-          <SettingsSection title="Danger zone">
-            {projectData.archivedAt ? (
-              <AppEmptyState
-                title="Project archived"
-                description="This project is hidden from active lists while its tasks and history remain preserved."
-              />
-            ) : (
-              <DangerZoneItem
-                label="Archive project"
-                description="Hide this project from active lists while preserving its tasks and history."
-                action={
-                  <AppButton
-                    variant="danger"
-                    disabled={archiveProject.isPending}
-                    onClick={() =>
-                      setConfirmAction({ type: "archive", label: projectData.title })
-                    }
+                  ) : null}
+                </div>
+                <p className="mt-1 text-sm text-text-secondary">
+                  <ExternalLink className="size-3 inline mr-1" />
+                  <a
+                    href={githubRepo.data.repositoryUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-11 items-center text-brand hover:underline"
                   >
-                    {archiveProject.isPending ? "Archiving…" : "Archive project"}
-                  </AppButton>
-                }
-              />
+                    View on GitHub
+                  </a>
+                </p>
+              </>
+            ) : (
+              <div className="flex min-w-0 flex-col gap-3 rounded-md border border-border bg-surface-muted p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-3">
+                  <GitBranch className="size-5 text-text-tertiary" />
+                  <div>
+                    <span className="font-medium">No repository connected</span>
+                    <span className="block text-sm text-text-secondary">
+                      Link one authorized repository for project context and ownership.
+                    </span>
+                  </div>
+                </div>
+                <AppButton
+                  className="shrink-0"
+                  onClick={() => setShowConnectGithub(true)}
+                  disabled={
+                    !githubConfigured ||
+                    githubInstallations.isLoading ||
+                    githubInstallations.isError ||
+                    !isAdmin
+                  }
+                >
+                  Connect Repository
+                </AppButton>
+              </div>
             )}
           </SettingsSection>
-        ) : null}
+
+          {/* Members */}
+          {isAdmin && (
+            <SettingsSection title="Members">
+              {members.isLoading ? <AppSkeleton className="h-32" /> : null}
+              {members.isError ? (
+                <AppEmptyState
+                  title="Members unavailable"
+                  description="The active member list could not be loaded."
+                />
+              ) : null}
+              {members.data?.length ? (
+                <div className="grid gap-3">
+                  {members.data.map((member) => {
+                    const isCurrentUser = member.id === me.data?.id;
+                    const canChangeRole =
+                      canManageMembers &&
+                      !isCurrentUser &&
+                      member.role !== "OWNER" &&
+                      (isOwner || member.role !== "ADMIN");
+                    const canRemove =
+                      canManageMembers && !isCurrentUser && member.role !== "OWNER";
+                    return (
+                      <div
+                        key={member.id}
+                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-md border border-border bg-surface-muted"
+                      >
+                        <div className="flex items-center gap-3">
+                          <AppAvatar name={member.displayName} src={member.avatarUrl} />
+                          <div>
+                            <span className="font-medium">{member.displayName}</span>
+                            <span className="ml-2 rounded-sm bg-surface-muted px-2 py-0.5 font-mono text-xs text-text-secondary">
+                              {member.handle}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {canChangeRole ? (
+                            <AppSelect
+                              label="Role"
+                              value={member.role}
+                              onValueChange={(value) =>
+                                changeMemberRole.mutate({
+                                  userId: member.id,
+                                  role: value as Exclude<ProjectRole, "OWNER">,
+                                })
+                              }
+                              options={nonOwnerRoles.map((role) => ({
+                                value: role,
+                                label: role,
+                              }))}
+                              disabled={changeMemberRole.isPending}
+                            />
+                          ) : (
+                            <span className="rounded-sm bg-surface-muted px-2 py-1 font-mono text-xs text-text-secondary">
+                              {member.role}
+                            </span>
+                          )}
+                          {canRemove && (
+                            <AppIconButton
+                              label={`Remove ${member.displayName}`}
+                              onClick={() =>
+                                setConfirmAction({
+                                  type: "remove",
+                                  id: member.id,
+                                  label: member.displayName,
+                                })
+                              }
+                              disabled={removeMember.isPending}
+                            >
+                              <Trash2 className="size-4 text-error" />
+                            </AppIconButton>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : !members.isLoading && !members.isError ? (
+                <AppEmptyState
+                  title="No members"
+                  description="Invite collaborators to this project."
+                />
+              ) : null}
+            </SettingsSection>
+          )}
+        </div>
+
+        <div className="grid min-w-0 gap-4 lg:col-span-5 lg:grid-rows-[auto_auto_1fr]">
+          {isOwner && members.data?.length ? (
+            <SettingsSection title="Ownership transfer">
+              <p className="mb-3 text-sm text-text-secondary">
+                Transfer ownership to an active member. You will remain an administrator.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                <AppSelect
+                  label="New owner"
+                  value={transferTarget}
+                  onValueChange={setTransferTarget}
+                  options={members.data
+                    .filter(
+                      (member) => member.id !== me.data?.id && member.role !== "OWNER",
+                    )
+                    .map((member) => ({
+                      value: member.id,
+                      label: `${member.displayName} (@${member.handle})`,
+                    }))}
+                  placeholder="Select a member"
+                />
+                <AppButton
+                  variant="danger"
+                  disabled={!transferTarget || transfer.isPending}
+                  onClick={() =>
+                    setConfirmAction({
+                      type: "transfer",
+                      id: transferTarget,
+                      label:
+                        members.data?.find((member) => member.id === transferTarget)
+                          ?.displayName ?? "selected member",
+                    })
+                  }
+                >
+                  Transfer ownership
+                </AppButton>
+              </div>
+            </SettingsSection>
+          ) : null}
+
+          {/* Invitations */}
+          {isAdmin && (
+            <SettingsSection title="Pending invitations">
+              <div className="mb-4 grid gap-3 rounded-md border border-border bg-surface-muted p-3 sm:grid-cols-[1fr_10rem_auto] sm:items-end">
+                <AppCombobox
+                  label="Invite collaborator"
+                  value={inviteSearch}
+                  onChange={(value) => {
+                    setInviteSearch(value);
+                    setInviteUserId(null);
+                  }}
+                  onOptionSelect={(option) => {
+                    setInviteSearch(option.label);
+                    setInviteUserId(option.value);
+                  }}
+                  options={inviteOptions}
+                  placeholder="Search by name or handle"
+                  disabled={!online || invite.isPending}
+                />
+                {inviteSuggestions.isError ? (
+                  <p role="alert" className="text-sm text-error sm:col-span-3">
+                    Collaborator suggestions could not be loaded.
+                  </p>
+                ) : null}
+                <AppSelect
+                  label="Role"
+                  value={inviteRole}
+                  onValueChange={(value) =>
+                    setInviteRole(value as Exclude<ProjectRole, "OWNER">)
+                  }
+                  options={nonOwnerRoles.map((role) => ({ value: role, label: role }))}
+                  disabled={!online || invite.isPending}
+                />
+                <AppButton
+                  disabled={!online || !inviteUserId || invite.isPending}
+                  onClick={() => invite.mutate()}
+                >
+                  {invite.isPending ? "Sending…" : "Invite"}
+                </AppButton>
+              </div>
+              {invitations.isLoading ? <AppSkeleton className="h-28" /> : null}
+              {invitations.isError ? (
+                <AppEmptyState
+                  title="Invitations unavailable"
+                  description="Pending invitations could not be loaded."
+                />
+              ) : null}
+              {invitations.data?.length ? (
+                <div className="grid gap-3">
+                  {invitations.data.map((invitation) => (
+                    <div
+                      key={invitation.id}
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-md border border-border bg-surface-muted"
+                    >
+                      <div className="flex items-center gap-3">
+                        <AppAvatar
+                          name={invitation.displayName}
+                          src={invitation.avatarUrl}
+                        />
+                        <div>
+                          <span className="font-medium">{invitation.displayName}</span>
+                          <span className="ml-2 rounded-sm bg-surface-muted px-2 py-0.5 font-mono text-xs text-text-secondary">
+                            {invitation.handle}
+                          </span>
+                          <span className="ml-2 rounded-sm bg-warning-soft px-2 py-0.5 font-mono text-xs text-warning">
+                            {invitation.role}
+                          </span>
+                        </div>
+                      </div>
+                      <AppButton
+                        variant="danger"
+                        size="sm"
+                        onClick={() =>
+                          setConfirmAction({
+                            type: "revoke",
+                            id: invitation.id,
+                            label: invitation.displayName,
+                          })
+                        }
+                        disabled={revokeInvitation.isPending}
+                      >
+                        Revoke
+                      </AppButton>
+                    </div>
+                  ))}
+                </div>
+              ) : !invitations.isLoading && !invitations.isError ? (
+                <AppEmptyState
+                  title="No pending invitations"
+                  description="Invited users will appear here."
+                />
+              ) : null}
+            </SettingsSection>
+          )}
+
+          {isOwner ? (
+            <SettingsSection title="Danger zone">
+              {projectData.archivedAt ? (
+                <AppEmptyState
+                  title="Project archived"
+                  description="This project is hidden from active lists while its tasks and history remain preserved."
+                />
+              ) : (
+                <DangerZoneItem
+                  label="Archive project"
+                  description="Hide this project from active lists while preserving its tasks and history."
+                  action={
+                    <AppButton
+                      variant="danger"
+                      disabled={archiveProject.isPending}
+                      onClick={() =>
+                        setConfirmAction({ type: "archive", label: projectData.title })
+                      }
+                    >
+                      {archiveProject.isPending ? "Archiving…" : "Archive project"}
+                    </AppButton>
+                  }
+                />
+              )}
+            </SettingsSection>
+          ) : null}
+        </div>
       </fieldset>
 
       {/* Connect GitHub Dialog */}

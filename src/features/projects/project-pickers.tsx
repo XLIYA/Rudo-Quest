@@ -112,18 +112,23 @@ export function ProjectColorPicker({
   return (
     <fieldset className="grid gap-2">
       <legend className="text-sm font-semibold">Color</legend>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className="grid grid-cols-6 gap-2 sm:grid-cols-8">
         {projectColorKeys.map((key) => {
           const color = getProjectColor(key);
+          const label = `${key.charAt(0).toUpperCase()}${key.slice(1)}`;
           return (
             <button
               type="button"
               key={key}
               onClick={() => onChange(key)}
+              aria-label={`${label} project color`}
               aria-pressed={value === key}
+              title={label}
               className={cn(
-                "flex min-h-12 items-center gap-2 rounded-md border bg-surface px-3 py-2 text-left text-sm font-semibold capitalize transition-colors hover:bg-surface-muted",
-                value === key ? "border-brand text-brand" : "border-border",
+                "flex min-h-11 min-w-0 items-center justify-center rounded-md border bg-surface p-1 transition-[background-color,border-color,box-shadow,transform] hover:-translate-y-0.5 hover:bg-surface-muted motion-reduce:transform-none",
+                value === key
+                  ? "border-brand shadow-[inset_0_0_0_2px_var(--brand-soft)]"
+                  : "border-border",
               )}
             >
               <span
@@ -131,7 +136,6 @@ export function ProjectColorPicker({
                 style={{ background: color.main }}
                 aria-hidden
               />
-              <span className="min-w-0 truncate">{key}</span>
             </button>
           );
         })}

@@ -194,7 +194,7 @@ export function getGitHubInstallUrl(state: string): string {
  */
 export function getGitHubAuthorizationUrl(state: string): string {
   const env = getServerEnv();
-  if (!hasGitHubEnv(env) || !env.NEXT_PUBLIC_APP_URL) {
+  if (!hasGitHubEnv(env)) {
     throw new AppError(
       "INTEGRATION_NOT_CONFIGURED",
       503,
@@ -203,32 +203,9 @@ export function getGitHubAuthorizationUrl(state: string): string {
   }
   const url = new URL("https://github.com/login/oauth/authorize");
   url.searchParams.set("client_id", env.GITHUB_APP_CLIENT_ID ?? "");
-  url.searchParams.set(
-    "redirect_uri",
-    new URL("/api/github/installations/callback", env.NEXT_PUBLIC_APP_URL).toString(),
-  );
   url.searchParams.set("state", state);
   url.searchParams.set("scope", "read:user");
   return url.toString();
-}
-
-/**
- * Purpose: Build the configured absolute GitHub callback URL.
- * Inputs: None.
- * Output: Same-origin callback URL.
- * Side effects: Reads validated server environment state.
- * Failure behavior: Throws a typed 503 when the public app URL is missing.
- */
-function getGitHubCallbackUrl(): string {
-  const appUrl = getServerEnv().NEXT_PUBLIC_APP_URL;
-  if (!appUrl) {
-    throw new AppError(
-      "INTEGRATION_NOT_CONFIGURED",
-      503,
-      "GitHub App is not configured.",
-    );
-  }
-  return new URL("/api/github/installations/callback", appUrl).toString();
 }
 
 /**
@@ -296,7 +273,6 @@ export async function exchangeGitHubUserCode(code: string): Promise<string> {
       client_id: env.GITHUB_APP_CLIENT_ID,
       client_secret: env.GITHUB_APP_CLIENT_SECRET,
       code,
-      redirect_uri: getGitHubCallbackUrl(),
     }),
     cache: "no-store",
   });

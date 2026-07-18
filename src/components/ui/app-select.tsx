@@ -35,7 +35,7 @@ export function AppSelect({
       <Select.Root value={value} onValueChange={onValueChange} disabled={disabled}>
         <Select.Trigger
           aria-labelledby={labelId}
-          className="inline-flex min-h-11 items-center justify-between rounded-md border border-border bg-surface px-3 text-sm"
+          className="inline-flex min-h-11 w-full items-center justify-between gap-3 rounded-md border border-border bg-surface px-3 text-sm outline-none transition-[border-color,box-shadow] duration-150 hover:border-border-strong focus:border-quest focus:shadow-[0_0_0_3px_var(--quest-soft)]"
         >
           {value ? (
             <Select.Value />
@@ -47,13 +47,17 @@ export function AppSelect({
           </Select.Icon>
         </Select.Trigger>
         <Select.Portal>
-          <Select.Content className="z-50 rounded-md border border-border bg-surface p-1 shadow-[var(--shadow-raised)]">
-            <Select.Viewport>
+          <Select.Content
+            position="popper"
+            sideOffset={6}
+            className="z-50 max-h-72 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border border-border bg-surface p-1 shadow-[var(--shadow-raised)]"
+          >
+            <Select.Viewport className="max-h-64 overflow-y-auto">
               {options.map((option) => (
                 <Select.Item
                   key={option.value}
                   value={option.value}
-                  className="flex min-h-10 cursor-pointer items-center gap-2 rounded-sm px-2 text-sm outline-none data-[highlighted]:bg-surface-muted"
+                  className="flex min-h-10 cursor-pointer items-center gap-2 rounded-md px-2 text-sm outline-none data-[highlighted]:bg-quest-soft data-[highlighted]:text-quest"
                 >
                   <Select.ItemIndicator>
                     <Check className="size-4" />

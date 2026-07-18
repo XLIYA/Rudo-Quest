@@ -2,6 +2,10 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { AppError } from "@/lib/api/errors";
 import { createSupabaseServerClient } from "@/lib/auth/supabase";
+import {
+  authProviderUnavailableError,
+  isAuthProviderUnavailable,
+} from "@/lib/auth/provider-errors";
 import { apiSuccess } from "@/lib/api/response";
 import { getServerEnv } from "@/lib/env/server";
 import { withApiHandler, readJson } from "@/server/api/handler";
@@ -37,17 +41,25 @@ export async function POST(request: NextRequest) {
     const emailRedirectTo = appUrl
       ? new URL("/auth/callback", appUrl).toString()
       : undefined;
-    const { data, error } = await supabase.auth.signUp({
-      email: body.email,
-      password: body.password,
-      options: {
-        data: {
-          name: body.displayName,
-          ...(body.timeZone ? { time_zone: body.timeZone } : {}),
+    let authResult: Awaited<ReturnType<typeof supabase.auth.signUp>>;
+    try {
+      authResult = await supabase.auth.signUp({
+        email: body.email,
+        password: body.password,
+        options: {
+          data: {
+            name: body.displayName,
+            ...(body.timeZone ? { time_zone: body.timeZone } : {}),
+          },
+          ...(emailRedirectTo ? { emailRedirectTo } : {}),
         },
-        ...(emailRedirectTo ? { emailRedirectTo } : {}),
-      },
-    });
+      });
+    } catch (error) {
+      if (isAuthProviderUnavailable(error)) throw authProviderUnavailableError(error);
+      throw error;
+    }
+    const { data, error } = authResult;
+    if (isAuthProviderUnavailable(error)) throw authProviderUnavailableError(error);
     if (error || !data.user) {
       throw new AppError("BAD_REQUEST", 400, "Sign up could not be completed.");
     }
@@ -59,12 +71,14 @@ export async function POST(request: NextRequest) {
           displayName: body.displayName,
           timeZone: body.timeZone,
         });
-      } catch {
+      } catch (error) {
         await supabase.auth.signOut({ scope: "local" });
         throw new AppError(
           "INTERNAL_ERROR",
-          500,
-          "Sign up could not be completed. Run the local database setup and try again.",
+          503,
+          "Account setup is temporarily unavailable. Please try again.",
+          undefined,
+          { cause: error },
         );
       }
     }

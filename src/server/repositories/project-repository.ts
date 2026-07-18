@@ -325,41 +325,42 @@ export async function listProjectSummaries(input: {
 
   const ids = membershipRows.map((row) => row.projectId);
   if (ids.length === 0) return [];
-  const members = await getDb()
-    .select({
-      projectId: projectMemberships.projectId,
-      userId: profiles.id,
-      handle: profiles.handle,
-      displayName: profiles.displayName,
-      avatarPath: profiles.avatarPath,
-    })
-    .from(projectMemberships)
-    .innerJoin(profiles, eq(projectMemberships.userId, profiles.id))
-    .where(inArray(projectMemberships.projectId, ids));
-
-  const taskAggregates = await getDb()
-    .select({
-      projectId: tasks.projectId,
-      openTaskCount: sql<number>`count(*) filter (where ${tasks.status} <> 'DONE')`,
-      completedScheduledWeek: sql<number>`count(*) filter (
-        where ${tasks.status} = 'DONE'
-          and ${tasks.scheduledDate} >= date_trunc('week', now() at time zone ${projects.timeZone})::date
-          and ${tasks.scheduledDate} < date_trunc('week', now() at time zone ${projects.timeZone})::date + 7
-      )`,
-      completedThisWeek: sql<number>`count(*) filter (
-        where ${tasks.status} = 'DONE'
-          and (${tasks.completedAt} at time zone ${projects.timeZone})::date >= date_trunc('week', now() at time zone ${projects.timeZone})::date
-          and (${tasks.completedAt} at time zone ${projects.timeZone})::date < date_trunc('week', now() at time zone ${projects.timeZone})::date + 7
-      )`,
-      weekTotal: sql<number>`count(*) filter (
-        where ${tasks.scheduledDate} >= date_trunc('week', now() at time zone ${projects.timeZone})::date
-          and ${tasks.scheduledDate} < date_trunc('week', now() at time zone ${projects.timeZone})::date + 7
-      )`,
-    })
-    .from(tasks)
-    .innerJoin(projects, eq(tasks.projectId, projects.id))
-    .where(and(inArray(tasks.projectId, ids), isNull(tasks.archivedAt)))
-    .groupBy(tasks.projectId);
+  const [members, taskAggregates] = await Promise.all([
+    getDb()
+      .select({
+        projectId: projectMemberships.projectId,
+        userId: profiles.id,
+        handle: profiles.handle,
+        displayName: profiles.displayName,
+        avatarPath: profiles.avatarPath,
+      })
+      .from(projectMemberships)
+      .innerJoin(profiles, eq(projectMemberships.userId, profiles.id))
+      .where(inArray(projectMemberships.projectId, ids)),
+    getDb()
+      .select({
+        projectId: tasks.projectId,
+        openTaskCount: sql<number>`count(*) filter (where ${tasks.status} <> 'DONE')`,
+        completedScheduledWeek: sql<number>`count(*) filter (
+          where ${tasks.status} = 'DONE'
+            and ${tasks.scheduledDate} >= date_trunc('week', now() at time zone ${projects.timeZone})::date
+            and ${tasks.scheduledDate} < date_trunc('week', now() at time zone ${projects.timeZone})::date + 7
+        )`,
+        completedThisWeek: sql<number>`count(*) filter (
+          where ${tasks.status} = 'DONE'
+            and (${tasks.completedAt} at time zone ${projects.timeZone})::date >= date_trunc('week', now() at time zone ${projects.timeZone})::date
+            and (${tasks.completedAt} at time zone ${projects.timeZone})::date < date_trunc('week', now() at time zone ${projects.timeZone})::date + 7
+        )`,
+        weekTotal: sql<number>`count(*) filter (
+          where ${tasks.scheduledDate} >= date_trunc('week', now() at time zone ${projects.timeZone})::date
+            and ${tasks.scheduledDate} < date_trunc('week', now() at time zone ${projects.timeZone})::date + 7
+        )`,
+      })
+      .from(tasks)
+      .innerJoin(projects, eq(tasks.projectId, projects.id))
+      .where(and(inArray(tasks.projectId, ids), isNull(tasks.archivedAt)))
+      .groupBy(tasks.projectId),
+  ]);
 
   const byProject = new Map<string, typeof members>();
   for (const member of members) {

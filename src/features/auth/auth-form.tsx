@@ -1,13 +1,16 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Eye, EyeOff } from "lucide-react";
 import type { Route } from "next";
 import { useSearchParams } from "next/navigation";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { AppToast } from "@/components/ui/app-toast";
 import { apiMutation, normalizeApiClientError } from "@/lib/api/client";
 import { AppButton } from "@/components/ui/app-button";
+import { AppIconButton } from "@/components/ui/app-icon-button";
 import { AppInput } from "@/components/ui/app-input";
 import { EmailRecoveryActions } from "./email-recovery";
 
@@ -58,6 +61,7 @@ export function getSafePostLoginPath(next: string | null): Route {
  */
 export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const search = useSearchParams();
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const schema = mode === "login" ? loginSchema : signupSchema;
   const form = useForm<AuthValues>({
     resolver: zodResolver(schema),
@@ -115,9 +119,23 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         />
         <AppInput
           label="Password"
-          type="password"
+          type={passwordVisible ? "text" : "password"}
           autoComplete={mode === "login" ? "current-password" : "new-password"}
           error={form.formState.errors.password?.message}
+          endAdornment={
+            <AppIconButton
+              label={passwordVisible ? "Hide password" : "Show password"}
+              aria-pressed={passwordVisible}
+              className="rounded-l-none"
+              onClick={() => setPasswordVisible((visible) => !visible)}
+            >
+              {passwordVisible ? (
+                <EyeOff aria-hidden="true" className="size-4.5" />
+              ) : (
+                <Eye aria-hidden="true" className="size-4.5" />
+              )}
+            </AppIconButton>
+          }
           {...form.register("password")}
         />
         <AppButton type="submit" disabled={form.formState.isSubmitting}>

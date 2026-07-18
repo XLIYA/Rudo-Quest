@@ -105,7 +105,7 @@ export const projects = pgTable(
     ),
     check(
       "projects_color_key",
-      sql`${table.colorKey} in ('orange','red','rose','violet','blue','cyan','green','yellow')`,
+      sql`${table.colorKey} in ('orange','coral','red','ruby','rose','pink','magenta','plum','violet','indigo','blue','sky','cyan','teal','emerald','green','lime','yellow','amber','terracotta','brown','sand','slate','gray')`,
     ),
   ],
 );

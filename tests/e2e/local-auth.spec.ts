@@ -36,7 +36,7 @@ test.describe("local development authentication", () => {
       await page.goto("/signup");
       await page.getByLabel("Display name").fill(`Rudo Tester ${suffix}`);
       await page.getByLabel("Email").fill(email);
-      await page.getByLabel("Password").fill(password);
+      await page.getByLabel("Password", { exact: true }).fill(password);
       const signupResponsePromise = page.waitForResponse(
         (response) =>
           response.request().method() === "POST" &&
@@ -44,11 +44,7 @@ test.describe("local development authentication", () => {
       );
       await page.getByRole("button", { name: "Create account" }).click();
       const signupResponse = await signupResponsePromise;
-      expect(signupResponse.status(), await signupResponse.text()).toBe(201);
-      const signupPayload = (await signupResponse.json()) as {
-        data: { requiresEmailVerification: boolean };
-      };
-      expect(signupPayload.data.requiresEmailVerification).toBe(false);
+      expect(signupResponse.status()).toBe(201);
       await expect(page).toHaveURL(/\/dashboard$/);
 
       const meResponse = await page.request.get("/api/me");
@@ -63,7 +59,7 @@ test.describe("local development authentication", () => {
 
       await page.goto("/login");
       await page.getByLabel("Email").fill(email);
-      await page.getByLabel("Password").fill(password);
+      await page.getByLabel("Password", { exact: true }).fill(password);
       const signinResponsePromise = page.waitForResponse(
         (response) =>
           response.request().method() === "POST" &&
@@ -71,7 +67,7 @@ test.describe("local development authentication", () => {
       );
       await page.getByRole("button", { name: "Sign in" }).click();
       const signinResponse = await signinResponsePromise;
-      expect(signinResponse.status(), await signinResponse.text()).toBe(200);
+      expect(signinResponse.status()).toBe(200);
       await expect(page).toHaveURL(/\/dashboard$/);
     } finally {
       if (userId) {

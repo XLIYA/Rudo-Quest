@@ -357,113 +357,119 @@ export function TaskDetailSheet({
               before saving again.
             </p>
           ) : null}
-          <AppInput
-            label="Title"
-            maxLength={140}
-            value={draft.title}
-            onChange={(event) => update("title", event.currentTarget.value)}
-            disabled={detailsDisabled}
-            autoFocus
-          />
-          <AppTextarea
-            label="Description"
-            maxLength={5000}
-            value={draft.description ?? ""}
-            onChange={(event) => update("description", event.currentTarget.value)}
-            disabled={detailsDisabled}
-            rows={5}
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <AppDatePicker
-              label="Scheduled date"
-              value={draft.scheduledDate}
-              onChange={(event) => update("scheduledDate", event.currentTarget.value)}
-              disabled={detailsDisabled}
-            />
-            <AppTimePicker
-              label="Scheduled time"
-              value={draft.scheduledTime ?? ""}
-              onChange={(event) =>
-                update("scheduledTime", event.currentTarget.value || null)
-              }
-              disabled={detailsDisabled}
-            />
-          </div>
-          <ProjectCombobox
-            value={draft.projectId}
-            onChange={(value) => {
-              update("projectId", value);
-              update("assigneeId", value ? null : activeTask.createdBy.id);
-            }}
-            disabled={detailsDisabled}
-          />
-          <AssigneeCombobox
-            key={`${activeTask.id}:${activeTask.version}:${draft.projectId ?? "personal"}`}
-            value={draft.assigneeId}
-            currentAssignee={
-              draft.projectId === activeTask.projectId &&
-              draft.assigneeId === activeTask.assignee?.id
-                ? activeTask.assignee
-                : null
-            }
-            projectId={draft.projectId}
-            onChange={(value) => update("assigneeId", value)}
-            disabled={detailsDisabled}
-          />
-          <IconPicker
-            value={draft.iconKey}
-            onChange={(value) => update("iconKey", value)}
-            disabled={detailsDisabled}
-          />
-          <dl className="grid gap-2 rounded-md bg-surface-muted p-3 text-sm">
-            <div className="flex justify-between gap-3">
-              <dt className="text-text-secondary">Created by</dt>
-              <dd>{activeTask.createdBy.displayName}</dd>
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(17rem,0.8fr)]">
+            <div className="grid content-start gap-4">
+              <AppInput
+                label="Title"
+                maxLength={140}
+                value={draft.title}
+                onChange={(event) => update("title", event.currentTarget.value)}
+                disabled={detailsDisabled}
+                autoFocus
+              />
+              <AppTextarea
+                label="Description"
+                maxLength={5000}
+                value={draft.description ?? ""}
+                onChange={(event) => update("description", event.currentTarget.value)}
+                disabled={detailsDisabled}
+                rows={6}
+              />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <AppDatePicker
+                  label="Scheduled date"
+                  value={draft.scheduledDate}
+                  onChange={(event) => update("scheduledDate", event.currentTarget.value)}
+                  disabled={detailsDisabled}
+                />
+                <AppTimePicker
+                  label="Scheduled time"
+                  value={draft.scheduledTime}
+                  onValueChange={(value) => update("scheduledTime", value)}
+                  allowEmpty
+                  emptyLabel="Any time"
+                  disabled={detailsDisabled}
+                />
+              </div>
+              <ProjectCombobox
+                value={draft.projectId}
+                onChange={(value) => {
+                  update("projectId", value);
+                  update("assigneeId", value ? null : activeTask.createdBy.id);
+                }}
+                disabled={detailsDisabled}
+              />
+              <AssigneeCombobox
+                key={`${activeTask.id}:${activeTask.version}:${draft.projectId ?? "personal"}`}
+                value={draft.assigneeId}
+                currentAssignee={
+                  draft.projectId === activeTask.projectId &&
+                  draft.assigneeId === activeTask.assignee?.id
+                    ? activeTask.assignee
+                    : null
+                }
+                projectId={draft.projectId}
+                onChange={(value) => update("assigneeId", value)}
+                disabled={detailsDisabled}
+              />
+              <IconPicker
+                value={draft.iconKey}
+                onChange={(value) => update("iconKey", value)}
+                disabled={detailsDisabled}
+              />
             </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-text-secondary">Created</dt>
-              <dd className="font-mono text-xs">
-                {new Date(activeTask.createdAt).toLocaleString()}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-text-secondary">Last updated</dt>
-              <dd className="font-mono text-xs">
-                {new Date(activeTask.updatedAt).toLocaleString()}
-              </dd>
-            </div>
-          </dl>
-          <section className="grid gap-2">
-            <h2 className="text-sm font-semibold">Activity history</h2>
-            {activity.isLoading ? (
-              <p className="text-sm text-text-tertiary">Loading activity…</p>
-            ) : null}
-            {activity.isError ? (
-              <p role="alert" className="text-sm text-error">
-                Activity history could not be loaded.
-              </p>
-            ) : null}
-            {activity.data?.length
-              ? activity.data.map((event) => (
-                  <p
-                    key={event.id}
-                    className="rounded-md border border-border bg-surface-muted p-2 text-sm"
-                  >
-                    <span className="font-semibold">
-                      {event.actor?.displayName ?? "Someone"}
-                    </span>{" "}
-                    {event.label}
-                    <span className="mt-1 block font-mono text-xs text-text-tertiary">
-                      {new Date(event.createdAt).toLocaleString()}
-                    </span>
+            <aside className="grid content-start gap-4 rounded-lg border border-border bg-surface-muted/45 p-3 sm:p-4">
+              <dl className="grid gap-2 rounded-md bg-surface p-3 text-sm shadow-[var(--shadow-surface)]">
+                <div className="flex justify-between gap-3">
+                  <dt className="text-text-secondary">Created by</dt>
+                  <dd>{activeTask.createdBy.displayName}</dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-text-secondary">Created</dt>
+                  <dd className="font-mono text-xs">
+                    {new Date(activeTask.createdAt).toLocaleString()}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-text-secondary">Last updated</dt>
+                  <dd className="font-mono text-xs">
+                    {new Date(activeTask.updatedAt).toLocaleString()}
+                  </dd>
+                </div>
+              </dl>
+              <section className="grid gap-2">
+                <h2 className="text-sm font-semibold">Activity history</h2>
+                {activity.isLoading ? (
+                  <p className="text-sm text-text-tertiary">Loading activity…</p>
+                ) : null}
+                {activity.isError ? (
+                  <p role="alert" className="text-sm text-error">
+                    Activity history could not be loaded.
                   </p>
-                ))
-              : null}
-            {!activity.isLoading && !activity.isError && !activity.data?.length ? (
-              <p className="text-sm text-text-tertiary">No activity yet.</p>
-            ) : null}
-          </section>
-          <div className="flex flex-wrap gap-2">
+                ) : null}
+                {activity.data?.length
+                  ? activity.data.map((event) => (
+                      <p
+                        key={event.id}
+                        className="rounded-md border border-border bg-surface-muted p-2 text-sm"
+                      >
+                        <span className="font-semibold">
+                          {event.actor?.displayName ?? "Someone"}
+                        </span>{" "}
+                        {event.label}
+                        <span className="mt-1 block font-mono text-xs text-text-tertiary">
+                          {new Date(event.createdAt).toLocaleString()}
+                        </span>
+                      </p>
+                    ))
+                  : null}
+                {!activity.isLoading && !activity.isError && !activity.data?.length ? (
+                  <p className="text-sm text-text-tertiary">No activity yet.</p>
+                ) : null}
+              </section>
+            </aside>
+          </div>
+          <div className="grid grid-cols-1 gap-2 border-t border-border pt-4 sm:grid-cols-3 lg:grid-cols-5 [&>*]:w-full">
             {activeTask.status === "TODO" ? (
               <>
                 <AppButton

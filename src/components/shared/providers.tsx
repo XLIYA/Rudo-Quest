@@ -1,22 +1,26 @@
 "use client";
 
 import { ThemeProvider } from "next-themes";
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { Toaster } from "sonner";
 import { AppToast } from "@/components/ui/app-toast";
-import { apiGet, normalizeApiClientError } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
 import { registerSerwist } from "@/lib/pwa/register";
 import {
   clearUserQueryCache,
   getActiveCachedUserId,
   persistUserQueryCache,
-  restoreUserQueryCache,
 } from "@/lib/pwa/query-persistence";
 
 type MeProfile = { id: string };
+
+const Agentation = dynamic(
+  () => import("agentation").then((module) => module.Agentation),
+  { ssr: false },
+);
 
 /**
  * Purpose: Provide theme, server-state cache, offline toasts, and PWA update registration.
@@ -59,14 +63,15 @@ export function Providers({ children, nonce }: { children: ReactNode; nonce?: st
     let disposed = false;
     let persistTimer: number | undefined;
     let activeUserId: string | null = null;
-    let unsubscribeCache: (() => void) | null = null;
 
     if (!shouldBootstrapPrivateCache) {
       // Public routes must never retain a previous session's cached reads.
       // Clear synchronously so stale private data cannot flash before any
       // async identity check resolves.
       queryClient.clear();
+      return;
     }
+    const previousUserId = getActiveCachedUserId();
 
     /**
      * Purpose: Debounce persistence of the active user's approved read queries.
@@ -84,46 +89,43 @@ export function Providers({ children, nonce }: { children: ReactNode; nonce?: st
     };
 
     /**
-     * Purpose: Verify the server session before restoring private offline data.
+     * Purpose: Adopt the identity already verified by the normal profile query.
      * Inputs: None.
-     * Output: Promise resolving after cache bootstrap.
-     * Side effects: Reads the profile API and user-scoped IndexedDB cache.
-     * Failure behavior: Clears stale data after an unauthorized or changed account.
+     * Output: Void.
+     * Side effects: Clears a previous account's persisted reads and schedules a
+     * user-scoped cache write.
+     * Business rule: Online startup never hydrates IndexedDB data into the query
+     * client. Mutating the cache while a streamed route is hydrating can make the
+     * client render data against server loading markup.
      */
-    const bootstrap = async () => {
-      const previousUserId = await getActiveCachedUserId();
-      let profile: MeProfile | null = null;
-      if (navigator.onLine) {
-        try {
-          profile = await queryClient.fetchQuery<MeProfile>({
-            queryKey: queryKeys.me,
-            queryFn: ({ signal }) => apiGet<MeProfile>("/api/me", signal),
-          });
-        } catch (error) {
-          if (normalizeApiClientError(error).status === 401 && previousUserId) {
-            await clearUserQueryCache(previousUserId);
-            queryClient.clear();
-          }
-          profile = null;
+    const adoptVerifiedProfile = () => {
+      const profile = queryClient.getQueryData<MeProfile>(queryKeys.me);
+      if (!profile?.id || disposed) return;
+      if (activeUserId === profile.id) {
+        persist();
+        return;
+      }
+      const inMemoryUserId = activeUserId;
+      activeUserId = profile.id;
+      void previousUserId.then(async (cachedUserId) => {
+        const staleUserId = inMemoryUserId ?? cachedUserId;
+        if (staleUserId && staleUserId !== profile.id) {
+          await clearUserQueryCache(staleUserId);
         }
-      }
-      if (disposed) return;
-      // Persisted application data is private. Restore it only after the server
-      // has verified the current session; a remembered browser user ID is not
-      // authentication and must never unlock a cold offline session.
-      activeUserId = profile?.id ?? null;
-      if (profile?.id && previousUserId && profile.id !== previousUserId) {
-        await clearUserQueryCache(previousUserId);
-        queryClient.clear();
-      }
-      if (!activeUserId) return;
-      await restoreUserQueryCache(queryClient, activeUserId);
-      unsubscribeCache = queryClient.getQueryCache().subscribe(persist);
-      if (disposed) unsubscribeCache();
-      else persist();
+        if (!disposed) persist();
+      });
     };
 
-    if (shouldBootstrapPrivateCache) void bootstrap();
+    const unsubscribeCache = queryClient.getQueryCache().subscribe(adoptVerifiedProfile);
+    adoptVerifiedProfile();
+    return () => {
+      disposed = true;
+      if (persistTimer) window.clearTimeout(persistTimer);
+      unsubscribeCache();
+    };
+  }, [queryClient, shouldBootstrapPrivateCache]);
+
+  useEffect(() => {
     registerSerwist({
       onUpdate: (activateUpdate) =>
         AppToast("A new Rudo Quest version is available.", "info", {
@@ -142,22 +144,20 @@ export function Providers({ children, nonce }: { children: ReactNode; nonce?: st
      * Purpose: Refresh server state after connectivity returns.
      * Inputs: Browser online event.
      * Output: Void.
-     * Side effects: Displays a toast, invalidates queries, and persists refreshed reads.
+     * Side effects: Displays a toast and invalidates queries. The cache subscriber
+     * persists successful refreshed reads.
      */
     const online = () => {
       AppToast("Back online.", "success");
-      void queryClient.invalidateQueries().then(() => persist());
+      void queryClient.invalidateQueries();
     };
     window.addEventListener("offline", offline);
     window.addEventListener("online", online);
     return () => {
-      disposed = true;
-      if (persistTimer) window.clearTimeout(persistTimer);
-      unsubscribeCache?.();
       window.removeEventListener("offline", offline);
       window.removeEventListener("online", online);
     };
-  }, [queryClient, shouldBootstrapPrivateCache]);
+  }, [queryClient]);
 
   return (
     <ThemeProvider
@@ -170,6 +170,7 @@ export function Providers({ children, nonce }: { children: ReactNode; nonce?: st
       <QueryClientProvider client={queryClient}>
         {children}
         <Toaster richColors position="top-center" />
+        {process.env.NODE_ENV === "development" ? <Agentation /> : null}
       </QueryClientProvider>
     </ThemeProvider>
   );

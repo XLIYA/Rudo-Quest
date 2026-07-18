@@ -8,11 +8,12 @@ import {
   FolderKanban,
   LayoutDashboard,
   LogOut,
-  Menu,
+  Monitor,
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
+  Settings2,
   Sun,
   User,
 } from "lucide-react";
@@ -27,7 +28,6 @@ import { AppToast } from "@/components/ui/app-toast";
 import { useOnline } from "@/hooks/use-online";
 import { AppAvatar } from "@/components/ui/app-avatar";
 import { AppIconButton } from "@/components/ui/app-icon-button";
-import { AppSkeleton } from "@/components/ui/app-skeleton";
 import { apiGet, apiMutation, normalizeApiClientError } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
 import { clearUserQueryCache } from "@/lib/pwa/query-persistence";
@@ -208,7 +208,7 @@ export function AppShell({
   return (
     <div
       className={cn(
-        "min-h-dvh bg-background text-text-primary md:grid",
+        "min-h-dvh bg-background text-text-primary md:grid md:transition-[grid-template-columns] md:duration-300 md:ease-out",
         collapsed ? "md:grid-cols-[4.5rem_1fr]" : "md:grid-cols-[15rem_1fr]",
       )}
     >
@@ -223,16 +223,12 @@ export function AppShell({
           <Link
             href="/dashboard"
             aria-label="Rudo Quest dashboard"
-            className="inline-flex min-h-11 shrink-0 items-center"
+            className="inline-flex min-h-11 shrink-0 items-center gap-3 rounded-lg"
           >
-            {collapsed ? (
-              <Image src={RudoMark} alt="" className="size-10" priority />
-            ) : (
-              <span className="inline-flex items-center gap-2 font-display">
-                <Image src={RudoMark} alt="" className="size-8" priority />
-                <span className="text-xl font-medium">Rudo Quest</span>
-              </span>
-            )}
+            <Image src={RudoMark} alt="" className="size-8 shrink-0" priority />
+            {!collapsed ? (
+              <span className="font-display text-xl font-medium">Rudo Quest</span>
+            ) : null}
           </Link>
           {!collapsed ? (
             <AppIconButton label="Collapse sidebar" onClick={() => setCollapsed(true)}>
@@ -249,7 +245,7 @@ export function AppShell({
             <PanelLeftOpen className="size-5" aria-hidden="true" />
           </AppIconButton>
         ) : null}
-        <nav className="mt-8 grid gap-1" aria-label="Primary">
+        <nav className="mt-7 grid gap-1" aria-label="Primary">
           {navItems.map((item) => {
             const active = pathname.startsWith(item.href);
             return (
@@ -261,7 +257,9 @@ export function AppShell({
                 className={cn(
                   "relative flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand",
                   collapsed ? "justify-center px-0" : null,
-                  active ? "bg-brand-soft text-brand" : null,
+                  active
+                    ? "bg-surface-muted text-brand shadow-[inset_2px_0_0_var(--brand)]"
+                    : null,
                 )}
               >
                 <item.icon className="size-4 shrink-0" aria-hidden="true" />
@@ -295,7 +293,7 @@ export function AppShell({
               aria-controls="account-menu"
               aria-label="Open account menu"
               className={cn(
-                "flex min-h-11 items-center gap-3 rounded-md p-2 text-left hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-brand",
+                "flex min-h-12 items-center gap-3 rounded-lg border border-border bg-surface p-2 text-left transition-[background-color,border-color] duration-150 hover:border-border-strong hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-brand",
                 collapsed ? "justify-center" : "w-full",
               )}
             >
@@ -305,8 +303,15 @@ export function AppShell({
                 className="size-8"
               />
               {!collapsed ? (
-                <span className="min-w-0 flex-1 truncate text-sm font-semibold">
-                  {displayedProfile?.displayName ?? "Account"}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold">
+                    {displayedProfile?.displayName ?? "Account"}
+                  </span>
+                  {displayedProfile?.handle ? (
+                    <span className="block truncate font-mono text-[10px] text-text-tertiary">
+                      @{displayedProfile.handle}
+                    </span>
+                  ) : null}
                 </span>
               ) : null}
               {!collapsed ? <ChevronDown className="size-4" aria-hidden="true" /> : null}
@@ -317,7 +322,7 @@ export function AppShell({
                 role="menu"
                 aria-label="Account"
                 className={cn(
-                  "absolute bottom-full z-40 mb-2 grid min-w-56 gap-1 rounded-md border border-border bg-surface p-2 shadow-[var(--shadow-overlay)]",
+                  "app-enter absolute bottom-full z-40 mb-2 grid min-w-60 gap-1 rounded-xl border border-border bg-surface p-2 shadow-[var(--shadow-overlay)]",
                   collapsed ? "left-0" : "inset-x-0",
                 )}
               >
@@ -325,18 +330,18 @@ export function AppShell({
                   ref={firstAccountItemRef}
                   role="menuitem"
                   href="/profile"
-                  className="rounded-sm px-3 py-2 text-sm hover:bg-surface-muted"
+                  className="flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-surface-muted hover:text-text-primary"
                   onClick={() => setAccountOpen(false)}
                 >
-                  Profile
+                  <User className="size-4" aria-hidden="true" /> Profile
                 </Link>
                 <Link
                   role="menuitem"
                   href="/settings"
-                  className="rounded-sm px-3 py-2 text-sm hover:bg-surface-muted"
+                  className="flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-surface-muted hover:text-text-primary"
                   onClick={() => setAccountOpen(false)}
                 >
-                  Settings
+                  <Settings2 className="size-4" aria-hidden="true" /> Settings
                 </Link>
                 <div className="grid grid-cols-3 gap-1 border-t border-border pt-1">
                   <AppIconButton
@@ -349,7 +354,7 @@ export function AppShell({
                     }
                     onClick={() => setPreferredTheme("system")}
                   >
-                    <Menu className="size-4" aria-hidden="true" />
+                    <Monitor className="size-4" aria-hidden="true" />
                   </AppIconButton>
                   <AppIconButton
                     role="menuitemradio"
@@ -386,18 +391,8 @@ export function AppShell({
           </div>
         </div>
       </aside>
-      <div className="min-w-0 pb-[calc(6rem+env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] md:pb-0 md:pl-0 md:pr-0 md:pt-0">
-        {hydrated ? (
-          children
-        ) : (
-          <main
-            className="mx-auto max-w-7xl p-5 md:p-8"
-            aria-busy="true"
-            aria-label="Loading page"
-          >
-            <AppSkeleton className="h-[32rem] w-full" />
-          </main>
-        )}
+      <div className="min-w-0 pb-[calc(4.75rem+env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] md:pb-0 md:pl-0 md:pr-0 md:pt-0">
+        {children}
         {showQuickAdd ? (
           <Link
             href="/weekly?quickAdd=1"
@@ -419,7 +414,7 @@ export function AppShell({
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative flex min-h-16 flex-col items-center justify-center gap-1 rounded-md text-[10px] font-semibold text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary focus-visible:outline-2 focus-visible:outline-brand",
+                  "relative flex min-h-16 flex-col items-center justify-center gap-1 rounded-md text-[10px] font-semibold text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-2 focus-visible:outline-brand",
                   active ? "text-brand" : null,
                 )}
               >
