@@ -42,6 +42,13 @@ GITHUB_WEBHOOK_SECRET
 URL and uses `GITHUB_APP_CLIENT_SECRET` to sign the short-lived installation
 state token.
 
+If the callback reports that the GitHub App client credentials are invalid,
+open the GitHub App settings, generate a new client secret, replace
+`GITHUB_APP_CLIENT_SECRET` in every active deployment environment, and restart
+or redeploy the application. The client secret must belong to the same GitHub
+App as `GITHUB_APP_ID`, `GITHUB_APP_CLIENT_ID`, and `GITHUB_APP_PRIVATE_KEY`.
+Do not reuse the webhook secret or a secret from an OAuth App.
+
 The flow has two server-validated legs: Rudo Quest starts a signed state and
 GitHub user authorization, then redirects the user to install the GitHub App.
 The callback verifies the persisted nonce, expiration, current Rudo user, and

@@ -34,6 +34,7 @@ import {
 } from "@/server/repositories/profile-upload-repository";
 import { findProjectRole } from "@/server/repositories/project-repository";
 import { assertProjectRole } from "@/server/policies/project-policy";
+import { writeStructuredLog } from "@/server/observability/structured-log";
 
 /**
  * Purpose: Retire a replaced private profile object with one immediate retry.
@@ -199,7 +200,37 @@ export async function createProfileUploadUrl(
   const { data, error } = await supabase.storage
     .from("profile-assets")
     .createSignedUploadUrl(path, { upsert: false });
-  if (error || !data) throw new AppError("INTERNAL_ERROR", 500, "Upload URL failed.");
+  if (error || !data) {
+    const storageError =
+      typeof error === "object" && error !== null
+        ? (error as { name?: unknown; status?: unknown; statusCode?: unknown })
+        : {};
+    const failure = error ?? new Error("Supabase Storage returned no upload URL.");
+    writeStructuredLog("profile_upload_url_failed", {
+      kind,
+      storageErrorName:
+        typeof storageError.name === "string" ? storageError.name.slice(0, 80) : null,
+      storageStatus:
+        typeof storageError.status === "number" || typeof storageError.status === "string"
+          ? String(storageError.status).slice(0, 20)
+          : null,
+      storageStatusCode:
+        typeof storageError.statusCode === "number" ||
+        typeof storageError.statusCode === "string"
+          ? String(storageError.statusCode).slice(0, 80)
+          : null,
+    });
+    Sentry.captureException(failure, {
+      tags: { operation: "profile-upload-url", assetKind: kind },
+    });
+    throw new AppError(
+      "INTERNAL_ERROR",
+      502,
+      "Profile image storage is temporarily unavailable.",
+      undefined,
+      { cause: failure },
+    );
+  }
   await createProfileAssetUpload({
     userId,
     path,

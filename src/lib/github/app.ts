@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { AppError } from "@/lib/api/errors";
 import { getServerEnv, hasGitHubEnv } from "@/lib/env/server";
+import { writeStructuredLog } from "@/server/observability/structured-log";
 
 export type GitHubRepository = {
   id: number;
@@ -25,6 +26,32 @@ export type GitHubInstallationState = {
 
 const installationStateTtlSeconds = 10 * 60;
 const githubRequestTimeoutMs = 15_000;
+const githubOAuthErrorCodes = [
+  "incorrect_client_credentials",
+  "redirect_uri_mismatch",
+  "bad_verification_code",
+  "unverified_user_email",
+] as const;
+
+type GitHubOAuthErrorCode = (typeof githubOAuthErrorCodes)[number];
+
+type GitHubOAuthTokenResponse = {
+  access_token?: unknown;
+  error?: unknown;
+};
+
+/**
+ * Purpose: Restrict an untrusted GitHub OAuth error value to the documented safe codes.
+ * Inputs: Unknown token-response error value.
+ * Output: Known OAuth error code or "unknown".
+ * Side effects: None.
+ */
+function normalizeGitHubOAuthError(value: unknown): GitHubOAuthErrorCode | "unknown" {
+  return typeof value === "string" &&
+    githubOAuthErrorCodes.includes(value as GitHubOAuthErrorCode)
+    ? (value as GitHubOAuthErrorCode)
+    : "unknown";
+}
 
 /**
  * Purpose: Send a bounded-duration request to GitHub.
@@ -276,12 +303,58 @@ export async function exchangeGitHubUserCode(code: string): Promise<string> {
     }),
     cache: "no-store",
   });
-  if (!response.ok)
-    throw new AppError("INTERNAL_ERROR", 502, "GitHub authorization failed.");
-  const payload = (await response.json()) as { access_token?: string };
-  if (!payload.access_token)
-    throw new AppError("FORBIDDEN", 403, "GitHub authorization failed.");
-  return payload.access_token;
+  let payload: GitHubOAuthTokenResponse = {};
+  try {
+    payload = (await response.json()) as GitHubOAuthTokenResponse;
+  } catch {
+    // A malformed upstream response is handled as a safe gateway failure below.
+  }
+  if (response.ok && typeof payload.access_token === "string" && payload.access_token) {
+    return payload.access_token;
+  }
+
+  const upstreamError = normalizeGitHubOAuthError(payload.error);
+  writeStructuredLog("github_oauth_exchange_failed", {
+    upstreamError,
+    upstreamStatus: response.status,
+  });
+
+  if (upstreamError === "incorrect_client_credentials") {
+    throw new AppError(
+      "INTEGRATION_NOT_CONFIGURED",
+      503,
+      "GitHub App client credentials are invalid.",
+    );
+  }
+  if (upstreamError === "redirect_uri_mismatch") {
+    throw new AppError(
+      "INTEGRATION_NOT_CONFIGURED",
+      503,
+      "GitHub App callback URL is misconfigured.",
+    );
+  }
+  if (upstreamError === "bad_verification_code") {
+    throw new AppError(
+      "FORBIDDEN",
+      403,
+      "GitHub authorization expired. Start the connection again.",
+    );
+  }
+  if (upstreamError === "unverified_user_email") {
+    throw new AppError(
+      "FORBIDDEN",
+      403,
+      "Verify your primary GitHub email before connecting.",
+    );
+  }
+  if (!response.ok) {
+    throw new AppError(
+      "INTERNAL_ERROR",
+      502,
+      "GitHub authorization is temporarily unavailable.",
+    );
+  }
+  throw new AppError("FORBIDDEN", 403, "GitHub authorization could not be completed.");
 }
 
 /**
