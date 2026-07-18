@@ -59,6 +59,14 @@ export function normalizeAppError(error: unknown): AppError {
   ) {
     return new AppError("CONFLICT", 409, "That reference is no longer valid.");
   }
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "23514"
+  ) {
+    return new AppError("BAD_REQUEST", 400, "That value is not accepted.");
+  }
   if (error instanceof Error && error.message.startsWith("INTEGRATION_NOT_CONFIGURED:")) {
     return new AppError(
       "INTEGRATION_NOT_CONFIGURED",
