@@ -39,6 +39,7 @@ import { getProjectColor } from "@/lib/theme/project-colors";
 import { parseISO } from "date-fns";
 import { AppAvatar } from "@/components/ui/app-avatar";
 import { cn } from "@/lib/utils/cn";
+import { ActivityFeedItem } from "@/components/shared/activity-feed-item";
 
 /**
  * Purpose: Render project detail with tasks, members, GitHub status, and activity.
@@ -61,9 +62,8 @@ export function ProjectDetailScreen() {
     project.data?.timeZone ??
     profile.data?.timeZone ??
     Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const weekStart = getMondayWeekStart(
-    parseISO(getDateInTimeZone(new Date(), calendarTimeZone)),
-  );
+  const currentDate = getDateInTimeZone(new Date(), calendarTimeZone);
+  const weekStart = getMondayWeekStart(parseISO(currentDate));
   const tasks = useQuery({
     queryKey: [...queryKeys.tasksWeek(weekStart), projectId],
     queryFn: ({ signal }) =>
@@ -237,9 +237,7 @@ export function ProjectDetailScreen() {
         ) : null}
         <div className="grid gap-2">
           {activityItems.slice(0, 10).map((event) => (
-            <p key={event.id} className="rounded-md bg-surface-muted p-3 text-sm">
-              {event.actor?.displayName ?? "Someone"} {event.label}
-            </p>
+            <ActivityFeedItem key={event.id} event={event} todayDate={currentDate} />
           ))}
           <AppPagination
             hasNext={Boolean(activity.hasNextPage)}

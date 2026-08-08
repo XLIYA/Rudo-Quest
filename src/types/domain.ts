@@ -196,6 +196,12 @@ export type ActivityEventDto = {
   actor: ProfileSummary | null;
   projectId: string | null;
   taskId: string | null;
+  task: {
+    id: string;
+    title: string;
+    scheduledDate: string;
+    archivedAt: string | null;
+  } | null;
   eventType: ActivityEventType;
   label: string;
   createdAt: string;

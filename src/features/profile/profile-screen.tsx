@@ -12,6 +12,7 @@ import {
 } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { ActivityHeatmap } from "@/components/shared/activity-heatmap";
+import { ActivityFeedItem } from "@/components/shared/activity-feed-item";
 import { PageHeader } from "@/components/shared/page-header";
 import { AppAvatar } from "@/components/ui/app-avatar";
 import { AppButton } from "@/components/ui/app-button";
@@ -34,11 +35,7 @@ import {
   type PushBrowserState,
 } from "@/lib/pwa/push";
 import { cn } from "@/lib/utils/cn";
-import {
-  formatRelativeDay,
-  getDateInTimeZone,
-  getMondayWeekStart,
-} from "@/lib/utils/dates";
+import { getDateInTimeZone, getMondayWeekStart } from "@/lib/utils/dates";
 import type { ActivityPageDto, ProfileDto, ThemePreference } from "@/types/domain";
 import { cropProfileImage, uploadProfileAsset } from "./profile-assets";
 
@@ -506,21 +503,7 @@ export function ProfileScreen() {
           {activityItems.length ? (
             <div className="grid max-h-72 gap-1 overflow-y-auto pr-1">
               {activityItems.slice(0, 20).map((event) => (
-                <div
-                  key={event.id}
-                  className="grid gap-1 border-b border-border px-2 py-3 last:border-0 sm:grid-cols-[1fr_auto] sm:items-center"
-                >
-                  <p className="text-sm">
-                    <span className="font-semibold">
-                      {event.actor?.displayName ?? "Someone"}
-                    </span>{" "}
-                    {event.label}
-                  </p>
-                  <span className="font-mono text-xs text-text-tertiary">
-                    {formatRelativeDay(event.createdAt)} ·{" "}
-                    {new Date(event.createdAt).toLocaleString()}
-                  </span>
-                </div>
+                <ActivityFeedItem key={event.id} event={event} todayDate={currentDate} />
               ))}
             </div>
           ) : null}

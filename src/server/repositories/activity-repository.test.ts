@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canViewActivityRow } from "./activity-repository";
+import { canViewActivityRow, mapActivityTaskContext } from "./activity-repository";
 
 const userId = "00000000-0000-4000-8000-000000000001";
 
@@ -50,5 +50,34 @@ describe("canViewActivityRow", () => {
         taskAssigneeId: userId,
       }),
     ).toBe(true);
+  });
+});
+
+describe("mapActivityTaskContext", () => {
+  it("includes enough task context for an unambiguous activity destination", () => {
+    expect(
+      mapActivityTaskContext({
+        taskId: "00000000-0000-4000-8000-000000000004",
+        taskTitle: "Fix invitation race",
+        taskScheduledDate: "2026-08-07",
+        taskArchivedAt: new Date("2026-08-08T09:00:00.000Z"),
+      }),
+    ).toEqual({
+      id: "00000000-0000-4000-8000-000000000004",
+      title: "Fix invitation race",
+      scheduledDate: "2026-08-07",
+      archivedAt: "2026-08-08T09:00:00.000Z",
+    });
+  });
+
+  it("returns null for activity without a joined task", () => {
+    expect(
+      mapActivityTaskContext({
+        taskId: null,
+        taskTitle: null,
+        taskScheduledDate: null,
+        taskArchivedAt: null,
+      }),
+    ).toBeNull();
   });
 });

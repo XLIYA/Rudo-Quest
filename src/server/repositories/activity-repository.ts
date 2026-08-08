@@ -59,6 +59,9 @@ export async function listActivityForUser(input: {
       actorAvatarPath: profiles.avatarPath,
       projectId: activityEvents.projectId,
       taskId: activityEvents.taskId,
+      taskTitle: tasks.title,
+      taskScheduledDate: tasks.scheduledDate,
+      taskArchivedAt: tasks.archivedAt,
       eventType: activityEvents.eventType,
       createdAt: activityEvents.createdAt,
       viewerUserId: projectMemberships.userId,
@@ -116,6 +119,7 @@ export async function listActivityForUser(input: {
       : null,
     projectId: row.projectId,
     taskId: row.taskId,
+    task: mapActivityTaskContext(row),
     eventType: row.eventType as ActivityEventType,
     label: humanizeActivity(row.eventType as ActivityEventType),
     createdAt: row.createdAt.toISOString(),
@@ -126,6 +130,28 @@ export async function listActivityForUser(input: {
   const nextRow = visibleRows.length > limit ? visibleRows[limit - 1] : undefined;
   const next = nextRow ? encodeActivityCursor(nextRow.createdAt, nextRow.id) : undefined;
   return next ? { items, cursor: next } : { items };
+}
+
+/**
+ * Purpose: Convert the already-authorized task join into activity display context.
+ * Inputs: Nullable task identity and display fields selected with an activity row.
+ * Output: Complete task context when a joined task exists, otherwise null.
+ * Side effects: None.
+ */
+export function mapActivityTaskContext(row: {
+  taskId: string | null;
+  taskTitle: string | null;
+  taskScheduledDate: string | null;
+  taskArchivedAt: Date | null;
+}): ActivityEventDto["task"] {
+  if (!row.taskId || !row.taskTitle || !row.taskScheduledDate) return null;
+
+  return {
+    id: row.taskId,
+    title: row.taskTitle,
+    scheduledDate: row.taskScheduledDate,
+    archivedAt: row.taskArchivedAt?.toISOString() ?? null,
+  };
 }
 
 /**
