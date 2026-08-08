@@ -31,8 +31,20 @@ import {
  * Side effects: Reads task and membership.
  */
 export async function getTask(userId: string, taskId: string): Promise<TaskDto> {
+  const task = await getVisibleTask(userId, taskId);
+  if (task.archivedAt) throw new AppError("NOT_FOUND", 404, "Task not found.");
+  return task;
+}
+
+/**
+ * Purpose: Validate visibility while allowing archived tasks for read-only detail/history flows.
+ * Inputs: Actor ID and task ID.
+ * Output: Visible active or archived task DTO.
+ * Side effects: Reads task and project membership.
+ */
+export async function getVisibleTask(userId: string, taskId: string): Promise<TaskDto> {
   const task = await findTaskDto(taskId, userId);
-  if (!task || task.archivedAt) throw new AppError("NOT_FOUND", 404, "Task not found.");
+  if (!task) throw new AppError("NOT_FOUND", 404, "Task not found.");
   await assertCanViewTask(userId, task);
   return task;
 }
@@ -385,7 +397,7 @@ function assertTaskVersion(task: TaskDto, expectedVersion: number): void {
  * Side effects: Reads task and activity.
  */
 export async function getTaskActivity(userId: string, taskId: string) {
-  await getTask(userId, taskId);
+  await getVisibleTask(userId, taskId);
   return listTaskActivity(taskId);
 }
 

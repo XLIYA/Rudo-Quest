@@ -8,7 +8,7 @@ import {
   timeZoneSchema,
   uuidSchema,
 } from "./common";
-import { taskStatuses } from "@/types/domain";
+import { taskHistoryViews, taskStatuses } from "@/types/domain";
 
 export const createTaskSchema = z.object({
   projectId: uuidSchema.nullable().optional(),
@@ -42,4 +42,9 @@ export const taskMoveSchema = taskActionSchema.extend({
 export const weekQuerySchema = z.object({
   weekStart: dateSchema,
   projectId: uuidSchema.optional(),
+});
+
+export const taskHistoryQuerySchema = z.object({
+  view: z.enum(taskHistoryViews).default("missed"),
+  cursor: z.string().trim().min(1).max(512).optional(),
 });

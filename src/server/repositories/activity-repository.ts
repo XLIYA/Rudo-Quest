@@ -238,6 +238,7 @@ export function humanizeActivity(type: ActivityEventType): string {
     TASK_COMPLETED: "completed a task",
     TASK_REOPENED: "reopened a task",
     TASK_ARCHIVED: "archived a task",
+    TASK_RESTORED: "restored a task",
     GITHUB_CONNECTED: "connected GitHub",
     GITHUB_DISCONNECTED: "disconnected GitHub",
   };

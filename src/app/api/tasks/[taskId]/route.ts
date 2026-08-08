@@ -4,7 +4,7 @@ import { uuidSchema } from "@/lib/validation/common";
 import { taskActionSchema, updateTaskSchema } from "@/lib/validation/tasks";
 import { withApiHandler, readJson } from "@/server/api/handler";
 import { requireCurrentUser } from "@/server/auth/current-user";
-import { archiveTask, getTask, updateTask } from "@/server/services/task-service";
+import { archiveTask, getVisibleTask, updateTask } from "@/server/services/task-service";
 
 type Context = { params: Promise<{ taskId: string }> };
 
@@ -18,7 +18,9 @@ export async function GET(request: NextRequest, context: Context) {
   return withApiHandler(request, async (requestId) => {
     const user = await requireCurrentUser();
     const { taskId } = await context.params;
-    return apiSuccess(await getTask(user.id, uuidSchema.parse(taskId)), { requestId });
+    return apiSuccess(await getVisibleTask(user.id, uuidSchema.parse(taskId)), {
+      requestId,
+    });
   });
 }
 

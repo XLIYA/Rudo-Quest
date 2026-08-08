@@ -37,36 +37,38 @@ import { getDateInTimeZone } from "@/lib/utils/dates";
  * Output: TaskDto with ISO date strings.
  * Side effects: None.
  */
-function toTaskDto(
-  row: {
-    id: string;
-    projectId: string | null;
-    createdById: string;
-    createdByHandle: string;
-    createdByDisplayName: string;
-    createdByAvatarPath: string | null;
-    assigneeId: string | null;
-    assigneeHandle: string | null;
-    assigneeDisplayName: string | null;
-    assigneeAvatarPath: string | null;
-    title: string;
-    description: string | null;
-    iconKey: string | null;
-    status: string;
-    previousStatus: string | null;
-    scheduledDate: string;
-    scheduledTime: string | null;
-    scheduledTimeZone: string;
-    completedAt: Date | null;
-    archivedAt: Date | null;
-    version: number;
-    createdAt: Date;
-    updatedAt: Date;
-    projectTitle: string | null;
-    projectColorKey: string | null;
-    projectIconKey: string | null;
-    viewerRole?: string | null;
-  },
+export type TaskDtoRow = {
+  id: string;
+  projectId: string | null;
+  createdById: string;
+  createdByHandle: string;
+  createdByDisplayName: string;
+  createdByAvatarPath: string | null;
+  assigneeId: string | null;
+  assigneeHandle: string | null;
+  assigneeDisplayName: string | null;
+  assigneeAvatarPath: string | null;
+  title: string;
+  description: string | null;
+  iconKey: string | null;
+  status: string;
+  previousStatus: string | null;
+  scheduledDate: string;
+  scheduledTime: string | null;
+  scheduledTimeZone: string;
+  completedAt: Date | null;
+  archivedAt: Date | null;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+  projectTitle: string | null;
+  projectColorKey: string | null;
+  projectIconKey: string | null;
+  viewerRole?: string | null;
+};
+
+export function toTaskDto(
+  row: TaskDtoRow,
   avatarUrls: Map<string, string>,
   viewerUserId?: string,
 ): TaskDto {
@@ -344,6 +346,28 @@ export async function updateTaskRow(
     .update(tasks)
     .set({ ...values, version: version + 1, updatedAt: new Date() })
     .where(and(eq(tasks.id, taskId), eq(tasks.version, version)))
+    .returning({ id: tasks.id });
+  return updated ? findTaskDto(updated.id, viewerUserId, db) : null;
+}
+
+/**
+ * Purpose: Restore an archived task with an archive-state and optimistic-version guard.
+ * Inputs: Task identity, expected version, viewer identity, and optional transaction executor.
+ * Output: Restored task DTO or null when the row is stale or no longer archived.
+ * Side effects: Clears archived_at and increments the task version.
+ */
+export async function restoreTaskRow(
+  taskId: string,
+  version: number,
+  viewerUserId: string,
+  db: DbExecutor = getDb(),
+): Promise<TaskDto | null> {
+  const [updated] = await db
+    .update(tasks)
+    .set({ archivedAt: null, version: version + 1, updatedAt: new Date() })
+    .where(
+      and(eq(tasks.id, taskId), eq(tasks.version, version), isNotNull(tasks.archivedAt)),
+    )
     .returning({ id: tasks.id });
   return updated ? findTaskDto(updated.id, viewerUserId, db) : null;
 }

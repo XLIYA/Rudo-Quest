@@ -27,6 +27,7 @@ export const activityEventTypes = [
   "TASK_COMPLETED",
   "TASK_REOPENED",
   "TASK_ARCHIVED",
+  "TASK_RESTORED",
   "GITHUB_CONNECTED",
   "GITHUB_DISCONNECTED",
 ] as const;
@@ -209,6 +210,14 @@ export type ActivityEventDto = {
 
 export type ActivityPageDto = {
   items: ActivityEventDto[];
+  cursor?: string;
+};
+
+export const taskHistoryViews = ["missed", "archived"] as const;
+export type TaskHistoryView = (typeof taskHistoryViews)[number];
+
+export type TaskHistoryPageDto = {
+  items: TaskDto[];
   cursor?: string;
 };
 
