@@ -10,6 +10,7 @@ import { AppEmptyState } from "@/components/ui/app-empty-state";
 import { AppSkeleton } from "@/components/ui/app-skeleton";
 import { AppAvatarStack } from "@/components/ui/app-avatar-stack";
 import { ActivityHeatmap } from "@/components/shared/activity-heatmap";
+import { BoundedCardList } from "@/components/shared/bounded-card-list";
 import { PageHeader } from "@/components/shared/page-header";
 import { TaskRow } from "@/components/ui/task-row";
 import { useTaskMutation } from "@/features/tasks/task-hooks";
@@ -90,7 +91,7 @@ export function DashboardScreen() {
       <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
         <Widget title="Today" description="Overdue and scheduled work for the day.">
           {todayTasks.length ? (
-            <div className="grid min-w-0 gap-4">
+            <BoundedCardList label="Today's tasks" className="gap-4">
               {todayGroups.map(([key, group]) => (
                 <section key={key} className="grid gap-2">
                   <div className="flex items-center justify-between gap-3">
@@ -121,7 +122,7 @@ export function DashboardScreen() {
                   ))}
                 </section>
               ))}
-            </div>
+            </BoundedCardList>
           ) : (
             <AppEmptyState
               title="Clear today"
@@ -219,7 +220,7 @@ export function DashboardScreen() {
           description="Open work and weekly completion by project."
         >
           {query.data.projects.length ? (
-            <div className="grid min-w-0 gap-3">
+            <BoundedCardList label="Projects">
               {query.data.projects.map((project) => (
                 <Link
                   key={project.id}
@@ -252,7 +253,7 @@ export function DashboardScreen() {
                   </div>
                 </Link>
               ))}
-            </div>
+            </BoundedCardList>
           ) : (
             <AppEmptyState
               title="No projects yet"

@@ -24,6 +24,7 @@ import {
   useTaskMutation,
   useWeekTasks,
 } from "@/features/tasks/task-hooks";
+import { WeeklyProgress } from "@/features/weekly/weekly-progress";
 
 /**
  * Purpose: Render the central Monday-Sunday accordion planner.
@@ -214,17 +215,7 @@ export function WeeklyScreen() {
                     </span>
                   </span>
                   <span className="flex items-center gap-2">
-                    {tasks.length ? (
-                      <span
-                        aria-hidden="true"
-                        className="hidden h-1.5 w-12 overflow-hidden rounded-full bg-surface-muted sm:block"
-                      >
-                        <span
-                          className="block h-full rounded-full bg-quest transition-[width] duration-400 ease-out"
-                          style={{ width: `${Math.round((done / tasks.length) * 100)}%` }}
-                        />
-                      </span>
-                    ) : null}
+                    <WeeklyProgress completed={done} total={tasks.length} />
                     <ChevronDown
                       className={`size-5 text-text-secondary transition-transform duration-250 ease-out ${open ? "rotate-180 text-quest" : ""}`}
                       aria-hidden="true"
