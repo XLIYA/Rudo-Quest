@@ -191,7 +191,10 @@ test.describe("local collaborative project lifecycle", () => {
       await expect(
         collaboratorPage.getByRole("heading", { name: "This week’s board" }),
       ).toBeVisible();
-      await expect(collaboratorPage.getByText(taskTitle, { exact: true })).toBeVisible();
+      const weeklyBoard = collaboratorPage.locator("section").filter({
+        has: collaboratorPage.getByRole("heading", { name: "This week’s board" }),
+      });
+      await expect(weeklyBoard.getByText(taskTitle, { exact: true })).toBeVisible();
 
       const moveToProgressResponsePromise = collaboratorPage.waitForResponse(
         (response) =>

@@ -166,9 +166,9 @@ test.describe("authenticated production flow", () => {
       await sheet.getByRole("button", { name: "Save changes" }).click();
       const renameResponse = await renameResponsePromise;
       expect(renameResponse.status()).toBe(200);
-      await expect(sheet.getByLabel("Title")).toHaveValue(renamedTitle);
-      await sheet.getByRole("button", { name: "Close dialog" }).click();
+      await expect(sheet).not.toBeVisible();
       await expect(page).not.toHaveURL(/task=/);
+      await expect(page.getByText(renamedTitle, { exact: true }).first()).toBeVisible();
 
       await page.getByRole("button", { name: "Next week" }).click();
       await expect(page).toHaveURL(/weekStart=/);

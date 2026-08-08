@@ -21,7 +21,10 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    command: `npm run dev -- --port ${port}`,
+    // The production build also uses webpack. Turbopack's lazy route discovery
+    // can omit cold, deeply nested API routes from the development manifest,
+    // which makes broad E2E runs fail with transient 404 responses.
+    command: `npm run dev -- --webpack --port ${port}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
