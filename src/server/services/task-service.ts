@@ -96,6 +96,25 @@ export async function createTask(
       throw new AppError("BAD_REQUEST", 400, "Assignee must be a project member.");
     }
   }
+  if (payload.parentTaskId) {
+    const parent = await getVisibleTask(userId, payload.parentTaskId);
+    if (parent.archivedAt) {
+      throw new AppError("CONFLICT", 409, "Archived Stories cannot receive subtasks.");
+    }
+    if (parent.taskType !== "STORY" || parent.parentTaskId) {
+      throw new AppError("BAD_REQUEST", 400, "Subtasks require a top-level Story.");
+    }
+    if (payload.taskType === "STORY") {
+      throw new AppError("BAD_REQUEST", 400, "Stories cannot be nested.");
+    }
+    if (parent.projectId !== payload.projectId) {
+      throw new AppError(
+        "BAD_REQUEST",
+        400,
+        "Story and subtask must belong to the same project scope.",
+      );
+    }
+  }
   const result = await runDbTransaction(async (tx) => {
     const task = await insertTask({ ...payload, createdBy: userId, assigneeId }, tx);
     await createActivityEvent(

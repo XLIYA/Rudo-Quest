@@ -52,6 +52,9 @@ function task(overrides: Partial<TaskDto> = {}): TaskDto {
     title: "Personal task",
     description: null,
     iconKey: null,
+    taskType: "TASK",
+    priority: "NONE",
+    parentTaskId: null,
     status: "TODO",
     previousStatus: null,
     scheduledDate: "2026-07-10",
@@ -201,6 +204,50 @@ describe("createTask assignment defaults", () => {
       notification,
       assignedTask.assignee?.id,
     );
+  });
+});
+
+describe("createTask hierarchy authorization", () => {
+  const parentId = "00000000-0000-4000-8000-000000000030";
+
+  it("rejects a subtask when its parent Story is not visible", async () => {
+    taskRepository.findTaskDto.mockResolvedValue(null);
+
+    await expect(
+      createTask(userId, {
+        projectId: null,
+        parentTaskId: parentId,
+        taskType: "TASK",
+        priority: "NONE",
+        title: "Hidden child",
+        scheduledDate: "2026-08-08",
+        scheduledTimeZone: "UTC",
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(taskRepository.insertTask).not.toHaveBeenCalled();
+  });
+
+  it("rejects a subtask whose parent does not share its scope", async () => {
+    taskRepository.findTaskDto.mockResolvedValue(
+      task({ id: parentId, taskType: "STORY", projectId: null }),
+    );
+    projectRepository.findProjectAccess.mockResolvedValue({
+      role: "MEMBER",
+      archivedAt: null,
+    });
+
+    await expect(
+      createTask(userId, {
+        projectId: targetProjectId,
+        parentTaskId: parentId,
+        taskType: "TASK",
+        priority: "NONE",
+        title: "Wrong scope",
+        scheduledDate: "2026-08-08",
+        scheduledTimeZone: "UTC",
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(taskRepository.insertTask).not.toHaveBeenCalled();
   });
 });
 

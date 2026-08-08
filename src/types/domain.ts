@@ -1,6 +1,15 @@
 export const taskStatuses = ["TODO", "IN_PROGRESS", "DONE"] as const;
 export type TaskStatus = (typeof taskStatuses)[number];
 
+export const taskTypes = ["TASK", "STORY", "FEATURE", "BUG", "TEST"] as const;
+export type TaskType = (typeof taskTypes)[number];
+
+export const taskPriorities = ["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"] as const;
+export type TaskPriority = (typeof taskPriorities)[number];
+
+export const taskAttachmentKinds = ["FILE", "LINK"] as const;
+export type TaskAttachmentKind = (typeof taskAttachmentKinds)[number];
+
 export const projectRoles = ["OWNER", "ADMIN", "MEMBER", "VIEWER"] as const;
 export type ProjectRole = (typeof projectRoles)[number];
 
@@ -169,6 +178,9 @@ export type TaskDto = {
   title: string;
   description: string | null;
   iconKey: ProjectIconKey | null;
+  taskType: TaskType;
+  priority: TaskPriority;
+  parentTaskId: string | null;
   status: TaskStatus;
   previousStatus: Exclude<TaskStatus, "DONE"> | null;
   scheduledDate: string;
@@ -190,6 +202,20 @@ export type TaskDto = {
     colorKey: ProjectColorKey;
     iconKey: ProjectIconKey;
   } | null;
+};
+
+export type TaskAttachmentDto = {
+  id: string;
+  taskId: string;
+  kind: TaskAttachmentKind;
+  label: string;
+  url: string | null;
+  fileName: string | null;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  downloadUrl: string | null;
+  createdBy: ProfileSummary;
+  createdAt: string;
 };
 
 export type ActivityEventDto = {

@@ -98,6 +98,9 @@ export async function listTaskHistory(input: {
       title: tasks.title,
       description: tasks.description,
       iconKey: tasks.iconKey,
+      taskType: tasks.taskType,
+      priority: tasks.priority,
+      parentTaskId: tasks.parentTaskId,
       status: tasks.status,
       previousStatus: tasks.previousStatus,
       scheduledDate: tasks.scheduledDate,
@@ -124,7 +127,7 @@ export async function listTaskHistory(input: {
         eq(projectMemberships.userId, input.userId),
       ),
     )
-    .where(and(viewCondition, visibility, cursorCondition))
+    .where(and(viewCondition, isNull(tasks.parentTaskId), visibility, cursorCondition))
     .orderBy(
       input.view === "missed" ? desc(tasks.scheduledDate) : desc(tasks.archivedAt),
       desc(tasks.id),

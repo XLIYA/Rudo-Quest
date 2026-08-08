@@ -27,7 +27,9 @@ import type {
   ProjectIconKey,
   TaskActivityDto,
   TaskDto,
+  TaskPriority,
   TaskStatus,
+  TaskType,
 } from "@/types/domain";
 import { getDateInTimeZone } from "@/lib/utils/dates";
 
@@ -51,6 +53,9 @@ export type TaskDtoRow = {
   title: string;
   description: string | null;
   iconKey: string | null;
+  taskType: string;
+  priority: string;
+  parentTaskId: string | null;
   status: string;
   previousStatus: string | null;
   scheduledDate: string;
@@ -100,6 +105,9 @@ export function toTaskDto(
     title: row.title,
     description: row.description,
     iconKey: row.iconKey as ProjectIconKey | null,
+    taskType: row.taskType as TaskType,
+    priority: row.priority as TaskPriority,
+    parentTaskId: row.parentTaskId,
     status: row.status as TaskStatus,
     previousStatus: row.previousStatus as Exclude<TaskStatus, "DONE"> | null,
     scheduledDate: row.scheduledDate,
@@ -156,6 +164,9 @@ export async function listWeekTasks(input: {
       title: tasks.title,
       description: tasks.description,
       iconKey: tasks.iconKey,
+      taskType: tasks.taskType,
+      priority: tasks.priority,
+      parentTaskId: tasks.parentTaskId,
       status: tasks.status,
       previousStatus: tasks.previousStatus,
       scheduledDate: tasks.scheduledDate,
@@ -188,6 +199,7 @@ export async function listWeekTasks(input: {
         lte(tasks.scheduledDate, input.to),
         input.incompleteOnly ? ne(tasks.status, "DONE") : undefined,
         input.projectId ? eq(tasks.projectId, input.projectId) : undefined,
+        isNull(tasks.parentTaskId),
         isNull(tasks.archivedAt),
         or(
           and(
@@ -237,6 +249,9 @@ export async function findTaskDto(
       title: tasks.title,
       description: tasks.description,
       iconKey: tasks.iconKey,
+      taskType: tasks.taskType,
+      priority: tasks.priority,
+      parentTaskId: tasks.parentTaskId,
       status: tasks.status,
       previousStatus: tasks.previousStatus,
       scheduledDate: tasks.scheduledDate,
@@ -290,6 +305,9 @@ export async function insertTask(
     title: string;
     description?: string | null;
     iconKey?: ProjectIconKey | null;
+    taskType?: TaskType;
+    priority?: TaskPriority;
+    parentTaskId?: string | null;
     scheduledDate: string;
     scheduledTime?: string | null;
     scheduledTimeZone: string;
@@ -305,6 +323,9 @@ export async function insertTask(
       title: input.title,
       description: input.description ?? null,
       iconKey: input.iconKey ?? null,
+      taskType: input.taskType ?? "TASK",
+      priority: input.priority ?? "NONE",
+      parentTaskId: input.parentTaskId ?? null,
       status: "TODO",
       scheduledDate: input.scheduledDate,
       scheduledTime: input.scheduledTime ?? null,
@@ -331,6 +352,8 @@ export async function updateTaskRow(
     title: string;
     description: string | null;
     iconKey: ProjectIconKey | null;
+    taskType: TaskType;
+    priority: TaskPriority;
     status: TaskStatus;
     previousStatus: Exclude<TaskStatus, "DONE"> | null;
     scheduledDate: string;
@@ -441,6 +464,7 @@ export async function listCompletionCounts(input: {
         gte(tasks.completedAt, rangeStart),
         lte(tasks.completedAt, rangeEnd),
         isNull(tasks.archivedAt),
+        isNull(tasks.parentTaskId),
       ),
     );
   const counts = new Map<string, number>();

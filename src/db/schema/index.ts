@@ -13,6 +13,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -194,6 +195,11 @@ export const tasks = pgTable(
     title: text("title").notNull(),
     description: text("description"),
     iconKey: text("icon_key"),
+    taskType: text("task_type").notNull().default("TASK"),
+    priority: text("priority").notNull().default("NONE"),
+    parentTaskId: uuid("parent_task_id").references((): AnyPgColumn => tasks.id, {
+      onDelete: "cascade",
+    }),
     status: text("status").notNull(),
     previousStatus: text("previous_status"),
     scheduledDate: date("scheduled_date").notNull(),
@@ -219,6 +225,12 @@ export const tasks = pgTable(
     ),
     index("tasks_created_by_date_idx").on(table.createdBy, table.scheduledDate),
     index("tasks_archived_at_idx").on(table.archivedAt),
+    index("tasks_parent_status_idx")
+      .on(table.parentTaskId, table.archivedAt, table.status)
+      .where(sql`${table.parentTaskId} is not null`),
+    index("tasks_top_level_week_idx")
+      .on(table.scheduledDate, table.projectId, table.status)
+      .where(sql`${table.parentTaskId} is null and ${table.archivedAt} is null`),
     index("tasks_assignee_completed_at_idx")
       .on(table.assigneeId, table.completedAt)
       .where(sql`${table.status} = 'DONE' and ${table.archivedAt} is null`),
@@ -228,6 +240,22 @@ export const tasks = pgTable(
       sql`${table.description} is null or length(${table.description}) <= 5000`,
     ),
     check("tasks_status", sql`${table.status} in ('TODO','IN_PROGRESS','DONE')`),
+    check(
+      "tasks_task_type",
+      sql`${table.taskType} in ('TASK','STORY','FEATURE','BUG','TEST')`,
+    ),
+    check(
+      "tasks_priority",
+      sql`${table.priority} in ('NONE','LOW','MEDIUM','HIGH','URGENT')`,
+    ),
+    check(
+      "tasks_parent_not_self",
+      sql`${table.parentTaskId} is null or ${table.parentTaskId} <> ${table.id}`,
+    ),
+    check(
+      "tasks_nested_story_forbidden",
+      sql`${table.parentTaskId} is null or ${table.taskType} <> 'STORY'`,
+    ),
     check(
       "tasks_previous_status",
       sql`${table.previousStatus} is null or ${table.previousStatus} in ('TODO','IN_PROGRESS')`,
@@ -246,6 +274,104 @@ export const tasks = pgTable(
       foreignColumns: [projectMemberships.projectId, projectMemberships.userId],
       name: "tasks_assignee_membership_fk",
     }),
+  ],
+);
+
+export const taskAttachments = pgTable(
+  "task_attachments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    taskId: uuid("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => profiles.id),
+    kind: text("kind").notNull(),
+    label: text("label").notNull(),
+    url: text("url"),
+    storagePath: text("storage_path"),
+    fileName: text("file_name"),
+    mimeType: text("mime_type"),
+    sizeBytes: bigint("size_bytes", { mode: "number" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("task_attachments_task_created_idx").on(
+      table.taskId,
+      table.createdAt,
+      table.id,
+    ),
+    uniqueIndex("task_attachments_storage_path_uidx")
+      .on(table.storagePath)
+      .where(sql`${table.storagePath} is not null`),
+    check("task_attachments_kind", sql`${table.kind} in ('FILE','LINK')`),
+    check("task_attachments_label_length", sql`length(${table.label}) between 1 and 140`),
+    check(
+      "task_attachments_url_length",
+      sql`${table.url} is null or length(${table.url}) <= 2048`,
+    ),
+    check(
+      "task_attachments_url_protocol",
+      sql`${table.url} is null or ${table.url} ~* '^https?://'`,
+    ),
+    check(
+      "task_attachments_file_name_length",
+      sql`${table.fileName} is null or length(${table.fileName}) between 1 and 255`,
+    ),
+    check(
+      "task_attachments_size",
+      sql`${table.sizeBytes} is null or ${table.sizeBytes} between 1 and 10485760`,
+    ),
+    check(
+      "task_attachments_payload",
+      sql`(
+        ${table.kind} = 'LINK'
+        and ${table.url} is not null
+        and ${table.storagePath} is null
+        and ${table.fileName} is null
+        and ${table.mimeType} is null
+        and ${table.sizeBytes} is null
+      ) or (
+        ${table.kind} = 'FILE'
+        and ${table.url} is null
+        and ${table.storagePath} is not null
+        and ${table.fileName} is not null
+        and ${table.mimeType} is not null
+        and ${table.sizeBytes} is not null
+      )`,
+    ),
+  ],
+);
+
+export const taskAttachmentUploads = pgTable(
+  "task_attachment_uploads",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    taskId: uuid("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    storagePath: text("storage_path").notNull().unique(),
+    fileName: text("file_name").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: bigint("size_bytes", { mode: "number" }).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    committedAt: timestamp("committed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("task_attachment_uploads_task_user_idx").on(table.taskId, table.userId),
+    index("task_attachment_uploads_pending_expiry_idx")
+      .on(table.expiresAt)
+      .where(sql`${table.committedAt} is null`),
+    check(
+      "task_attachment_uploads_file_name_length",
+      sql`length(${table.fileName}) between 1 and 255`,
+    ),
+    check("task_attachment_uploads_size", sql`${table.sizeBytes} between 1 and 10485760`),
   ],
 );
 
