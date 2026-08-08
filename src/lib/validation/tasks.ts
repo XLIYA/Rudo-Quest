@@ -58,6 +58,18 @@ export const taskMoveSchema = taskActionSchema.extend({
   status: z.enum(taskStatuses),
 });
 
+export const subtaskTypes = ["TASK", "FEATURE", "BUG", "TEST"] as const;
+export const createSubtaskSchema = z.object({
+  title: taskTitleSchema,
+  description: taskDescriptionSchema,
+  iconKey: projectIconKeySchema.nullable().optional(),
+  assigneeId: uuidSchema.nullable().optional(),
+  taskType: z.enum(subtaskTypes).default("TASK"),
+  priority: z.enum(taskPriorities).default("NONE"),
+  scheduledDate: dateSchema.optional(),
+  scheduledTime: timeSchema.nullable().optional(),
+});
+
 export const weekQuerySchema = z.object({
   weekStart: dateSchema,
   projectId: uuidSchema.optional(),

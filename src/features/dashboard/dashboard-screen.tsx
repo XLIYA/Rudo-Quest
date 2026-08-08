@@ -199,6 +199,7 @@ export function DashboardScreen() {
           taskMutation.error.status === 409
         }
         onOpenChange={(open) => !open && setSelectedTask(null)}
+        onOpenRelatedTask={setSelectedTask}
         onAction={(task, action) => taskMutation.mutate({ task, action })}
         onArchive={(task) => {
           taskMutation.mutate({ task, action: "archive" });

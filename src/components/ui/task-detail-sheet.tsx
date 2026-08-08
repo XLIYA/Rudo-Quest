@@ -24,6 +24,7 @@ import { AppSheet } from "./app-sheet";
 import { AppTextarea } from "./app-textarea";
 import { AppTimePicker } from "./app-time-picker";
 import { TaskAssigneeCombobox } from "./task-assignee-combobox";
+import { StorySubtasks } from "./story-subtasks";
 import {
   TaskClassification,
   taskPriorityOptions,
@@ -55,6 +56,7 @@ export type TaskDetailSheetProps = {
   onSave: (task: TaskDto, values: TaskDraft) => void;
   onAction: (task: TaskDto, action: TaskDetailAction) => void;
   onArchive: (task: TaskDto) => void;
+  onOpenRelatedTask: (task: TaskDto) => void;
 };
 
 /**
@@ -203,6 +205,7 @@ export function TaskDetailSheet({
   onSave,
   onAction,
   onArchive,
+  onOpenRelatedTask,
 }: TaskDetailSheetProps) {
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [draftState, setDraftState] = useState<{ key: string; draft: TaskDraft } | null>(
@@ -492,6 +495,15 @@ export function TaskDetailSheet({
             </div>
           ) : null}
         </form>
+        {activeTask.taskType === "STORY" && !activeTask.parentTaskId ? (
+          <div className="mt-5">
+            <StorySubtasks
+              story={activeTask}
+              offline={offline}
+              onOpenTask={onOpenRelatedTask}
+            />
+          </div>
+        ) : null}
       </AppSheet>
       <AppConfirmDialog
         open={confirmArchive}

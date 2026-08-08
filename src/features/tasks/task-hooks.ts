@@ -79,6 +79,9 @@ export function useCreateTask(weekStart: string) {
         taskType: body.taskType ?? "TASK",
         priority: body.priority ?? "NONE",
         parentTaskId: body.parentTaskId ?? null,
+        subtaskTotal: 0,
+        subtaskCompleted: 0,
+        subtaskProgressPercent: 0,
         status: "TODO",
         previousStatus: null,
         scheduledDate: body.scheduledDate,
@@ -91,6 +94,7 @@ export function useCreateTask(weekStart: string) {
         updatedAt: new Date().toISOString(),
         permissions: {
           canEditDetails: true,
+          canCreateSubtasks: true,
           canTransition: true,
           canArchive: true,
         },
@@ -165,6 +169,10 @@ export function useTaskMutation(weekStart: string) {
       const previousTask = queryClient.getQueryData<TaskDto>(
         queryKeys.task(input.task.id),
       );
+      const parentId = input.task.parentTaskId;
+      const previousSubtasks = parentId
+        ? queryClient.getQueryData<TaskDto[]>(queryKeys.subtasks(parentId))
+        : undefined;
       if (input.action !== "archive") {
         queryClient.setQueriesData<TaskDto[]>(
           { queryKey: queryKeys.tasksWeek(weekStart) },
@@ -180,7 +188,18 @@ export function useTaskMutation(weekStart: string) {
           optimisticTask(input.task, input.action, input.body),
         );
       }
-      return { previous, previousTask };
+      if (parentId) {
+        queryClient.setQueryData<TaskDto[]>(queryKeys.subtasks(parentId), (current) =>
+          input.action === "archive"
+            ? current?.filter((task) => task.id !== input.task.id)
+            : current?.map((task) =>
+                task.id === input.task.id
+                  ? optimisticTask(task, input.action, input.body)
+                  : task,
+              ),
+        );
+      }
+      return { previous, previousTask, previousSubtasks };
     },
     onError: (error, input, context) => {
       for (const [key, data] of context?.previous ?? []) {
@@ -190,6 +209,12 @@ export function useTaskMutation(weekStart: string) {
         queryKeys.task(input.task.id),
         context?.previousTask ?? input.task,
       );
+      if (input.task.parentTaskId && context?.previousSubtasks) {
+        queryClient.setQueryData(
+          queryKeys.subtasks(input.task.parentTaskId),
+          context.previousSubtasks,
+        );
+      }
       const normalized = normalizeApiClientError(error);
       AppToast(
         normalized.status === 409
@@ -204,6 +229,15 @@ export function useTaskMutation(weekStart: string) {
         { queryKey: queryKeys.tasksWeek(weekStart) },
         (current) => current?.map((task) => (task.id === input.task.id ? data : task)),
       );
+      if (input.task.parentTaskId) {
+        queryClient.setQueryData<TaskDto[]>(
+          queryKeys.subtasks(input.task.parentTaskId),
+          (current) =>
+            input.action === "archive"
+              ? current?.filter((task) => task.id !== input.task.id)
+              : current?.map((task) => (task.id === input.task.id ? data : task)),
+        );
+      }
     },
     onSettled: (_data, _error, input) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tasksWeek(weekStart) });
@@ -213,6 +247,14 @@ export function useTaskMutation(weekStart: string) {
       });
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       void queryClient.invalidateQueries({ queryKey: ["task-history"] });
+      if (input.task.parentTaskId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.subtasks(input.task.parentTaskId),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.task(input.task.parentTaskId),
+        });
+      }
     },
   });
 }

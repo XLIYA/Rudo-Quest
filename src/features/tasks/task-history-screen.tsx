@@ -144,6 +144,7 @@ export function TaskHistoryScreen({
         pending={selectedMutation.isPending}
         conflict={false}
         onOpenChange={(open) => !open && closeTask()}
+        onOpenRelatedTask={openTask}
         onAction={(task, action) => selectedMutation.mutate({ task, action })}
         onArchive={(task) => selectedMutation.mutate({ task, action: "archive" })}
         onSave={(task, values) =>

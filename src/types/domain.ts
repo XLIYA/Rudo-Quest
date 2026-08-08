@@ -181,6 +181,9 @@ export type TaskDto = {
   taskType: TaskType;
   priority: TaskPriority;
   parentTaskId: string | null;
+  subtaskTotal: number;
+  subtaskCompleted: number;
+  subtaskProgressPercent: number;
   status: TaskStatus;
   previousStatus: Exclude<TaskStatus, "DONE"> | null;
   scheduledDate: string;
@@ -193,6 +196,7 @@ export type TaskDto = {
   updatedAt: string;
   permissions: {
     canEditDetails: boolean;
+    canCreateSubtasks: boolean;
     canTransition: boolean;
     canArchive: boolean;
   };

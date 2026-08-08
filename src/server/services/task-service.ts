@@ -1,5 +1,5 @@
 import { AppError } from "@/lib/api/errors";
-import { runDbTransaction } from "@/lib/db/client";
+import { runDbTransaction, type DbExecutor } from "@/lib/db/client";
 import { getWeekDates } from "@/lib/utils/dates";
 import type { TaskDto, TaskStatus } from "@/types/domain";
 import {
@@ -14,9 +14,13 @@ import {
 } from "@/server/repositories/project-repository";
 import {
   findTaskDto,
+  getSubtaskProgress,
+  hasAnySubtasks,
   insertTask,
+  listSubtasks,
   listTaskActivity,
   listWeekTasks,
+  rollUpStoryStatus,
   updateTaskRow,
 } from "@/server/repositories/task-repository";
 import {
@@ -123,6 +127,9 @@ export async function createTask(
       },
       tx,
     );
+    if (task.parentTaskId) {
+      await applyStoryRollup(userId, task.parentTaskId, tx);
+    }
     const assignmentNotification =
       task.assignee && task.assignee.id !== userId
         ? await createNotification(
@@ -165,6 +172,18 @@ export async function updateTask(
   const assignmentOnly =
     changedKeys.length > 0 && changedKeys.every((key) => key === "assigneeId");
   await assertCanEditTask(userId, task, false, assignmentOnly);
+  if (
+    task.taskType === "STORY" &&
+    changes.taskType !== undefined &&
+    changes.taskType !== "STORY" &&
+    (await hasAnySubtasks(task.id))
+  ) {
+    throw new AppError(
+      "CONFLICT",
+      409,
+      "A Story with Subtasks cannot be changed to another type.",
+    );
+  }
   if (changes.projectId === null && task.projectId !== null) {
     if (task.createdBy.id !== userId) {
       throw new AppError(
@@ -273,6 +292,30 @@ export async function completeTask(
   await assertCanEditTask(userId, task, false);
   assertTaskVersion(task, version);
   if (task.status === "DONE") return task;
+  if (task.taskType === "STORY") {
+    return runDbTransaction(async (tx) => {
+      const progress = await getSubtaskProgress(task.id, tx);
+      if (progress.total > progress.completed) {
+        throw new AppError(
+          "CONFLICT",
+          409,
+          "Complete every active subtask before completing this Story.",
+        );
+      }
+      return commitTaskTransition(
+        userId,
+        taskId,
+        version,
+        {
+          status: "DONE",
+          previousStatus: task.status as Exclude<TaskStatus, "DONE">,
+          completedAt: new Date(),
+        },
+        "TASK_COMPLETED",
+        tx,
+      );
+    });
+  }
   return commitTaskTransition(
     userId,
     taskId,
@@ -323,17 +366,7 @@ export async function moveTask(
   if (task.status === status) return task;
 
   if (status === "DONE") {
-    return commitTaskTransition(
-      userId,
-      taskId,
-      version,
-      {
-        status,
-        previousStatus: task.status === "DONE" ? task.previousStatus : task.status,
-        completedAt: new Date(),
-      },
-      "TASK_COMPLETED",
-    );
+    return completeTask(userId, taskId, version);
   }
 
   return commitTaskTransition(
@@ -380,15 +413,100 @@ async function commitTaskTransition(
   version: number,
   changes: Parameters<typeof updateTaskRow>[2],
   eventType: Parameters<typeof createActivityEvent>[0]["eventType"],
+  existingDb?: DbExecutor,
 ): Promise<TaskDto> {
-  return runDbTransaction(async (tx) => {
+  const operation = async (tx: DbExecutor) => {
     const updated = await updateTaskRow(taskId, version, changes, userId, tx);
     if (!updated) throw new AppError("CONFLICT", 409, "Task changed on another device.");
     await createActivityEvent(
       { actorId: userId, projectId: updated.projectId, taskId, eventType },
       tx,
     );
+    if (updated.parentTaskId) {
+      await applyStoryRollup(userId, updated.parentTaskId, tx);
+    }
     return updated;
+  };
+  return existingDb ? operation(existingDb) : runDbTransaction(operation);
+}
+
+/**
+ * Purpose: Persist the activity counterpart of an automatic Story roll-up.
+ * Inputs: Actor, Story identity, and current transaction.
+ * Output: Void.
+ * Side effects: May update the Story and write a matching activity event.
+ */
+async function applyStoryRollup(
+  userId: string,
+  storyId: string,
+  tx: DbExecutor,
+): Promise<void> {
+  const rollup = await rollUpStoryStatus(storyId, userId, tx);
+  if (!rollup.story || !rollup.transition) return;
+  await createActivityEvent(
+    {
+      actorId: userId,
+      projectId: rollup.story.projectId,
+      taskId: storyId,
+      eventType: rollup.transition === "completed" ? "TASK_COMPLETED" : "TASK_REOPENED",
+    },
+    tx,
+  );
+}
+
+/**
+ * Purpose: Return active children for a visible Story.
+ * Inputs: Viewer and Story identity.
+ * Output: Ordered Subtask DTOs.
+ * Side effects: Reads Story visibility and child rows.
+ */
+export async function getStorySubtasks(
+  userId: string,
+  storyId: string,
+): Promise<TaskDto[]> {
+  const story = await getVisibleTask(userId, storyId);
+  if (story.taskType !== "STORY" || story.parentTaskId) {
+    throw new AppError("BAD_REQUEST", 400, "Task is not a top-level Story.");
+  }
+  return listSubtasks(storyId, userId);
+}
+
+/**
+ * Purpose: Create a one-level child using its Story's immutable scope defaults.
+ * Inputs: Viewer, Story identity, and validated child fields.
+ * Output: Created Subtask DTO.
+ * Side effects: Writes child/activity and recalculates Story status atomically.
+ */
+export async function createSubtask(
+  userId: string,
+  storyId: string,
+  payload: {
+    title: string;
+    description?: string | null;
+    iconKey?: TaskDto["iconKey"];
+    assigneeId?: string | null;
+    taskType?: Exclude<TaskDto["taskType"], "STORY">;
+    priority?: TaskDto["priority"];
+    scheduledDate?: string;
+    scheduledTime?: string | null;
+  },
+): Promise<TaskDto> {
+  const story = await getTask(userId, storyId);
+  if (story.taskType !== "STORY" || story.parentTaskId) {
+    throw new AppError("BAD_REQUEST", 400, "Subtasks require a top-level Story.");
+  }
+  return createTask(userId, {
+    projectId: story.projectId,
+    parentTaskId: story.id,
+    assigneeId: payload.assigneeId,
+    title: payload.title,
+    description: payload.description,
+    iconKey: payload.iconKey,
+    taskType: payload.taskType ?? "TASK",
+    priority: payload.priority ?? "NONE",
+    scheduledDate: payload.scheduledDate ?? story.scheduledDate,
+    scheduledTime: payload.scheduledTime,
+    scheduledTimeZone: story.scheduledTimeZone,
   });
 }
 

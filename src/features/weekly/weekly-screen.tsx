@@ -301,6 +301,7 @@ export function WeeklyScreen() {
           mutateTask.error.status === 409
         }
         onOpenChange={(open) => !open && closeTask()}
+        onOpenRelatedTask={openTask}
         onAction={(task, action) => mutateTask.mutate({ task, action })}
         onArchive={(task) => {
           mutateTask.mutate({ task, action: "archive" });

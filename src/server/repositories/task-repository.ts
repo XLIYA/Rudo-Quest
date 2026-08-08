@@ -56,6 +56,8 @@ export type TaskDtoRow = {
   taskType: string;
   priority: string;
   parentTaskId: string | null;
+  subtaskTotal: number;
+  subtaskCompleted: number;
   status: string;
   previousStatus: string | null;
   scheduledDate: string;
@@ -85,6 +87,11 @@ export function toTaskDto(
   const canTransition = row.projectId
     ? canEditDetails || (row.viewerRole === "MEMBER" && row.assigneeId === viewerUserId)
     : row.createdById === viewerUserId;
+  const canCreateSubtasks = row.projectId
+    ? row.viewerRole === "OWNER" ||
+      row.viewerRole === "ADMIN" ||
+      row.viewerRole === "MEMBER"
+    : row.createdById === viewerUserId;
   return {
     id: row.id,
     projectId: row.projectId,
@@ -108,6 +115,11 @@ export function toTaskDto(
     taskType: row.taskType as TaskType,
     priority: row.priority as TaskPriority,
     parentTaskId: row.parentTaskId,
+    subtaskTotal: row.subtaskTotal,
+    subtaskCompleted: row.subtaskCompleted,
+    subtaskProgressPercent: row.subtaskTotal
+      ? Math.round((row.subtaskCompleted / row.subtaskTotal) * 100)
+      : 0,
     status: row.status as TaskStatus,
     previousStatus: row.previousStatus as Exclude<TaskStatus, "DONE"> | null,
     scheduledDate: row.scheduledDate,
@@ -120,6 +132,7 @@ export function toTaskDto(
     updatedAt: row.updatedAt.toISOString(),
     permissions: {
       canEditDetails,
+      canCreateSubtasks,
       canTransition,
       canArchive: canTransition,
     },
@@ -147,9 +160,11 @@ export async function listWeekTasks(input: {
   projectId?: string;
   incompleteOnly?: boolean;
 }): Promise<TaskDto[]> {
+  const db = getDb();
   const creator = alias(profiles, "creator_profiles");
   const assignee = alias(profiles, "assignee_profiles");
-  const rows = await getDb()
+  const subtaskSummary = createSubtaskSummary(db, "week_subtask_summary");
+  const rows = await db
     .select({
       id: tasks.id,
       projectId: tasks.projectId,
@@ -167,6 +182,10 @@ export async function listWeekTasks(input: {
       taskType: tasks.taskType,
       priority: tasks.priority,
       parentTaskId: tasks.parentTaskId,
+      subtaskTotal: sql<number>`coalesce(${subtaskSummary.total}, 0)`.mapWith(Number),
+      subtaskCompleted: sql<number>`coalesce(${subtaskSummary.completed}, 0)`.mapWith(
+        Number,
+      ),
       status: tasks.status,
       previousStatus: tasks.previousStatus,
       scheduledDate: tasks.scheduledDate,
@@ -186,6 +205,7 @@ export async function listWeekTasks(input: {
     .innerJoin(creator, eq(tasks.createdBy, creator.id))
     .leftJoin(assignee, eq(tasks.assigneeId, assignee.id))
     .leftJoin(projects, eq(tasks.projectId, projects.id))
+    .leftJoin(subtaskSummary, eq(subtaskSummary.parentTaskId, tasks.id))
     .leftJoin(
       projectMemberships,
       and(
@@ -234,6 +254,7 @@ export async function findTaskDto(
 ): Promise<TaskDto | null> {
   const creator = alias(profiles, "creator_profiles");
   const assignee = alias(profiles, "assignee_profiles");
+  const subtaskSummary = createSubtaskSummary(db, "detail_subtask_summary");
   const rows = await db
     .select({
       id: tasks.id,
@@ -252,6 +273,10 @@ export async function findTaskDto(
       taskType: tasks.taskType,
       priority: tasks.priority,
       parentTaskId: tasks.parentTaskId,
+      subtaskTotal: sql<number>`coalesce(${subtaskSummary.total}, 0)`.mapWith(Number),
+      subtaskCompleted: sql<number>`coalesce(${subtaskSummary.completed}, 0)`.mapWith(
+        Number,
+      ),
       status: tasks.status,
       previousStatus: tasks.previousStatus,
       scheduledDate: tasks.scheduledDate,
@@ -271,6 +296,7 @@ export async function findTaskDto(
     .innerJoin(creator, eq(tasks.createdBy, creator.id))
     .leftJoin(assignee, eq(tasks.assigneeId, assignee.id))
     .leftJoin(projects, eq(tasks.projectId, projects.id))
+    .leftJoin(subtaskSummary, eq(subtaskSummary.parentTaskId, tasks.id))
     .leftJoin(
       projectMemberships,
       viewerUserId
@@ -393,6 +419,199 @@ export async function restoreTaskRow(
     )
     .returning({ id: tasks.id });
   return updated ? findTaskDto(updated.id, viewerUserId, db) : null;
+}
+
+/**
+ * Purpose: Build one aggregate of active child counts for bounded task DTO queries.
+ * Inputs: Database executor and a query-unique alias.
+ * Output: Joinable parent/count subquery.
+ * Side effects: None until consumed by a query.
+ */
+export function createSubtaskSummary(db: DbExecutor, aliasName: string) {
+  const children = alias(tasks, `${aliasName}_tasks`);
+  return db
+    .select({
+      parentTaskId: children.parentTaskId,
+      total: sql<number>`count(*)::int`.as("total"),
+      completed: sql<number>`count(*) filter (where ${children.status} = 'DONE')::int`.as(
+        "completed",
+      ),
+    })
+    .from(children)
+    .where(and(isNotNull(children.parentTaskId), isNull(children.archivedAt)))
+    .groupBy(children.parentTaskId)
+    .as(aliasName);
+}
+
+/**
+ * Purpose: Return active Story-child completion counts.
+ * Inputs: Story ID and optional transaction executor.
+ * Output: Active total and completed counts.
+ * Side effects: Reads child task rows.
+ */
+export async function getSubtaskProgress(
+  parentTaskId: string,
+  db: DbExecutor = getDb(),
+): Promise<{ total: number; completed: number }> {
+  const [row] = await db
+    .select({
+      total: sql<number>`count(*)::int`.mapWith(Number),
+      completed:
+        sql<number>`count(*) filter (where ${tasks.status} = 'DONE')::int`.mapWith(
+          Number,
+        ),
+    })
+    .from(tasks)
+    .where(and(eq(tasks.parentTaskId, parentTaskId), isNull(tasks.archivedAt)));
+  return row ?? { total: 0, completed: 0 };
+}
+
+/**
+ * Purpose: Detect any persisted children before changing a Story's structural type.
+ * Inputs: Story ID and optional transaction executor.
+ * Output: True when active or archived children exist.
+ * Side effects: Reads at most one child row.
+ */
+export async function hasAnySubtasks(
+  parentTaskId: string,
+  db: DbExecutor = getDb(),
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: tasks.id })
+    .from(tasks)
+    .where(eq(tasks.parentTaskId, parentTaskId))
+    .limit(1);
+  return Boolean(row);
+}
+
+export type StoryRollupTransition = "completed" | "reopened" | null;
+
+/**
+ * Purpose: Recalculate a Story's derived status while holding its row lock.
+ * Inputs: Story ID, viewer identity for DTO permissions, and transaction executor.
+ * Output: Updated/current Story plus the automatic transition kind.
+ * Side effects: May update Story status, completion timestamp, and version.
+ */
+export async function rollUpStoryStatus(
+  storyId: string,
+  viewerUserId: string,
+  db: DbExecutor = getDb(),
+): Promise<{ story: TaskDto | null; transition: StoryRollupTransition }> {
+  const [story] = await db
+    .select({ id: tasks.id, taskType: tasks.taskType, status: tasks.status })
+    .from(tasks)
+    .where(eq(tasks.id, storyId))
+    .limit(1)
+    .for("update");
+  if (!story || story.taskType !== "STORY") return { story: null, transition: null };
+
+  const progress = await getSubtaskProgress(storyId, db);
+  if (progress.total === 0) {
+    return { story: await findTaskDto(storyId, viewerUserId, db), transition: null };
+  }
+  const shouldComplete = progress.completed === progress.total;
+  const transition: StoryRollupTransition = shouldComplete
+    ? story.status === "DONE"
+      ? null
+      : "completed"
+    : story.status === "DONE"
+      ? "reopened"
+      : null;
+  if (!transition) {
+    return { story: await findTaskDto(storyId, viewerUserId, db), transition: null };
+  }
+
+  await db
+    .update(tasks)
+    .set(
+      transition === "completed"
+        ? {
+            status: "DONE",
+            previousStatus: story.status as Exclude<TaskStatus, "DONE">,
+            completedAt: new Date(),
+            version: sql`${tasks.version} + 1`,
+            updatedAt: new Date(),
+          }
+        : {
+            status: "IN_PROGRESS",
+            previousStatus: null,
+            completedAt: null,
+            version: sql`${tasks.version} + 1`,
+            updatedAt: new Date(),
+          },
+    )
+    .where(eq(tasks.id, storyId));
+  return {
+    story: await findTaskDto(storyId, viewerUserId, db),
+    transition,
+  };
+}
+
+/**
+ * Purpose: List active one-level children for an authorized Story.
+ * Inputs: Story ID, viewer identity, and optional transaction executor.
+ * Output: Ordered Subtask DTOs.
+ * Side effects: Reads child task and profile/project joins.
+ */
+export async function listSubtasks(
+  parentTaskId: string,
+  viewerUserId: string,
+  db: DbExecutor = getDb(),
+): Promise<TaskDto[]> {
+  const creator = alias(profiles, "subtask_creator_profiles");
+  const assignee = alias(profiles, "subtask_assignee_profiles");
+  const rows = await db
+    .select({
+      id: tasks.id,
+      projectId: tasks.projectId,
+      createdById: tasks.createdBy,
+      createdByHandle: creator.handle,
+      createdByDisplayName: creator.displayName,
+      createdByAvatarPath: creator.avatarPath,
+      assigneeId: tasks.assigneeId,
+      assigneeHandle: assignee.handle,
+      assigneeDisplayName: assignee.displayName,
+      assigneeAvatarPath: assignee.avatarPath,
+      title: tasks.title,
+      description: tasks.description,
+      iconKey: tasks.iconKey,
+      taskType: tasks.taskType,
+      priority: tasks.priority,
+      parentTaskId: tasks.parentTaskId,
+      subtaskTotal: sql<number>`0`.mapWith(Number),
+      subtaskCompleted: sql<number>`0`.mapWith(Number),
+      status: tasks.status,
+      previousStatus: tasks.previousStatus,
+      scheduledDate: tasks.scheduledDate,
+      scheduledTime: tasks.scheduledTime,
+      scheduledTimeZone: tasks.scheduledTimeZone,
+      completedAt: tasks.completedAt,
+      archivedAt: tasks.archivedAt,
+      version: tasks.version,
+      createdAt: tasks.createdAt,
+      updatedAt: tasks.updatedAt,
+      projectTitle: projects.title,
+      projectColorKey: projects.colorKey,
+      projectIconKey: projects.iconKey,
+      viewerRole: projectMemberships.role,
+    })
+    .from(tasks)
+    .innerJoin(creator, eq(tasks.createdBy, creator.id))
+    .leftJoin(assignee, eq(tasks.assigneeId, assignee.id))
+    .leftJoin(projects, eq(tasks.projectId, projects.id))
+    .leftJoin(
+      projectMemberships,
+      and(
+        eq(projectMemberships.projectId, tasks.projectId),
+        eq(projectMemberships.userId, viewerUserId),
+      ),
+    )
+    .where(and(eq(tasks.parentTaskId, parentTaskId), isNull(tasks.archivedAt)))
+    .orderBy(asc(tasks.scheduledDate), asc(tasks.scheduledTime), asc(tasks.createdAt));
+  const avatarUrls = await createProfileAssetUrlMap(
+    rows.flatMap((row) => [row.createdByAvatarPath, row.assigneeAvatarPath]),
+  );
+  return rows.map((row) => toTaskDto(row, avatarUrls, viewerUserId));
 }
 
 /**

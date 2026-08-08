@@ -35,6 +35,9 @@ function task(title: string, archived: boolean): TaskDto {
     taskType: "TASK",
     priority: "NONE",
     parentTaskId: null,
+    subtaskTotal: 0,
+    subtaskCompleted: 0,
+    subtaskProgressPercent: 0,
     status: "TODO",
     previousStatus: null,
     scheduledDate: "2026-08-07",
@@ -47,6 +50,7 @@ function task(title: string, archived: boolean): TaskDto {
     updatedAt: "2026-08-08T08:00:00.000Z",
     permissions: {
       canEditDetails: true,
+      canCreateSubtasks: true,
       canTransition: true,
       canArchive: true,
     },

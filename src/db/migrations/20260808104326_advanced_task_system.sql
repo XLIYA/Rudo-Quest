@@ -24,6 +24,15 @@ declare
   parent_project_id uuid;
   parent_archived_at timestamptz;
 begin
+  if tg_op = 'UPDATE'
+     and old.task_type = 'STORY'
+     and new.task_type <> 'STORY'
+     and exists (
+       select 1 from public.tasks child where child.parent_task_id = new.id
+     ) then
+    raise exception 'A Story with Subtasks cannot change type.' using errcode = '23514';
+  end if;
+
   if new.parent_task_id is null then
     return new;
   end if;

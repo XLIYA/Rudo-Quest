@@ -5,7 +5,7 @@ import { createActivityEvent } from "@/server/repositories/activity-repository";
 import { listTaskHistory } from "@/server/repositories/task-history-repository";
 import { findProfileById } from "@/server/repositories/profile-repository";
 import { findProjectAccess } from "@/server/repositories/project-repository";
-import { restoreTaskRow } from "@/server/repositories/task-repository";
+import { restoreTaskRow, rollUpStoryStatus } from "@/server/repositories/task-repository";
 import { getVisibleTask } from "@/server/services/task-service";
 import type { TaskHistoryPageDto, TaskHistoryView, TaskDto } from "@/types/domain";
 
@@ -58,6 +58,16 @@ export async function restoreTask(
       );
     }
   }
+  if (task.parentTaskId) {
+    const story = await getVisibleTask(userId, task.parentTaskId);
+    if (story.archivedAt) {
+      throw new AppError(
+        "CONFLICT",
+        409,
+        "Restore the Story before restoring this Subtask.",
+      );
+    }
+  }
 
   return runDbTransaction(async (tx) => {
     const restored = await restoreTaskRow(taskId, version, userId, tx);
@@ -73,6 +83,21 @@ export async function restoreTask(
       },
       tx,
     );
+    if (restored.parentTaskId) {
+      const rollup = await rollUpStoryStatus(restored.parentTaskId, userId, tx);
+      if (rollup.story && rollup.transition) {
+        await createActivityEvent(
+          {
+            actorId: userId,
+            projectId: rollup.story.projectId,
+            taskId: rollup.story.id,
+            eventType:
+              rollup.transition === "completed" ? "TASK_COMPLETED" : "TASK_REOPENED",
+          },
+          tx,
+        );
+      }
+    }
     return restored;
   });
 }

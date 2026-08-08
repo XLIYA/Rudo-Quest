@@ -280,6 +280,7 @@ export function ProjectDetailScreen() {
           mutation.error.status === 409
         }
         onOpenChange={(open) => !open && setSelectedTask(null)}
+        onOpenRelatedTask={setSelectedTask}
         onAction={(task, action) => mutation.mutate({ task, action })}
         onArchive={(task) => {
           mutation.mutate({ task, action: "archive" });

@@ -7,6 +7,7 @@ const historyRepository = vi.hoisted(() => ({
 }));
 const taskRepository = vi.hoisted(() => ({
   restoreTaskRow: vi.fn(),
+  rollUpStoryStatus: vi.fn(),
 }));
 const profileRepository = vi.hoisted(() => ({
   findProfileById: vi.fn(),
@@ -52,6 +53,9 @@ function archivedTask(overrides: Partial<TaskDto> = {}): TaskDto {
     taskType: "TASK",
     priority: "NONE",
     parentTaskId: null,
+    subtaskTotal: 0,
+    subtaskCompleted: 0,
+    subtaskProgressPercent: 0,
     status: "TODO",
     previousStatus: null,
     scheduledDate: "2026-08-07",
@@ -64,6 +68,7 @@ function archivedTask(overrides: Partial<TaskDto> = {}): TaskDto {
     updatedAt: "2026-08-08T00:00:00.000Z",
     permissions: {
       canEditDetails: true,
+      canCreateSubtasks: true,
       canTransition: true,
       canArchive: true,
     },
@@ -80,6 +85,10 @@ beforeEach(() => {
   taskRepository.restoreTaskRow.mockResolvedValue(
     archivedTask({ archivedAt: null, version: 3 }),
   );
+  taskRepository.rollUpStoryStatus.mockResolvedValue({
+    story: null,
+    transition: null,
+  });
 });
 
 describe("getTaskHistory", () => {
@@ -146,6 +155,7 @@ describe("restoreTask", () => {
       archivedTask({
         permissions: {
           canEditDetails: false,
+          canCreateSubtasks: false,
           canTransition: false,
           canArchive: false,
         },
@@ -155,5 +165,49 @@ describe("restoreTask", () => {
     await expect(restoreTask(userId, taskId, 2)).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
+  });
+
+  it("rejects restoring a Subtask while its Story is archived", async () => {
+    const storyId = "00000000-0000-4000-8000-000000000030";
+    taskService.getVisibleTask
+      .mockResolvedValueOnce(archivedTask({ parentTaskId: storyId }))
+      .mockResolvedValueOnce(
+        archivedTask({
+          id: storyId,
+          taskType: "STORY",
+          parentTaskId: null,
+          archivedAt: "2026-08-01T00:00:00.000Z",
+        }),
+      );
+
+    await expect(restoreTask(userId, taskId, 2)).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+    expect(taskRepository.restoreTaskRow).not.toHaveBeenCalled();
+  });
+
+  it("recalculates the Story after restoring an active Subtask", async () => {
+    const storyId = "00000000-0000-4000-8000-000000000031";
+    taskService.getVisibleTask
+      .mockResolvedValueOnce(archivedTask({ parentTaskId: storyId }))
+      .mockResolvedValueOnce(
+        archivedTask({
+          id: storyId,
+          taskType: "STORY",
+          parentTaskId: null,
+          archivedAt: null,
+        }),
+      );
+    taskRepository.restoreTaskRow.mockResolvedValue(
+      archivedTask({ parentTaskId: storyId, archivedAt: null, version: 3 }),
+    );
+
+    await restoreTask(userId, taskId, 2);
+
+    expect(taskRepository.rollUpStoryStatus).toHaveBeenCalledWith(
+      storyId,
+      userId,
+      transaction.executor,
+    );
   });
 });

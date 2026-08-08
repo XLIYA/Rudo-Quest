@@ -358,7 +358,13 @@ export async function listProjectSummaries(input: {
       })
       .from(tasks)
       .innerJoin(projects, eq(tasks.projectId, projects.id))
-      .where(and(inArray(tasks.projectId, ids), isNull(tasks.archivedAt)))
+      .where(
+        and(
+          inArray(tasks.projectId, ids),
+          isNull(tasks.archivedAt),
+          isNull(tasks.parentTaskId),
+        ),
+      )
       .groupBy(tasks.projectId),
   ]);
 

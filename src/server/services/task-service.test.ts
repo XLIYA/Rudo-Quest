@@ -1,11 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaskDto } from "@/types/domain";
-import { createTask, moveTask, updateTask } from "./task-service";
+import {
+  completeTask,
+  createTask,
+  moveTask,
+  reopenTask,
+  updateTask,
+} from "./task-service";
 
 const taskRepository = vi.hoisted(() => ({
   findTaskDto: vi.fn(),
   insertTask: vi.fn(),
   listTaskActivity: vi.fn(),
+  getSubtaskProgress: vi.fn(),
+  hasAnySubtasks: vi.fn(),
+  rollUpStoryStatus: vi.fn(),
   listWeekTasks: vi.fn(),
   updateTaskRow: vi.fn(),
 }));
@@ -55,6 +64,9 @@ function task(overrides: Partial<TaskDto> = {}): TaskDto {
     taskType: "TASK",
     priority: "NONE",
     parentTaskId: null,
+    subtaskTotal: 0,
+    subtaskCompleted: 0,
+    subtaskProgressPercent: 0,
     status: "TODO",
     previousStatus: null,
     scheduledDate: "2026-07-10",
@@ -67,6 +79,7 @@ function task(overrides: Partial<TaskDto> = {}): TaskDto {
     updatedAt: "2026-07-10T00:00:00.000Z",
     permissions: {
       canEditDetails: true,
+      canCreateSubtasks: true,
       canTransition: true,
       canArchive: true,
     },
@@ -78,6 +91,12 @@ function task(overrides: Partial<TaskDto> = {}): TaskDto {
 beforeEach(() => {
   vi.clearAllMocks();
   taskRepository.findTaskDto.mockResolvedValue(task());
+  taskRepository.getSubtaskProgress.mockResolvedValue({ total: 0, completed: 0 });
+  taskRepository.hasAnySubtasks.mockResolvedValue(false);
+  taskRepository.rollUpStoryStatus.mockResolvedValue({
+    story: null,
+    transition: null,
+  });
 });
 
 describe("updateTask project reassignment authorization", () => {
@@ -135,6 +154,22 @@ describe("updateTask project reassignment authorization", () => {
       userId,
       transaction.executor,
     );
+  });
+});
+
+describe("updateTask Story hierarchy", () => {
+  it("rejects changing a Story type while it still has children", async () => {
+    taskRepository.findTaskDto.mockResolvedValue(task({ taskType: "STORY" }));
+    taskRepository.hasAnySubtasks.mockResolvedValue(true);
+
+    await expect(
+      updateTask(userId, "00000000-0000-4000-8000-000000000010", {
+        version: 1,
+        taskType: "FEATURE",
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+
+    expect(taskRepository.updateTaskRow).not.toHaveBeenCalled();
   });
 });
 
@@ -281,5 +316,79 @@ describe("moveTask Kanban transitions", () => {
       code: "CONFLICT",
     });
     expect(taskRepository.updateTaskRow).not.toHaveBeenCalled();
+  });
+});
+
+describe("Story roll-up", () => {
+  const storyId = "00000000-0000-4000-8000-000000000040";
+
+  it("rejects manually completing a Story with incomplete active subtasks", async () => {
+    const story = task({ id: storyId, taskType: "STORY", version: 4 });
+    taskRepository.findTaskDto.mockResolvedValue(story);
+    taskRepository.getSubtaskProgress.mockResolvedValue({ total: 3, completed: 2 });
+
+    await expect(completeTask(userId, storyId, 4)).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+    expect(taskRepository.updateTaskRow).not.toHaveBeenCalled();
+  });
+
+  it("rolls up the Story after completing its final active subtask", async () => {
+    const child = task({
+      id: "00000000-0000-4000-8000-000000000041",
+      parentTaskId: storyId,
+      version: 2,
+    });
+    taskRepository.findTaskDto.mockResolvedValue(child);
+    taskRepository.updateTaskRow.mockResolvedValue(
+      task({ ...child, status: "DONE", version: 3 }),
+    );
+    taskRepository.rollUpStoryStatus.mockResolvedValue({
+      story: task({ id: storyId, taskType: "STORY", status: "DONE" }),
+      transition: "completed",
+    });
+
+    await completeTask(userId, child.id, 2);
+
+    expect(taskRepository.rollUpStoryStatus).toHaveBeenCalledWith(
+      storyId,
+      userId,
+      transaction.executor,
+    );
+    expect(activityRepository.createActivityEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ taskId: storyId, eventType: "TASK_COMPLETED" }),
+      transaction.executor,
+    );
+  });
+
+  it("reopens the Story after one of its completed subtasks is reopened", async () => {
+    const child = task({
+      id: "00000000-0000-4000-8000-000000000042",
+      parentTaskId: storyId,
+      status: "DONE",
+      previousStatus: "TODO",
+      completedAt: "2026-08-08T00:00:00.000Z",
+      version: 5,
+    });
+    taskRepository.findTaskDto.mockResolvedValue(child);
+    taskRepository.updateTaskRow.mockResolvedValue(
+      task({ ...child, status: "TODO", completedAt: null, version: 6 }),
+    );
+    taskRepository.rollUpStoryStatus.mockResolvedValue({
+      story: task({ id: storyId, taskType: "STORY", status: "IN_PROGRESS" }),
+      transition: "reopened",
+    });
+
+    await reopenTask(userId, child.id, 5);
+
+    expect(taskRepository.rollUpStoryStatus).toHaveBeenCalledWith(
+      storyId,
+      userId,
+      transaction.executor,
+    );
+    expect(activityRepository.createActivityEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ taskId: storyId, eventType: "TASK_REOPENED" }),
+      transaction.executor,
+    );
   });
 });

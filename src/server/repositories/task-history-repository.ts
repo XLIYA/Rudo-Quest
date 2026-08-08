@@ -1,11 +1,15 @@
-import { and, desc, eq, isNotNull, isNull, lt, ne, or, type SQL } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { profiles, projects, projectMemberships, tasks } from "@/db/schema";
 import { AppError } from "@/lib/api/errors";
 import { getDb } from "@/lib/db/client";
 import { uuidSchema } from "@/lib/validation/common";
 import { createProfileAssetUrlMap } from "@/server/profile-assets";
-import { toTaskDto, type TaskDtoRow } from "@/server/repositories/task-repository";
+import {
+  createSubtaskSummary,
+  toTaskDto,
+  type TaskDtoRow,
+} from "@/server/repositories/task-repository";
 import type { TaskHistoryPageDto, TaskHistoryView } from "@/types/domain";
 
 type TaskHistoryCursor = { sortValue: string; id: string };
@@ -65,6 +69,8 @@ export async function listTaskHistory(input: {
   const cursor = input.cursor ? decodeTaskHistoryCursor(input.cursor) : null;
   const creator = alias(profiles, "history_creator_profiles");
   const assignee = alias(profiles, "history_assignee_profiles");
+  const db = getDb();
+  const subtaskSummary = createSubtaskSummary(db, "history_subtask_summary");
   const cursorCondition = cursor ? historyCursorCondition(input.view, cursor) : undefined;
   const visibility = or(
     and(
@@ -83,7 +89,7 @@ export async function listTaskHistory(input: {
         )
       : isNotNull(tasks.archivedAt);
 
-  const rows = await getDb()
+  const rows = await db
     .select({
       id: tasks.id,
       projectId: tasks.projectId,
@@ -101,6 +107,10 @@ export async function listTaskHistory(input: {
       taskType: tasks.taskType,
       priority: tasks.priority,
       parentTaskId: tasks.parentTaskId,
+      subtaskTotal: sql<number>`coalesce(${subtaskSummary.total}, 0)`.mapWith(Number),
+      subtaskCompleted: sql<number>`coalesce(${subtaskSummary.completed}, 0)`.mapWith(
+        Number,
+      ),
       status: tasks.status,
       previousStatus: tasks.previousStatus,
       scheduledDate: tasks.scheduledDate,
@@ -120,6 +130,7 @@ export async function listTaskHistory(input: {
     .innerJoin(creator, eq(tasks.createdBy, creator.id))
     .leftJoin(assignee, eq(tasks.assigneeId, assignee.id))
     .leftJoin(projects, eq(tasks.projectId, projects.id))
+    .leftJoin(subtaskSummary, eq(subtaskSummary.parentTaskId, tasks.id))
     .leftJoin(
       projectMemberships,
       and(
