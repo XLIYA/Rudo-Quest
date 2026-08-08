@@ -205,9 +205,9 @@ export function DashboardScreen() {
           taskMutation.mutate({ task, action: "archive" });
           setSelectedTask(null);
         }}
-        onSave={(task, values) =>
-          taskMutation.mutate({ task, action: "update", body: values })
-        }
+        onSave={async (task, values) => {
+          await taskMutation.mutateAsync({ task, action: "update", body: values });
+        }}
       />
       <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
         <Widget

@@ -286,9 +286,9 @@ export function ProjectDetailScreen() {
           mutation.mutate({ task, action: "archive" });
           setSelectedTask(null);
         }}
-        onSave={(task, values) =>
-          mutation.mutate({ task, action: "update", body: values })
-        }
+        onSave={async (task, values) => {
+          await mutation.mutateAsync({ task, action: "update", body: values });
+        }}
       />
       {createOpen ? (
         <TaskCreateSheet

@@ -54,7 +54,7 @@ export type TaskDetailSheetProps = {
   pending?: boolean;
   conflict?: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (task: TaskDto, values: TaskDraft) => void;
+  onSave: (task: TaskDto, values: TaskDraft) => Promise<void>;
   onAction: (task: TaskDto, action: TaskDetailAction) => void;
   onArchive: (task: TaskDto) => void;
   onOpenRelatedTask: (task: TaskDto) => void;
@@ -209,6 +209,7 @@ export function TaskDetailSheet({
   onOpenRelatedTask,
 }: TaskDetailSheetProps) {
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [draftState, setDraftState] = useState<{ key: string; draft: TaskDraft } | null>(
     () => (task ? { key: `${task.id}:${task.version}`, draft: toDraft(task) } : null),
   );
@@ -237,9 +238,9 @@ export function TaskDetailSheet({
   if (!activeTask || !draft || !draftKey) return null;
   const archivedReadOnly = Boolean(activeTask.archivedAt);
   const detailsDisabled =
-    archivedReadOnly || offline || !activeTask.permissions.canEditDetails;
+    archivedReadOnly || offline || saving || !activeTask.permissions.canEditDetails;
   const transitionsDisabled =
-    archivedReadOnly || offline || !activeTask.permissions.canTransition;
+    archivedReadOnly || offline || saving || !activeTask.permissions.canTransition;
   /**
    * Purpose: Update one draft field while retaining its task-version identity.
    * Inputs: Draft key and typed replacement value.
@@ -258,15 +259,24 @@ export function TaskDetailSheet({
    * Output: Void.
    * Side effects: Prevents navigation and invokes the versioned save callback.
    */
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onSave(activeTask, {
-      ...draft,
-      title: draft.title.trim(),
-      description: draft.description?.trim() || null,
-      scheduledTime: draft.scheduledTime || null,
-      assigneeId: draft.projectId ? draft.assigneeId : activeTask.createdBy.id,
-    });
+    if (saving) return;
+    setSaving(true);
+    try {
+      await onSave(activeTask, {
+        ...draft,
+        title: draft.title.trim(),
+        description: draft.description?.trim() || null,
+        scheduledTime: draft.scheduledTime || null,
+        assigneeId: draft.projectId ? draft.assigneeId : activeTask.createdBy.id,
+      });
+      onOpenChange(false);
+    } catch {
+      // The mutation hook owns error presentation; preserve the draft for retry.
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -479,10 +489,11 @@ export function TaskDetailSheet({
               ) : null}
               <AppButton
                 type="submit"
-                disabled={detailsDisabled || pending || !draft.title.trim()}
+                aria-label="Save changes"
+                disabled={detailsDisabled || pending || saving || !draft.title.trim()}
               >
                 <CheckCircle2 className="size-4" aria-hidden="true" />
-                Save changes
+                {saving ? "Saving…" : "Save changes"}
               </AppButton>
               <AppButton
                 type="button"

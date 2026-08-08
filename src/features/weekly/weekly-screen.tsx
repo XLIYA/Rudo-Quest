@@ -307,9 +307,9 @@ export function WeeklyScreen() {
           mutateTask.mutate({ task, action: "archive" });
           closeTask();
         }}
-        onSave={(task, values) =>
-          mutateTask.mutate({ task, action: "update", body: values })
-        }
+        onSave={async (task, values) => {
+          await mutateTask.mutateAsync({ task, action: "update", body: values });
+        }}
       />
     </main>
   );

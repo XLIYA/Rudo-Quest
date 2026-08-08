@@ -147,9 +147,9 @@ export function TaskHistoryScreen({
         onOpenRelatedTask={openTask}
         onAction={(task, action) => selectedMutation.mutate({ task, action })}
         onArchive={(task) => selectedMutation.mutate({ task, action: "archive" })}
-        onSave={(task, values) =>
-          selectedMutation.mutate({ task, action: "update", body: values })
-        }
+        onSave={async (task, values) => {
+          await selectedMutation.mutateAsync({ task, action: "update", body: values });
+        }}
       />
     </main>
   );
