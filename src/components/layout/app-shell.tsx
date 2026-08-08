@@ -8,6 +8,7 @@ import {
   FolderKanban,
   LayoutDashboard,
   LogOut,
+  History,
   Monitor,
   Moon,
   PanelLeftClose,
@@ -19,6 +20,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import type { Route } from "next";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
@@ -37,11 +39,17 @@ import { unsubscribeCurrentBrowserFromPush } from "@/lib/pwa/push";
 import type { NotificationPageDto, ProfileDto } from "@/types/domain";
 
 const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/weekly", label: "Weekly", icon: CalendarDays },
-  { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/notifications", label: "Notifications", icon: Bell },
-  { href: "/profile", label: "Profile", icon: User },
+  {
+    href: "/dashboard",
+    label: "Dashboard",
+    mobileLabel: "Dashboard",
+    icon: LayoutDashboard,
+  },
+  { href: "/weekly", label: "Weekly", mobileLabel: "Weekly", icon: CalendarDays },
+  { href: "/projects", label: "Projects", mobileLabel: "Projects", icon: FolderKanban },
+  { href: "/task-history", label: "Task history", mobileLabel: "History", icon: History },
+  { href: "/notifications", label: "Notifications", mobileLabel: "Alerts", icon: Bell },
+  { href: "/profile", label: "Profile", mobileLabel: "Profile", icon: User },
 ] as const;
 
 type NavProfile = Pick<
@@ -82,7 +90,7 @@ function readHydratedServer(): boolean {
 /**
  * Purpose: Render responsive protected navigation, account actions, theme controls, and the global offline state.
  * Inputs: Protected route children and the server-verified initial profile.
- * Output: Collapsible desktop shell and five-item mobile navigation.
+ * Output: Collapsible desktop shell and six-item mobile navigation.
  * Side effects: Reads profile/notifications and can sign out or persist a theme preference.
  * Failure behavior: Keeps navigation usable when profile or notification data is unavailable.
  */
@@ -251,7 +259,7 @@ export function AppShell({
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={item.href as Route}
                 aria-current={active ? "page" : undefined}
                 title={collapsed ? item.label : undefined}
                 className={cn(
@@ -403,7 +411,7 @@ export function AppShell({
           </Link>
         ) : null}
         <nav
-          className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] pl-[calc(0.25rem+env(safe-area-inset-left))] pr-[calc(0.25rem+env(safe-area-inset-right))] backdrop-blur md:hidden"
+          className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-6 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] pl-[calc(0.25rem+env(safe-area-inset-left))] pr-[calc(0.25rem+env(safe-area-inset-right))] backdrop-blur md:hidden"
           aria-label="Mobile primary"
         >
           {navItems.map((item) => {
@@ -411,7 +419,7 @@ export function AppShell({
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={item.href as Route}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "relative flex min-h-16 flex-col items-center justify-center gap-1 rounded-md text-[10px] font-semibold text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-2 focus-visible:outline-brand",
@@ -419,7 +427,7 @@ export function AppShell({
                 )}
               >
                 <item.icon className="size-5" aria-hidden="true" />
-                <span>{item.label}</span>
+                <span>{item.mobileLabel}</span>
                 {hydrated && item.href === "/notifications" && unreadCount > 0 ? (
                   <span
                     className="absolute right-1/4 top-2 inline-flex size-4 items-center justify-center rounded-full bg-brand font-mono text-[9px] text-white"

@@ -94,6 +94,7 @@ export function useCreateTask(weekStart: string) {
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tasksWeek(weekStart) });
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      void queryClient.invalidateQueries({ queryKey: ["task-history"] });
     },
   });
 }
@@ -192,6 +193,7 @@ export function useTaskMutation(weekStart: string) {
         queryKey: ["task-activity", input.task.id],
       });
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      void queryClient.invalidateQueries({ queryKey: ["task-history"] });
     },
   });
 }

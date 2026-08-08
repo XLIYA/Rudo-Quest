@@ -20,6 +20,7 @@ const persistableQueryPrefixes = new Set([
   "project-invitations",
   "tasks-week",
   "task",
+  "task-history",
   "dashboard",
   "notifications",
   "activity",

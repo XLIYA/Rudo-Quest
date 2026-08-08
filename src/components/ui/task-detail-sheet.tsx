@@ -301,8 +301,11 @@ export function TaskDetailSheet({
     : null;
 
   if (!activeTask || !draft || !draftKey) return null;
-  const detailsDisabled = offline || !activeTask.permissions.canEditDetails;
-  const transitionsDisabled = offline || !activeTask.permissions.canTransition;
+  const archivedReadOnly = Boolean(activeTask.archivedAt);
+  const detailsDisabled =
+    archivedReadOnly || offline || !activeTask.permissions.canEditDetails;
+  const transitionsDisabled =
+    archivedReadOnly || offline || !activeTask.permissions.canTransition;
   /**
    * Purpose: Update one draft field while retaining its task-version identity.
    * Inputs: Draft key and typed replacement value.
@@ -346,6 +349,11 @@ export function TaskDetailSheet({
             <p className="rounded-md border border-border bg-surface-muted p-3 text-sm text-text-secondary">
               You can view this task, but only its assignee or a project owner/admin can
               edit it.
+            </p>
+          ) : null}
+          {archivedReadOnly ? (
+            <p className="rounded-md border border-border bg-surface-muted p-3 text-sm text-text-secondary">
+              This task is archived. Restore it from Task history before making changes.
             </p>
           ) : null}
           {conflict ? (
@@ -469,18 +477,31 @@ export function TaskDetailSheet({
               </section>
             </aside>
           </div>
-          <div className="grid grid-cols-1 gap-2 border-t border-border pt-4 sm:grid-cols-3 lg:grid-cols-5 [&>*]:w-full">
-            {activeTask.status === "TODO" ? (
-              <>
-                <AppButton
-                  type="button"
-                  variant="secondary"
-                  disabled={transitionsDisabled || pending}
-                  onClick={() => onAction(activeTask, "start")}
-                >
-                  <Play className="size-4" aria-hidden="true" />
-                  Start
-                </AppButton>
+          {!archivedReadOnly ? (
+            <div className="grid grid-cols-1 gap-2 border-t border-border pt-4 sm:grid-cols-3 lg:grid-cols-5 [&>*]:w-full">
+              {activeTask.status === "TODO" ? (
+                <>
+                  <AppButton
+                    type="button"
+                    variant="secondary"
+                    disabled={transitionsDisabled || pending}
+                    onClick={() => onAction(activeTask, "start")}
+                  >
+                    <Play className="size-4" aria-hidden="true" />
+                    Start
+                  </AppButton>
+                  <AppButton
+                    type="button"
+                    variant="secondary"
+                    disabled={transitionsDisabled || pending}
+                    onClick={() => onAction(activeTask, "complete")}
+                  >
+                    <CheckCircle2 className="size-4" aria-hidden="true" />
+                    Complete
+                  </AppButton>
+                </>
+              ) : null}
+              {activeTask.status === "IN_PROGRESS" ? (
                 <AppButton
                   type="button"
                   variant="secondary"
@@ -490,47 +511,36 @@ export function TaskDetailSheet({
                   <CheckCircle2 className="size-4" aria-hidden="true" />
                   Complete
                 </AppButton>
-              </>
-            ) : null}
-            {activeTask.status === "IN_PROGRESS" ? (
+              ) : null}
+              {activeTask.status === "DONE" ? (
+                <AppButton
+                  type="button"
+                  variant="secondary"
+                  disabled={transitionsDisabled || pending}
+                  onClick={() => onAction(activeTask, "reopen")}
+                >
+                  <RotateCcw className="size-4" aria-hidden="true" />
+                  Reopen
+                </AppButton>
+              ) : null}
               <AppButton
-                type="button"
-                variant="secondary"
-                disabled={transitionsDisabled || pending}
-                onClick={() => onAction(activeTask, "complete")}
+                type="submit"
+                disabled={detailsDisabled || pending || !draft.title.trim()}
               >
                 <CheckCircle2 className="size-4" aria-hidden="true" />
-                Complete
+                Save changes
               </AppButton>
-            ) : null}
-            {activeTask.status === "DONE" ? (
               <AppButton
                 type="button"
-                variant="secondary"
-                disabled={transitionsDisabled || pending}
-                onClick={() => onAction(activeTask, "reopen")}
+                variant="danger"
+                disabled={offline || pending || !activeTask.permissions.canArchive}
+                onClick={() => setConfirmArchive(true)}
               >
-                <RotateCcw className="size-4" aria-hidden="true" />
-                Reopen
+                <Archive className="size-4" aria-hidden="true" />
+                Archive
               </AppButton>
-            ) : null}
-            <AppButton
-              type="submit"
-              disabled={detailsDisabled || pending || !draft.title.trim()}
-            >
-              <CheckCircle2 className="size-4" aria-hidden="true" />
-              Save changes
-            </AppButton>
-            <AppButton
-              type="button"
-              variant="danger"
-              disabled={offline || pending || !activeTask.permissions.canArchive}
-              onClick={() => setConfirmArchive(true)}
-            >
-              <Archive className="size-4" aria-hidden="true" />
-              Archive
-            </AppButton>
-          </div>
+            </div>
+          ) : null}
         </form>
       </AppSheet>
       <AppConfirmDialog

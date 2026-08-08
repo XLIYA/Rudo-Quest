@@ -21,6 +21,10 @@ describe("user-scoped query persistence", () => {
       await import("./query-persistence");
     const source = new QueryClient();
     source.setQueryData(["tasks-week", "2026-07-06"], [{ id: "private-task" }]);
+    source.setQueryData(["task-history", "archived"], {
+      pages: [{ items: [{ id: "archived-task" }] }],
+      pageParams: [undefined],
+    });
     source.setQueryData(["unpersisted-secret"], { token: "never" });
     await persistUserQueryCache(source, "user-one");
 
@@ -32,6 +36,10 @@ describe("user-scoped query persistence", () => {
       { id: "private-task" },
     ]);
     expect(restored.getQueryData(["unpersisted-secret"])).toBeUndefined();
+    expect(restored.getQueryData(["task-history", "archived"])).toEqual({
+      pages: [{ items: [{ id: "archived-task" }] }],
+      pageParams: [undefined],
+    });
     await expect(
       restoreUserQueryCache(new QueryClient(), "user-two"),
     ).resolves.toBeNull();
