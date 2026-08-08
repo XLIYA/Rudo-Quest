@@ -7,6 +7,7 @@ import { AppAvatar } from "./app-avatar";
 import { AppIconButton } from "./app-icon-button";
 import { TaskCheckbox } from "./task-checkbox";
 import { ProjectIconGlyph } from "@/features/projects/project-pickers";
+import { TaskClassification } from "./task-classification";
 
 export type TaskRowProps = {
   task: TaskDto;
@@ -54,6 +55,7 @@ export function TaskRow({
           <span className="line-clamp-2">{task.title}</span>
         </h3>
         <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-xs text-text-secondary">
+          <TaskClassification taskType={task.taskType} priority={task.priority} />
           {task.project ? (
             <span className="inline-flex min-w-0 max-w-full items-center gap-1">
               <span

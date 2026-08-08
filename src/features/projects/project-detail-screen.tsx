@@ -20,6 +20,7 @@ import {
   Clock3,
   GripVertical,
   Play,
+  Plus,
   Settings2,
 } from "lucide-react";
 import { AppAvatarStack } from "@/components/ui/app-avatar-stack";
@@ -40,6 +41,8 @@ import { parseISO } from "date-fns";
 import { AppAvatar } from "@/components/ui/app-avatar";
 import { cn } from "@/lib/utils/cn";
 import { ActivityFeedItem } from "@/components/shared/activity-feed-item";
+import { TaskCreateSheet } from "@/components/ui/task-create-sheet";
+import { TaskClassification } from "@/components/ui/task-classification";
 
 /**
  * Purpose: Render project detail with tasks, members, GitHub status, and activity.
@@ -105,6 +108,7 @@ export function ProjectDetailScreen() {
   const mutation = useTaskMutation(weekStart);
   const online = useOnline();
   const [selectedTask, setSelectedTask] = useState<TaskDto | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
   if (project.isLoading)
     return (
       <main className="p-5 md:p-8">
@@ -137,17 +141,26 @@ export function ProjectDetailScreen() {
             description={project.data.description ?? "Project task space."}
           />
         </div>
-        {project.data.role === "OWNER" || project.data.role === "ADMIN" ? (
-          <AppButton asChild variant="secondary" className="px-3">
-            <Link
-              href={`/projects/${project.data.id}/settings`}
-              aria-label="Project settings"
-              title="Project settings"
-            >
-              <Settings2 className="size-5" aria-hidden="true" />
-            </Link>
-          </AppButton>
-        ) : null}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {project.data.role !== "VIEWER" && !project.data.archivedAt ? (
+            <AppButton onClick={() => setCreateOpen(true)}>
+              <Plus className="size-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Create task</span>
+              <span className="sm:hidden">Create</span>
+            </AppButton>
+          ) : null}
+          {project.data.role === "OWNER" || project.data.role === "ADMIN" ? (
+            <AppButton asChild variant="secondary" className="px-3">
+              <Link
+                href={`/projects/${project.data.id}/settings`}
+                aria-label="Project settings"
+                title="Project settings"
+              >
+                <Settings2 className="size-5" aria-hidden="true" />
+              </Link>
+            </AppButton>
+          ) : null}
+        </div>
       </div>
       <section className="grid gap-4 md:grid-cols-3">
         <Panel title="Status">
@@ -276,6 +289,20 @@ export function ProjectDetailScreen() {
           mutation.mutate({ task, action: "update", body: values })
         }
       />
+      {createOpen ? (
+        <TaskCreateSheet
+          open
+          project={{
+            id: project.data.id,
+            title: project.data.title,
+            timeZone: calendarTimeZone,
+          }}
+          scheduledDate={currentDate}
+          offline={!online}
+          onOpenChange={setCreateOpen}
+          onCreated={() => undefined}
+        />
+      ) : null}
     </main>
   );
 }
@@ -480,6 +507,11 @@ function KanbanTaskCard({
               {task.description}
             </span>
           ) : null}
+          <TaskClassification
+            taskType={task.taskType}
+            priority={task.priority}
+            className="mt-2"
+          />
         </button>
       </div>
       <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-2">

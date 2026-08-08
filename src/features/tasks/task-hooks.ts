@@ -4,7 +4,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppToast } from "@/components/ui/app-toast";
 import { apiGet, apiMutation, normalizeApiClientError } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
-import type { TaskDto, TaskStatus } from "@/types/domain";
+import type {
+  ProjectIconKey,
+  TaskDto,
+  TaskPriority,
+  TaskStatus,
+  TaskType,
+} from "@/types/domain";
 
 /**
  * Purpose: Fetch weekly task data through the central API client.
@@ -34,6 +40,12 @@ export function useCreateTask(weekStart: string) {
       scheduledDate: string;
       scheduledTimeZone: string;
       projectId?: string | null;
+      assigneeId?: string | null;
+      description?: string | null;
+      iconKey?: ProjectIconKey | null;
+      taskType?: TaskType;
+      priority?: TaskPriority;
+      parentTaskId?: string | null;
       scheduledTime?: string | null;
     }) => apiMutation<TaskDto>("post", "/api/tasks", body),
     onMutate: async (body) => {
@@ -53,18 +65,20 @@ export function useCreateTask(weekStart: string) {
           displayName: "You",
           avatarUrl: null,
         },
-        assignee: {
-          id: "optimistic",
-          handle: "you",
-          displayName: "You",
-          avatarUrl: null,
-        },
+        assignee: body.projectId
+          ? null
+          : {
+              id: "optimistic",
+              handle: "you",
+              displayName: "You",
+              avatarUrl: null,
+            },
         title: body.title,
-        description: null,
-        iconKey: null,
-        taskType: "TASK",
-        priority: "NONE",
-        parentTaskId: null,
+        description: body.description ?? null,
+        iconKey: body.iconKey ?? null,
+        taskType: body.taskType ?? "TASK",
+        priority: body.priority ?? "NONE",
+        parentTaskId: body.parentTaskId ?? null,
         status: "TODO",
         previousStatus: null,
         scheduledDate: body.scheduledDate,
@@ -98,6 +112,8 @@ export function useCreateTask(weekStart: string) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tasksWeek(weekStart) });
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       void queryClient.invalidateQueries({ queryKey: ["task-history"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
+      void queryClient.invalidateQueries({ queryKey: ["project"] });
     },
   });
 }

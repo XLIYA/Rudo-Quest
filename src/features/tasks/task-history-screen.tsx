@@ -12,6 +12,7 @@ import { AppEmptyState } from "@/components/ui/app-empty-state";
 import { AppPagination } from "@/components/ui/app-pagination";
 import { AppSkeleton } from "@/components/ui/app-skeleton";
 import { TaskDetailSheet } from "@/components/ui/task-detail-sheet";
+import { TaskClassification } from "@/components/ui/task-classification";
 import { useOnline } from "@/hooks/use-online";
 import { apiGet } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
@@ -182,6 +183,11 @@ function HistoryTaskRow({
         className="min-h-11 min-w-0 rounded-md text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       >
         <span className="block break-words font-semibold">{task.title}</span>
+        <TaskClassification
+          taskType={task.taskType}
+          priority={task.priority}
+          className="mt-2"
+        />
         <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-secondary">
           {view === "missed" ? (
             <>

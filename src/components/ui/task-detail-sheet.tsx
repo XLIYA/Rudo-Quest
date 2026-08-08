@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { CheckCircle2, Play, Archive, RotateCcw } from "lucide-react";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { apiGet } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
 import {
@@ -11,10 +11,11 @@ import {
   type ProfileSummary,
   type ProjectSummary,
   type TaskDto,
+  type TaskPriority,
+  type TaskType,
 } from "@/types/domain";
 import { ProjectIconGlyph } from "@/features/projects/project-pickers";
 import { AppButton } from "./app-button";
-import { AppCombobox } from "./app-combobox";
 import { AppConfirmDialog } from "./app-confirm-dialog";
 import { AppDatePicker } from "./app-date-picker";
 import { AppInput } from "./app-input";
@@ -22,6 +23,12 @@ import { AppSelect } from "./app-select";
 import { AppSheet } from "./app-sheet";
 import { AppTextarea } from "./app-textarea";
 import { AppTimePicker } from "./app-time-picker";
+import { TaskAssigneeCombobox } from "./task-assignee-combobox";
+import {
+  TaskClassification,
+  taskPriorityOptions,
+  taskTypeOptions,
+} from "./task-classification";
 
 type TaskDraft = {
   title: string;
@@ -31,6 +38,8 @@ type TaskDraft = {
   projectId: string | null;
   assigneeId: string | null;
   iconKey: ProjectIconKey | null;
+  taskType: TaskType;
+  priority: TaskPriority;
   version: number;
 };
 
@@ -63,6 +72,8 @@ function toDraft(task: TaskDto): TaskDraft {
     projectId: task.projectId,
     assigneeId: task.assignee?.id ?? null,
     iconKey: task.iconKey,
+    taskType: task.taskType,
+    priority: task.priority,
     version: task.version,
   };
 }
@@ -115,87 +126,6 @@ function ProjectCombobox({
  * Output: Debounced accessible member combobox or personal-task guidance.
  * Side effects: Fetches project-member suggestions and updates controlled selection.
  */
-function AssigneeCombobox({
-  value,
-  currentAssignee,
-  projectId,
-  onChange,
-  disabled,
-}: {
-  value: string | null;
-  currentAssignee: ProfileSummary | null;
-  projectId: string | null;
-  onChange: (value: string | null, profile?: ProfileSummary) => void;
-  disabled: boolean;
-}) {
-  const [search, setSearch] = useState(
-    currentAssignee ? `${currentAssignee.displayName} (@${currentAssignee.handle})` : "",
-  );
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  useEffect(() => {
-    const timeout = window.setTimeout(() => setDebouncedSearch(search), 250);
-    return () => window.clearTimeout(timeout);
-  }, [search]);
-  const suggestions = useQuery({
-    queryKey: ["user-suggestions", debouncedSearch, projectId],
-    queryFn: ({ signal }) =>
-      apiGet<ProfileSummary[]>(
-        `/api/users/suggest?q=${encodeURIComponent(debouncedSearch)}&memberProjectId=${projectId}`,
-        signal,
-      ),
-    enabled: !disabled && Boolean(projectId) && debouncedSearch.trim().length >= 2,
-  });
-  const options =
-    suggestions.data?.map((profile) => ({
-      value: profile.id,
-      label: `${profile.displayName} (@${profile.handle})`,
-    })) ?? [];
-
-  if (!projectId)
-    return (
-      <p className="text-xs text-text-tertiary">Personal tasks stay assigned to you.</p>
-    );
-  return (
-    <div className="grid gap-2">
-      <AppCombobox
-        label="Assignee"
-        value={search}
-        onChange={(next) => {
-          setSearch(next);
-          onChange(null);
-        }}
-        onOptionSelect={(option) => {
-          const profile = suggestions.data?.find(
-            (candidate) => candidate.id === option.value,
-          );
-          setSearch(option.label);
-          onChange(option.value, profile);
-        }}
-        options={options}
-        placeholder="Search project members"
-        disabled={disabled}
-      />
-      {value ? (
-        <button
-          type="button"
-          className="min-h-11 rounded-md border border-border text-left text-xs text-text-secondary hover:bg-surface-muted"
-          onClick={() => {
-            setSearch("");
-            onChange(null);
-          }}
-          disabled={disabled}
-        >
-          Clear assignee
-        </button>
-      ) : (
-        <span className="text-xs text-text-tertiary">
-          Choose an active project member or leave unassigned.
-        </span>
-      )}
-    </div>
-  );
-}
-
 /**
  * Purpose: Select or clear an allowlisted Lucide task icon.
  * Inputs: Current icon, controlled change handler, and disabled state.
@@ -340,7 +270,13 @@ export function TaskDetailSheet({
       <AppSheet open={open} onOpenChange={onOpenChange} title="Task details">
         <form className="grid gap-5" onSubmit={submit}>
           <div className="flex items-center justify-between gap-3">
-            <StatusBadge status={activeTask.status} />
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge status={activeTask.status} />
+              <TaskClassification
+                taskType={activeTask.taskType}
+                priority={activeTask.priority}
+              />
+            </div>
             <span className="font-mono text-xs text-text-tertiary">
               v{activeTask.version}
             </span>
@@ -384,6 +320,20 @@ export function TaskDetailSheet({
                 rows={6}
               />
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <AppSelect
+                  label="Type"
+                  value={draft.taskType}
+                  onValueChange={(value) => update("taskType", value as TaskType)}
+                  options={taskTypeOptions}
+                  disabled={detailsDisabled || Boolean(activeTask.parentTaskId)}
+                />
+                <AppSelect
+                  label="Priority"
+                  value={draft.priority}
+                  onValueChange={(value) => update("priority", value as TaskPriority)}
+                  options={taskPriorityOptions}
+                  disabled={detailsDisabled}
+                />
                 <AppDatePicker
                   label="Scheduled date"
                   value={draft.scheduledDate}
@@ -407,7 +357,7 @@ export function TaskDetailSheet({
                 }}
                 disabled={detailsDisabled}
               />
-              <AssigneeCombobox
+              <TaskAssigneeCombobox
                 key={`${activeTask.id}:${activeTask.version}:${draft.projectId ?? "personal"}`}
                 value={draft.assigneeId}
                 currentAssignee={

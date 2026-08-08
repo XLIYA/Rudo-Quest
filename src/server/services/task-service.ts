@@ -81,11 +81,7 @@ export async function createTask(
     assigneeId?: string | null;
   },
 ): Promise<TaskDto> {
-  const assigneeId = payload.projectId
-    ? payload.assigneeId === undefined
-      ? userId
-      : payload.assigneeId
-    : userId;
+  const assigneeId = payload.projectId ? (payload.assigneeId ?? null) : userId;
   if (payload.projectId) {
     const access = await findProjectAccess(payload.projectId, userId);
     if (access?.archivedAt)

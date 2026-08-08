@@ -155,11 +155,11 @@ describe("createTask assignment defaults", () => {
     taskRepository.insertTask.mockResolvedValue(task({ projectId: targetProjectId }));
   });
 
-  it("defaults an omitted project assignee to the creator", async () => {
+  it("defaults an omitted project assignee to unassigned", async () => {
     await createTask(userId, payload);
 
     expect(taskRepository.insertTask).toHaveBeenCalledWith(
-      expect.objectContaining({ assigneeId: userId }),
+      expect.objectContaining({ assigneeId: null }),
       transaction.executor,
     );
   });
