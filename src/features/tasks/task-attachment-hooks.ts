@@ -5,7 +5,7 @@ import { AppToast } from "@/components/ui/app-toast";
 import { apiGet, apiMutation, normalizeApiClientError } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
 import { createSupabaseBrowserClient } from "@/lib/auth/supabase-browser";
-import { taskAttachmentMimeByExtension } from "@/lib/validation/tasks";
+import { taskAttachmentMimeByExtension } from "@/lib/task-attachment-types";
 import type { TaskAttachmentDto } from "@/types/domain";
 
 export function useTaskAttachments(taskId: string, enabled: boolean) {

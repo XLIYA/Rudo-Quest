@@ -14,6 +14,10 @@ import {
   taskStatuses,
   taskTypes,
 } from "@/types/domain";
+import {
+  taskAttachmentMimeByExtension,
+  taskAttachmentMimeTypes,
+} from "@/lib/task-attachment-types";
 
 const taskFieldsSchema = z.object({
   projectId: uuidSchema.nullable().optional(),
@@ -79,56 +83,6 @@ export const taskHistoryQuerySchema = z.object({
   view: z.enum(taskHistoryViews).default("missed"),
   cursor: z.string().trim().min(1).max(512).optional(),
 });
-
-export const taskAttachmentMimeTypes = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "image/avif",
-  "application/pdf",
-  "text/plain",
-  "text/csv",
-  "text/markdown",
-  "application/json",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.ms-powerpoint",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  "application/zip",
-  "application/x-rar-compressed",
-  "application/vnd.rar",
-  "application/x-7z-compressed",
-  "application/gzip",
-  "application/x-tar",
-] as const;
-
-export const taskAttachmentMimeByExtension: Record<string, readonly string[]> = {
-  jpg: ["image/jpeg"],
-  jpeg: ["image/jpeg"],
-  png: ["image/png"],
-  webp: ["image/webp"],
-  gif: ["image/gif"],
-  avif: ["image/avif"],
-  pdf: ["application/pdf"],
-  txt: ["text/plain"],
-  csv: ["text/csv"],
-  md: ["text/markdown"],
-  json: ["application/json"],
-  doc: ["application/msword"],
-  docx: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
-  xls: ["application/vnd.ms-excel"],
-  xlsx: ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
-  ppt: ["application/vnd.ms-powerpoint"],
-  pptx: ["application/vnd.openxmlformats-officedocument.presentationml.presentation"],
-  zip: ["application/zip"],
-  rar: ["application/x-rar-compressed", "application/vnd.rar"],
-  "7z": ["application/x-7z-compressed"],
-  gz: ["application/gzip"],
-  tar: ["application/x-tar"],
-};
 
 export const taskAttachmentUploadMetadataSchema = z
   .object({
