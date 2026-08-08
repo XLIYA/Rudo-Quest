@@ -11,6 +11,7 @@ import {
   listNotificationEligibleProfiles,
 } from "@/server/repositories/notification-repository";
 import { cleanupExpiredProfileAssetUploads } from "@/server/jobs/profile-upload-cleanup";
+import { cleanupExpiredTaskAttachmentUploads } from "@/server/jobs/task-attachment-upload-cleanup";
 
 const defaultReminderTime = "09:00";
 
@@ -117,11 +118,13 @@ function isQuietTime(localTime: string, start: string, end: string): boolean {
  * Business rule: Each reminder type is deduplicated by a database unique key and is suppressed during quiet hours.
  */
 export async function runNotificationCron(now = new Date()) {
-  const [uploadCleanup, retries, profiles] = await Promise.all([
-    cleanupExpiredProfileAssetUploads(),
-    retryPushDeliveries(now),
-    listNotificationEligibleProfiles(),
-  ]);
+  const [profileUploadCleanup, attachmentUploadCleanup, retries, profiles] =
+    await Promise.all([
+      cleanupExpiredProfileAssetUploads(),
+      cleanupExpiredTaskAttachmentUploads(),
+      retryPushDeliveries(now),
+      listNotificationEligibleProfiles(),
+    ]);
   const eligible = profiles.flatMap((profile) => {
     const local = getLocalDateTime(now, profile.timeZone);
     const reminderTime = getReminderTime(profile.dailyReminderTime);
@@ -180,5 +183,13 @@ export async function runNotificationCron(now = new Date()) {
     );
     created += counts.reduce<number>((total, count) => total + count, 0);
   }
-  return { created, checked: profiles.length, retries, uploadCleanup };
+  return {
+    created,
+    checked: profiles.length,
+    retries,
+    uploadCleanup: {
+      profile: profileUploadCleanup,
+      attachments: attachmentUploadCleanup,
+    },
+  };
 }

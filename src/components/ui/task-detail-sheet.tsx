@@ -24,6 +24,7 @@ import { AppSheet } from "./app-sheet";
 import { AppTextarea } from "./app-textarea";
 import { AppTimePicker } from "./app-time-picker";
 import { TaskAssigneeCombobox } from "./task-assignee-combobox";
+import { TaskAttachments } from "./task-attachments";
 import { StorySubtasks } from "./story-subtasks";
 import {
   TaskClassification,
@@ -504,6 +505,7 @@ export function TaskDetailSheet({
             />
           </div>
         ) : null}
+        <TaskAttachments task={activeTask} open={open} offline={offline} />
       </AppSheet>
       <AppConfirmDialog
         open={confirmArchive}

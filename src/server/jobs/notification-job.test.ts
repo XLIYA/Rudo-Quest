@@ -14,10 +14,14 @@ const notifications = vi.hoisted(() => ({
 const profileService = vi.hoisted(() => ({
   cleanupExpiredProfileAssetUploads: vi.fn(),
 }));
+const attachmentCleanup = vi.hoisted(() => ({
+  cleanupExpiredTaskAttachmentUploads: vi.fn(),
+}));
 
 vi.mock("@/server/repositories/notification-repository", () => repository);
 vi.mock("@/server/services/notification-service", () => notifications);
 vi.mock("@/server/jobs/profile-upload-cleanup", () => profileService);
+vi.mock("@/server/jobs/task-attachment-upload-cleanup", () => attachmentCleanup);
 
 const profile = {
   id: "00000000-0000-4000-8000-000000000001",
@@ -39,6 +43,7 @@ beforeEach(() => {
     notificationsEnabled: true,
   });
   profileService.cleanupExpiredProfileAssetUploads.mockResolvedValue({ removed: 0 });
+  attachmentCleanup.cleanupExpiredTaskAttachmentUploads.mockResolvedValue({ removed: 0 });
   notifications.createNotification.mockImplementation(
     async (input: { type: string }) => ({
       id: input.type,

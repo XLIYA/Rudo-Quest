@@ -105,30 +105,30 @@ export const taskAttachmentMimeTypes = [
   "application/x-tar",
 ] as const;
 
-const taskAttachmentExtensions = new Set([
-  "jpg",
-  "jpeg",
-  "png",
-  "webp",
-  "gif",
-  "avif",
-  "pdf",
-  "txt",
-  "csv",
-  "md",
-  "json",
-  "doc",
-  "docx",
-  "xls",
-  "xlsx",
-  "ppt",
-  "pptx",
-  "zip",
-  "rar",
-  "7z",
-  "gz",
-  "tar",
-]);
+export const taskAttachmentMimeByExtension: Record<string, readonly string[]> = {
+  jpg: ["image/jpeg"],
+  jpeg: ["image/jpeg"],
+  png: ["image/png"],
+  webp: ["image/webp"],
+  gif: ["image/gif"],
+  avif: ["image/avif"],
+  pdf: ["application/pdf"],
+  txt: ["text/plain"],
+  csv: ["text/csv"],
+  md: ["text/markdown"],
+  json: ["application/json"],
+  doc: ["application/msword"],
+  docx: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+  xls: ["application/vnd.ms-excel"],
+  xlsx: ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+  ppt: ["application/vnd.ms-powerpoint"],
+  pptx: ["application/vnd.openxmlformats-officedocument.presentationml.presentation"],
+  zip: ["application/zip"],
+  rar: ["application/x-rar-compressed", "application/vnd.rar"],
+  "7z": ["application/x-7z-compressed"],
+  gz: ["application/gzip"],
+  tar: ["application/x-tar"],
+};
 
 export const taskAttachmentUploadMetadataSchema = z
   .object({
@@ -143,9 +143,12 @@ export const taskAttachmentUploadMetadataSchema = z
   .refine(
     (value) => {
       const extension = value.fileName.toLowerCase().split(".").pop();
-      return Boolean(extension && taskAttachmentExtensions.has(extension));
+      return Boolean(
+        extension &&
+        taskAttachmentMimeByExtension[extension]?.includes(value.contentType),
+      );
     },
-    { message: "File extension is not allowed.", path: ["fileName"] },
+    { message: "File extension and content type do not match.", path: ["fileName"] },
   );
 
 export const createTaskLinkAttachmentSchema = z.object({
@@ -157,4 +160,8 @@ export const createTaskLinkAttachmentSchema = z.object({
       const protocol = new URL(value).protocol;
       return protocol === "http:" || protocol === "https:";
     }, "Link must use http or https."),
+});
+
+export const commitTaskAttachmentUploadSchema = z.object({
+  uploadId: uuidSchema,
 });

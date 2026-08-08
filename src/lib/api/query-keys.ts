@@ -9,6 +9,7 @@ export const queryKeys = {
   task: (taskId: string) => ["task", taskId] as const,
   taskHistory: (view: "missed" | "archived") => ["task-history", view] as const,
   subtasks: (storyId: string) => ["subtasks", storyId] as const,
+  taskAttachments: (taskId: string) => ["task-attachments", taskId] as const,
   dashboard: (from: string, to: string) => ["dashboard", from, to] as const,
   notifications: ["notifications"] as const,
   activity: (cursor?: string) => ["activity", cursor ?? "first"] as const,
