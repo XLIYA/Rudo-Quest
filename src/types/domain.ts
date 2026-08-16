@@ -1,4 +1,4 @@
-export const taskStatuses = ["TODO", "IN_PROGRESS", "DONE"] as const;
+export const taskStatuses = ["TODO", "IN_PROGRESS", "PENDING_REVIEW", "DONE"] as const;
 export type TaskStatus = (typeof taskStatuses)[number];
 
 export const taskTypes = ["TASK", "STORY", "FEATURE", "BUG", "TEST"] as const;
@@ -250,6 +250,16 @@ export type TaskHistoryPageDto = {
   items: TaskDto[];
   cursor?: string;
 };
+
+export interface ArchivedTaskFilters {
+  priority?: string;
+  assigneeId?: string;
+  completedFrom?: string;
+  completedTo?: string;
+  archivedFrom?: string;
+  archivedTo?: string;
+  status?: string;
+}
 
 export type NotificationDto = {
   id: string;

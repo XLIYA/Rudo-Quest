@@ -1,7 +1,7 @@
 "use client";
 
 import { addDays, format, isValid, parseISO } from "date-fns";
-import { ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Plus, User } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -16,6 +16,7 @@ import { TaskRow } from "@/components/ui/task-row";
 import { PageHeader } from "@/components/shared/page-header";
 import { useOnline } from "@/hooks/use-online";
 import { getDateInTimeZone, getMondayWeekStart, getWeekDates } from "@/lib/utils/dates";
+import { getProjectColor } from "@/lib/theme/project-colors";
 import type { ProfileDto, TaskDto } from "@/types/domain";
 import { apiGet } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
@@ -25,6 +26,7 @@ import {
   useWeekTasks,
 } from "@/features/tasks/task-hooks";
 import { WeeklyProgress } from "@/features/weekly/weekly-progress";
+import { ProjectIconGlyph } from "@/features/projects/project-pickers";
 
 /**
  * Purpose: Render the central Monday-Sunday accordion planner.
@@ -188,7 +190,26 @@ export function WeeklyScreen() {
             const open = expandedDate === date;
             const currentDay = date === today;
             const ordered = [...tasks].sort(
-              (a, b) => Number(a.status === "DONE") - Number(b.status === "DONE"),
+              (a, b) =>
+                Number(a.status === "DONE") -
+                Number(b.status === "DONE") -
+                Number(b.status === "PENDING_REVIEW") +
+                Number(a.status === "PENDING_REVIEW"),
+            );
+            // Group tasks by project for clear separation
+            const taskGroups = Array.from(
+              ordered.reduce((groups, task) => {
+                const key = task.project?.id ?? "personal";
+                const current = groups.get(key) ?? {
+                  title: task.project?.title ?? "Personal",
+                  color: task.project ? getProjectColor(task.project.colorKey) : null,
+                  isPersonal: !task.project,
+                  tasks: [] as typeof tasks,
+                };
+                current.tasks.push(task);
+                groups.set(key, current);
+                return groups;
+              }, new Map<string, { title: string; color: ReturnType<typeof getProjectColor> | null; isPersonal: boolean; tasks: typeof tasks }>()),
             );
             return (
               <article
@@ -229,22 +250,62 @@ export function WeeklyScreen() {
                 >
                   <div className="min-h-0 overflow-hidden">
                     <div className="grid gap-2 border-t border-border bg-surface-muted/25 p-3">
-                      {ordered.map((task) => (
-                        <TaskRow
-                          key={task.id}
-                          task={task}
-                          disabled={!online}
-                          onOpen={openTask}
-                          onStart={(target) =>
-                            mutateTask.mutate({ task: target, action: "start" })
-                          }
-                          onCompleteToggle={(target) =>
-                            mutateTask.mutate({
-                              task: target,
-                              action: target.status === "DONE" ? "reopen" : "complete",
-                            })
-                          }
-                        />
+                      {taskGroups.map(([key, group]) => (
+                        <section key={key} className="grid gap-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <h3 className="flex items-center gap-2 text-sm font-semibold">
+                              {group.isPersonal ? (
+                                <>
+                                  <span className="inline-flex size-5 items-center justify-center rounded-md bg-quest-soft/50 text-quest">
+                                    <User className="size-3" aria-hidden="true" />
+                                  </span>
+                                  {group.title}
+                                </>
+                              ) : (
+                                <>
+                                  <span
+                                    className="inline-flex size-5 shrink-0 items-center justify-center rounded-md"
+                                    style={{
+                                      background: group.color?.soft,
+                                      color: group.color?.text,
+                                    }}
+                                  >
+                                    <ProjectIconGlyph
+                                      iconKey={
+                                        group.tasks[0]?.project?.iconKey ??
+                                        "BriefcaseBusiness"
+                                      }
+                                      className="size-3"
+                                    />
+                                  </span>
+                                  <span className="truncate">{group.title}</span>
+                                </>
+                              )}
+                            </h3>
+                            <span className="font-mono text-xs text-text-tertiary">
+                              {group.tasks.length} task
+                              {group.tasks.length === 1 ? "" : "s"}
+                            </span>
+                          </div>
+                          {group.tasks.map((task) => (
+                            <TaskRow
+                              key={task.id}
+                              task={task}
+                              disabled={!online}
+                              onOpen={openTask}
+                              onStart={(target) =>
+                                mutateTask.mutate({ task: target, action: "start" })
+                              }
+                              onCompleteToggle={(target) =>
+                                mutateTask.mutate({
+                                  task: target,
+                                  action:
+                                    target.status === "DONE" ? "reopen" : "complete",
+                                })
+                              }
+                            />
+                          ))}
+                        </section>
                       ))}
                       {quickDate === date ? (
                         <AppInput

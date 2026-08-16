@@ -1,4 +1,18 @@
-import { and, desc, eq, isNotNull, isNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gte,
+  ilike,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { profiles, projects, projectMemberships, tasks } from "@/db/schema";
 import { AppError } from "@/lib/api/errors";
@@ -192,4 +206,155 @@ function historyCursorCondition(view: TaskHistoryView, cursor: TaskHistoryCursor
     lt(tasks.archivedAt, archivedAt),
     and(eq(tasks.archivedAt, archivedAt), lt(tasks.id, cursor.id)),
   )!;
+}
+
+/**
+ * Purpose: Read archived tasks for a specific project with search and filter.
+ * Inputs: Project ID, viewer, search term, filters, cursor, and limit.
+ * Output: Cursor-paginated archived task DTOs.
+ * Side effects: Reads task, project, membership, and profile rows.
+ */
+export interface ArchivedTaskFilters {
+  priority?: string;
+  assigneeId?: string;
+  completedFrom?: string;
+  completedTo?: string;
+  archivedFrom?: string;
+  archivedTo?: string;
+  status?: string;
+}
+
+export async function listProjectArchivedTasks(input: {
+  userId: string;
+  projectId: string;
+  search?: string;
+  filters?: ArchivedTaskFilters;
+  cursor?: string;
+  limit?: number;
+}): Promise<TaskHistoryPageDto> {
+  const limit = Math.min(50, Math.max(1, input.limit ?? 30));
+  const cursor = input.cursor ? decodeTaskHistoryCursor(input.cursor) : null;
+  const creator = alias(profiles, "archived_creator_profiles");
+  const assignee = alias(profiles, "archived_assignee_profiles");
+  const db = getDb();
+  const subtaskSummary = createSubtaskSummary(db, "archived_subtask_summary");
+  const cursorCondition = cursor
+    ? or(
+        lt(tasks.archivedAt, new Date(cursor.sortValue)),
+        and(eq(tasks.archivedAt, new Date(cursor.sortValue)), lt(tasks.id, cursor.id)),
+      )
+    : undefined;
+
+  const visibility = and(
+    isNotNull(tasks.projectId),
+    eq(tasks.projectId, input.projectId),
+    isNotNull(projectMemberships.userId),
+  );
+
+  const searchCondition = input.search
+    ? or(
+        ilike(tasks.title, `%${input.search}%`),
+        ilike(tasks.description, `%${input.search}%`),
+      )
+    : undefined;
+
+  const filterConditions = input.filters
+    ? and(
+        input.filters.priority ? eq(tasks.priority, input.filters.priority) : undefined,
+        input.filters.assigneeId
+          ? eq(tasks.assigneeId, input.filters.assigneeId)
+          : undefined,
+        input.filters.completedFrom
+          ? gte(tasks.completedAt, new Date(input.filters.completedFrom))
+          : undefined,
+        input.filters.completedTo
+          ? lte(tasks.completedAt, new Date(input.filters.completedTo))
+          : undefined,
+        input.filters.archivedFrom
+          ? gte(tasks.archivedAt, new Date(input.filters.archivedFrom))
+          : undefined,
+        input.filters.archivedTo
+          ? lte(tasks.archivedAt, new Date(input.filters.archivedTo))
+          : undefined,
+        input.filters.status ? eq(tasks.status, input.filters.status) : undefined,
+      )
+    : undefined;
+
+  const rows = await db
+    .select({
+      id: tasks.id,
+      projectId: tasks.projectId,
+      createdById: tasks.createdBy,
+      createdByHandle: creator.handle,
+      createdByDisplayName: creator.displayName,
+      createdByAvatarPath: creator.avatarPath,
+      assigneeId: tasks.assigneeId,
+      assigneeHandle: assignee.handle,
+      assigneeDisplayName: assignee.displayName,
+      assigneeAvatarPath: assignee.avatarPath,
+      title: tasks.title,
+      description: tasks.description,
+      iconKey: tasks.iconKey,
+      taskType: tasks.taskType,
+      priority: tasks.priority,
+      parentTaskId: tasks.parentTaskId,
+      subtaskTotal: sql<number>`coalesce(${subtaskSummary.total}, 0)`.mapWith(Number),
+      subtaskCompleted: sql<number>`coalesce(${subtaskSummary.completed}, 0)`.mapWith(
+        Number,
+      ),
+      status: tasks.status,
+      previousStatus: tasks.previousStatus,
+      scheduledDate: tasks.scheduledDate,
+      scheduledTime: tasks.scheduledTime,
+      scheduledTimeZone: tasks.scheduledTimeZone,
+      completedAt: tasks.completedAt,
+      archivedAt: tasks.archivedAt,
+      version: tasks.version,
+      createdAt: tasks.createdAt,
+      updatedAt: tasks.updatedAt,
+      projectTitle: projects.title,
+      projectColorKey: projects.colorKey,
+      projectIconKey: projects.iconKey,
+      viewerRole: projectMemberships.role,
+    })
+    .from(tasks)
+    .innerJoin(creator, eq(tasks.createdBy, creator.id))
+    .leftJoin(assignee, eq(tasks.assigneeId, assignee.id))
+    .leftJoin(projects, eq(tasks.projectId, projects.id))
+    .leftJoin(subtaskSummary, eq(subtaskSummary.parentTaskId, tasks.id))
+    .leftJoin(
+      projectMemberships,
+      and(
+        eq(projectMemberships.projectId, tasks.projectId),
+        eq(projectMemberships.userId, input.userId),
+      ),
+    )
+    .where(
+      and(
+        isNotNull(tasks.archivedAt),
+        isNull(tasks.parentTaskId),
+        visibility,
+        searchCondition,
+        filterConditions,
+        cursorCondition,
+      ),
+    )
+    .orderBy(desc(tasks.archivedAt), desc(tasks.id))
+    .limit(limit + 1);
+
+  const deliveredRows = rows.slice(0, limit);
+  const avatarUrls = await createProfileAssetUrlMap(
+    deliveredRows.flatMap((row) => [row.createdByAvatarPath, row.assigneeAvatarPath]),
+  );
+  const items = deliveredRows.map((row) =>
+    toTaskDto(row as TaskDtoRow, avatarUrls, input.userId),
+  );
+  if (rows.length <= limit) return { items };
+
+  const last = deliveredRows[deliveredRows.length - 1];
+  if (!last) return { items };
+  const sortValue = last.archivedAt?.toISOString();
+  return sortValue
+    ? { items, cursor: encodeTaskHistoryCursor(sortValue, last.id) }
+    : { items };
 }

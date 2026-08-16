@@ -369,12 +369,17 @@ export async function moveTask(
     return completeTask(userId, taskId, version);
   }
 
+  const previousStatus = status === "PENDING_REVIEW" ? task.status : null;
   return commitTaskTransition(
     userId,
     taskId,
     version,
-    { status, previousStatus: null, completedAt: null },
-    status === "IN_PROGRESS" ? "TASK_STARTED" : "TASK_REOPENED",
+    { status, previousStatus, completedAt: null },
+    status === "IN_PROGRESS"
+      ? "TASK_STARTED"
+      : status === "PENDING_REVIEW"
+        ? "TASK_UPDATED"
+        : "TASK_REOPENED",
   );
 }
 

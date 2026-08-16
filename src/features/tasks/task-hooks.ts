@@ -133,7 +133,14 @@ export function useTaskMutation(weekStart: string) {
   return useMutation({
     mutationFn: (input: {
       task: TaskDto;
-      action: "start" | "complete" | "reopen" | "move" | "update" | "archive";
+      action:
+        | "start"
+        | "complete"
+        | "reopen"
+        | "move"
+        | "update"
+        | "archive"
+        | "pending_review";
       body?: Record<string, unknown>;
     }) => {
       if (input.action === "update") {
@@ -147,10 +154,11 @@ export function useTaskMutation(weekStart: string) {
           version: input.task.version,
         });
       }
-      if (input.action === "move") {
+      if (input.action === "move" || input.action === "pending_review") {
         return apiMutation<TaskDto>("post", `/api/tasks/${input.task.id}/move`, {
           version: input.task.version,
-          status: input.body?.status,
+          status:
+            input.action === "pending_review" ? "PENDING_REVIEW" : input.body?.status,
         });
       }
       return apiMutation<TaskDto>("post", `/api/tasks/${input.task.id}/${input.action}`, {
@@ -296,15 +304,18 @@ function optimisticTask(
   if (action === "move") {
     const status = body?.status as TaskStatus | undefined;
     if (!status || status === task.status) return task;
-    return {
-      ...task,
-      status,
-      previousStatus:
-        status === "DONE"
+    const previousStatus =
+      status === "PENDING_REVIEW"
+        ? task.status
+        : status === "DONE"
           ? task.status === "DONE"
             ? task.previousStatus
             : task.status
-          : null,
+          : null;
+    return {
+      ...task,
+      status,
+      previousStatus,
       completedAt: status === "DONE" ? now : null,
       version: task.version + 1,
       updatedAt: now,

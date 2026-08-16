@@ -239,7 +239,10 @@ export const tasks = pgTable(
       "tasks_description_length",
       sql`${table.description} is null or length(${table.description}) <= 5000`,
     ),
-    check("tasks_status", sql`${table.status} in ('TODO','IN_PROGRESS','DONE')`),
+    check(
+      "tasks_status",
+      sql`${table.status} in ('TODO','IN_PROGRESS','PENDING_REVIEW','DONE')`,
+    ),
     check(
       "tasks_task_type",
       sql`${table.taskType} in ('TASK','STORY','FEATURE','BUG','TEST')`,
@@ -258,7 +261,7 @@ export const tasks = pgTable(
     ),
     check(
       "tasks_previous_status",
-      sql`${table.previousStatus} is null or ${table.previousStatus} in ('TODO','IN_PROGRESS')`,
+      sql`${table.previousStatus} is null or ${table.previousStatus} in ('TODO','IN_PROGRESS','PENDING_REVIEW')`,
     ),
     check(
       "tasks_personal_assignee_strict",

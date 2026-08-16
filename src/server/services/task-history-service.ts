@@ -2,12 +2,20 @@ import { AppError } from "@/lib/api/errors";
 import { runDbTransaction } from "@/lib/db/client";
 import { getDateInTimeZone } from "@/lib/utils/dates";
 import { createActivityEvent } from "@/server/repositories/activity-repository";
-import { listTaskHistory } from "@/server/repositories/task-history-repository";
+import {
+  listTaskHistory,
+  listProjectArchivedTasks,
+} from "@/server/repositories/task-history-repository";
 import { findProfileById } from "@/server/repositories/profile-repository";
 import { findProjectAccess } from "@/server/repositories/project-repository";
 import { restoreTaskRow, rollUpStoryStatus } from "@/server/repositories/task-repository";
 import { getVisibleTask } from "@/server/services/task-service";
-import type { TaskHistoryPageDto, TaskHistoryView, TaskDto } from "@/types/domain";
+import type {
+  TaskHistoryPageDto,
+  TaskHistoryView,
+  TaskDto,
+  ArchivedTaskFilters,
+} from "@/types/domain";
 
 /**
  * Purpose: Resolve the viewer-local missed cutoff and read one task-history page.
@@ -26,6 +34,37 @@ export async function getTaskHistory(
     view: input.view,
     todayDate: getDateInTimeZone(new Date(), profile.timeZone),
     cursor: input.cursor,
+  });
+}
+
+/**
+ * Purpose: Fetch archived tasks for a specific project with search and filters.
+ * Inputs: User ID, project ID, search term, filters, and pagination cursor.
+ * Output: Cursor-paginated archived task DTOs.
+ * Side effects: Reads task and membership data.
+ */
+export async function getProjectArchivedTasks(
+  userId: string,
+  projectId: string,
+  input: {
+    search?: string;
+    filters?: ArchivedTaskFilters;
+    cursor?: string;
+    limit?: number;
+  },
+): Promise<TaskHistoryPageDto> {
+  const access = await findProjectAccess(projectId, userId);
+  if (!access) throw new AppError("NOT_FOUND", 404, "Project not found.");
+  if (access.archivedAt)
+    throw new AppError("CONFLICT", 409, "Archived projects are read-only.");
+
+  return listProjectArchivedTasks({
+    userId,
+    projectId,
+    search: input.search,
+    filters: input.filters,
+    cursor: input.cursor,
+    limit: input.limit,
   });
 }
 

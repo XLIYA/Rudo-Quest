@@ -18,7 +18,9 @@ import {
   Circle,
   CircleDotDashed,
   Clock3,
+  ChevronDown,
   GripVertical,
+  ListTodo,
   Play,
   Plus,
   Settings2,
@@ -40,7 +42,6 @@ import { getProjectColor } from "@/lib/theme/project-colors";
 import { parseISO } from "date-fns";
 import { AppAvatar } from "@/components/ui/app-avatar";
 import { cn } from "@/lib/utils/cn";
-import { ActivityFeedItem } from "@/components/shared/activity-feed-item";
 import { TaskCreateSheet } from "@/components/ui/task-create-sheet";
 import { TaskClassification } from "@/components/ui/task-classification";
 
@@ -248,9 +249,9 @@ export function ProjectDetailScreen() {
             description="Project history could not be loaded."
           />
         ) : null}
-        <div className="grid gap-2">
+        <div className="grid gap-2 max-h-[30rem] overflow-y-auto pr-2 [scrollbar-gutter:stable]">
           {activityItems.slice(0, 10).map((event) => (
-            <ActivityFeedItem key={event.id} event={event} todayDate={currentDate} />
+            <ActivityAccordionItem key={event.id} event={event} todayDate={currentDate} />
           ))}
           <AppPagination
             hasNext={Boolean(activity.hasNextPage)}
@@ -342,6 +343,12 @@ const kanbanColumns: {
     title: "In progress",
     description: "Actively moving",
     icon: Play,
+  },
+  {
+    status: "PENDING_REVIEW",
+    title: "Pending for Review",
+    description: "Awaiting confirmation",
+    icon: AlertCircle,
   },
   {
     status: "DONE",
@@ -551,4 +558,118 @@ function KanbanTaskCard({
       </div>
     </article>
   );
+}
+
+/**
+ * Purpose: Render an expandable/collapsible activity feed item.
+ * Inputs: Activity event and today's date for routing.
+ * Output: Accordion item with summary and expandable details.
+ * Side effects: None.
+ */
+function ActivityAccordionItem({
+  event,
+  todayDate,
+}: {
+  event: ActivityEventDto;
+  todayDate: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const href = event.task ? getTaskActivityHref(event.task, todayDate) : null;
+
+  return (
+    <article className="rounded-md border border-border bg-surface-muted/55 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        className="w-full grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start p-3 text-left transition-colors duration-150 hover:bg-surface-muted/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+      >
+        <div className="min-w-0">
+          <p className="text-sm">
+            <span className="font-semibold">{event.actor?.displayName ?? "Someone"}</span>{" "}
+            {event.label}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <ChevronDown
+            className={`size-4 text-text-tertiary transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          />
+          <time
+            dateTime={event.createdAt}
+            className="font-mono text-xs text-text-tertiary whitespace-nowrap"
+          >
+            {formatRelativeDay(event.createdAt)} ·{" "}
+            {new Date(event.createdAt).toLocaleString()}
+          </time>
+        </div>
+      </button>
+      <div
+        className={`grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
+        aria-hidden={!open}
+        inert={!open}
+      >
+        <div className="min-h-0 overflow-hidden border-t border-border bg-surface p-3">
+          <div className="grid gap-2 text-sm">
+            {event.task && href ? (
+              <Link
+                href={href as Route}
+                aria-label={`Open task ${event.task.title}`}
+                className="flex min-h-11 min-w-0 items-center gap-2 rounded-md border border-border bg-surface px-3 text-sm font-semibold text-text-primary transition-colors hover:border-brand-muted hover:bg-brand-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+              >
+                <ListTodo className="size-4 shrink-0 text-brand" aria-hidden="true" />
+                <span className="min-w-0 break-words">{event.task.title}</span>
+              </Link>
+            ) : null}
+            <dl className="grid grid-cols-2 gap-1 text-xs text-text-secondary">
+              <dt>Event type</dt>
+              <dd className="font-mono">{event.eventType}</dd>
+              <dt>Event ID</dt>
+              <dd className="font-mono">{event.id}</dd>
+              {event.projectId && (
+                <>
+                  <dt>Project ID</dt>
+                  <dd className="font-mono">{event.projectId}</dd>
+                </>
+              )}
+              {event.task && (
+                <>
+                  <dt>Task ID</dt>
+                  <dd className="font-mono">{event.task.id}</dd>
+                  <dt>Scheduled</dt>
+                  <dd className="font-mono">{event.task.scheduledDate}</dd>
+                </>
+              )}
+            </dl>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function getTaskActivityHref(
+  task: NonNullable<ActivityEventDto["task"]>,
+  todayDate: string,
+): string {
+  const taskId = encodeURIComponent(task.id);
+  if (task.archivedAt) return `/task-history?view=archived&task=${taskId}`;
+  if (task.scheduledDate < todayDate) {
+    return `/task-history?view=missed&task=${taskId}`;
+  }
+  return `/weekly?date=${task.scheduledDate}&task=${taskId}`;
+}
+
+function formatRelativeDay(date: string): string {
+  const eventDate = new Date(date);
+  const today = new Date(todayDate);
+  const diff = Math.floor(
+    (eventDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  if (diff === 0) return "Today";
+  if (diff === -1) return "Yesterday";
+  if (diff === 1) return "Tomorrow";
+  if (diff < -1 && diff >= -6) return `${Math.abs(diff)} days ago`;
+  if (diff > 1 && diff <= 6) return `In ${diff} days`;
+  return eventDate.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, Play, Archive, RotateCcw } from "lucide-react";
+import { CheckCircle2, Play, Archive, RotateCcw, AlertCircle } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
 import { apiGet } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
@@ -180,6 +180,8 @@ function StatusBadge({ status }: { status: TaskDto["status"] }) {
       <Play className="size-3" aria-hidden="true" />
     ) : status === "DONE" ? (
       <CheckCircle2 className="size-3" aria-hidden="true" />
+    ) : status === "PENDING_REVIEW" ? (
+      <AlertCircle className="size-3" aria-hidden="true" />
     ) : null;
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-surface-muted px-2 py-1 font-mono text-xs">
@@ -463,18 +465,60 @@ export function TaskDetailSheet({
                     <CheckCircle2 className="size-4" aria-hidden="true" />
                     Complete
                   </AppButton>
+                  <AppButton
+                    type="button"
+                    variant="secondary"
+                    disabled={transitionsDisabled || pending}
+                    onClick={() => onAction(activeTask, "pending_review")}
+                  >
+                    <AlertCircle className="size-4" aria-hidden="true" />
+                    Pending Review
+                  </AppButton>
                 </>
               ) : null}
               {activeTask.status === "IN_PROGRESS" ? (
-                <AppButton
-                  type="button"
-                  variant="secondary"
-                  disabled={transitionsDisabled || pending}
-                  onClick={() => onAction(activeTask, "complete")}
-                >
-                  <CheckCircle2 className="size-4" aria-hidden="true" />
-                  Complete
-                </AppButton>
+                <>
+                  <AppButton
+                    type="button"
+                    variant="secondary"
+                    disabled={transitionsDisabled || pending}
+                    onClick={() => onAction(activeTask, "complete")}
+                  >
+                    <CheckCircle2 className="size-4" aria-hidden="true" />
+                    Complete
+                  </AppButton>
+                  <AppButton
+                    type="button"
+                    variant="secondary"
+                    disabled={transitionsDisabled || pending}
+                    onClick={() => onAction(activeTask, "pending_review")}
+                  >
+                    <AlertCircle className="size-4" aria-hidden="true" />
+                    Pending Review
+                  </AppButton>
+                </>
+              ) : null}
+              {activeTask.status === "PENDING_REVIEW" ? (
+                <>
+                  <AppButton
+                    type="button"
+                    variant="secondary"
+                    disabled={transitionsDisabled || pending}
+                    onClick={() => onAction(activeTask, "complete")}
+                  >
+                    <CheckCircle2 className="size-4" aria-hidden="true" />
+                    Complete
+                  </AppButton>
+                  <AppButton
+                    type="button"
+                    variant="secondary"
+                    disabled={transitionsDisabled || pending}
+                    onClick={() => onAction(activeTask, "reopen")}
+                  >
+                    <RotateCcw className="size-4" aria-hidden="true" />
+                    Reopen
+                  </AppButton>
+                </>
               ) : null}
               {activeTask.status === "DONE" ? (
                 <AppButton
