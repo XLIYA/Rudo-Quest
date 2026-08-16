@@ -91,7 +91,7 @@ export function DashboardScreen() {
       <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
         <Widget title="Today" description="Overdue and scheduled work for the day.">
           {todayTasks.length ? (
-            <BoundedCardList label="Today's tasks" className="gap-4">
+            <BoundedCardList label="Today's tasks" className="gap-4 max-h-[20rem]">
               {todayGroups.map(([key, group]) => (
                 <section key={key} className="grid gap-2">
                   <div className="flex items-center justify-between gap-3">
@@ -221,7 +221,7 @@ export function DashboardScreen() {
           description="Open work and weekly completion by project."
         >
           {query.data.projects.length ? (
-            <BoundedCardList label="Projects">
+            <BoundedCardList label="Projects" className="max-h-[20rem]">
               {query.data.projects.map((project) => (
                 <Link
                   key={project.id}

@@ -45,7 +45,7 @@ type TaskDraft = {
   version: number;
 };
 
-export type TaskDetailAction = "start" | "complete" | "reopen";
+export type TaskDetailAction = "start" | "complete" | "reopen" | "pending_review";
 
 export type TaskDetailSheetProps = {
   task: TaskDto | null;

@@ -117,17 +117,23 @@ export function TaskHistoryScreen({
             }
           />
         ) : null}
-        {items.map((task) => (
-          <HistoryTaskRow
-            key={task.id}
-            task={task}
-            view={view}
-            online={online}
-            restoring={restore.isPending}
-            onOpen={openTask}
-            onRestore={(target) => restore.mutate(target)}
-          />
-        ))}
+        <div
+          className="h-[70vh] max-h-[600px] overflow-y-auto pr-2 [scrollbar-gutter:stable]"
+          role="region"
+          aria-label="Task history list"
+        >
+          {items.map((task) => (
+            <HistoryTaskRow
+              key={task.id}
+              task={task}
+              view={view}
+              online={online}
+              restoring={restore.isPending}
+              onOpen={openTask}
+              onRestore={(target) => restore.mutate(target)}
+            />
+          ))}
+        </div>
         <AppPagination
           hasNext={Boolean(history.hasNextPage)}
           pending={history.isFetchingNextPage}

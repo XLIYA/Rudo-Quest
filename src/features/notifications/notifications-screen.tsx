@@ -121,83 +121,91 @@ export function NotificationsPanel({ compact = false }: { compact?: boolean }) {
       ) : null}
 
       {!query.isLoading && notifications.length ? (
-        <div className="divide-y divide-border">
-          {notifications.map((notification) => {
-            const Icon = notificationIcons[notification.type];
-            const unread = !notification.readAt;
-            return (
-              <article
-                key={notification.id}
-                className={cn(
-                  "relative grid gap-3 px-4 py-3 transition-colors duration-150 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-start",
-                  unread ? "bg-quest-soft/55" : "bg-surface hover:bg-surface-muted/60",
-                )}
-              >
-                {unread ? (
-                  <span
-                    className="absolute left-0 top-0 h-full w-0.5 bg-quest"
-                    aria-hidden="true"
-                  />
-                ) : null}
-                <span
+        <div
+          className="h-[70vh] max-h-[600px] overflow-y-auto pr-2 [scrollbar-gutter:stable]"
+          role="region"
+          aria-label="Notifications list"
+        >
+          <div className="divide-y divide-border">
+            {notifications.map((notification) => {
+              const Icon = notificationIcons[notification.type];
+              const unread = !notification.readAt;
+              return (
+                <article
+                  key={notification.id}
                   className={cn(
-                    "inline-flex size-9 items-center justify-center rounded-full border",
-                    unread
-                      ? "border-quest-muted bg-surface text-quest"
-                      : "border-border bg-surface-muted text-text-secondary",
+                    "relative grid gap-3 px-4 py-3 transition-colors duration-150 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-start",
+                    unread ? "bg-quest-soft/55" : "bg-surface hover:bg-surface-muted/60",
                   )}
                 >
-                  <Icon className="size-4" aria-hidden="true" />
-                </span>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                    <h2 className={cn("text-sm", unread ? "font-bold" : "font-semibold")}>
-                      {notification.title}
-                    </h2>
-                    <span className="font-mono text-[11px] text-text-tertiary">
-                      {new Date(notification.createdAt).toLocaleString()}
-                    </span>
-                  </div>
-                  {notification.body ? (
-                    <p className="mt-1 text-sm leading-5 text-text-secondary">
-                      {notification.body}
-                    </p>
+                  {unread ? (
+                    <span
+                      className="absolute left-0 top-0 h-full w-0.5 bg-quest"
+                      aria-hidden="true"
+                    />
                   ) : null}
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    {notification.type === "PROJECT_INVITATION" ? (
-                      <InvitationActions
-                        notification={notification}
-                        disabled={!online || invitation.isPending}
-                        onAction={(input) => invitation.mutate(input)}
-                      />
-                    ) : null}
-                    {notification.href &&
-                    !(
-                      notification.type === "PROJECT_INVITATION" &&
-                      notification.href.includes("?invitation=")
-                    ) ? (
-                      <Link
-                        className="inline-flex min-h-9 items-center rounded-md px-2 text-xs font-semibold text-quest hover:bg-surface hover:underline"
-                        href={notification.href as Route}
-                      >
-                        Open
-                      </Link>
-                    ) : null}
-                  </div>
-                </div>
-                {unread ? (
-                  <AppIconButton
-                    label={`Mark ${notification.title} as read`}
-                    className="size-9 min-h-9 min-w-9"
-                    onClick={() => read.mutate({ id: notification.id })}
-                    disabled={!online || read.isPending}
+                  <span
+                    className={cn(
+                      "inline-flex size-9 items-center justify-center rounded-full border",
+                      unread
+                        ? "border-quest-muted bg-surface text-quest"
+                        : "border-border bg-surface-muted text-text-secondary",
+                    )}
                   >
-                    <Check className="size-4" aria-hidden="true" />
-                  </AppIconButton>
-                ) : null}
-              </article>
-            );
-          })}
+                    <Icon className="size-4" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                      <h2
+                        className={cn("text-sm", unread ? "font-bold" : "font-semibold")}
+                      >
+                        {notification.title}
+                      </h2>
+                      <span className="font-mono text-[11px] text-text-tertiary">
+                        {new Date(notification.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                    {notification.body ? (
+                      <p className="mt-1 text-sm leading-5 text-text-secondary">
+                        {notification.body}
+                      </p>
+                    ) : null}
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {notification.type === "PROJECT_INVITATION" ? (
+                        <InvitationActions
+                          notification={notification}
+                          disabled={!online || invitation.isPending}
+                          onAction={(input) => invitation.mutate(input)}
+                        />
+                      ) : null}
+                      {notification.href &&
+                      !(
+                        notification.type === "PROJECT_INVITATION" &&
+                        notification.href.includes("?invitation=")
+                      ) ? (
+                        <Link
+                          className="inline-flex min-h-9 items-center rounded-md px-2 text-xs font-semibold text-quest hover:bg-surface hover:underline"
+                          href={notification.href as Route}
+                        >
+                          Open
+                        </Link>
+                      ) : null}
+                    </div>
+                  </div>
+                  {unread ? (
+                    <AppIconButton
+                      label={`Mark ${notification.title} as read`}
+                      className="size-9 min-h-9 min-w-9"
+                      onClick={() => read.mutate({ id: notification.id })}
+                      disabled={!online || read.isPending}
+                    >
+                      <Check className="size-4" aria-hidden="true" />
+                    </AppIconButton>
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
           <div className="p-3">
             <AppPagination
               hasNext={Boolean(query.hasNextPage)}

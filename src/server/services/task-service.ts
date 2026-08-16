@@ -369,7 +369,8 @@ export async function moveTask(
     return completeTask(userId, taskId, version);
   }
 
-  const previousStatus = status === "PENDING_REVIEW" ? task.status : null;
+  const previousStatus =
+    status === "PENDING_REVIEW" && task.status !== "DONE" ? task.status : null;
   return commitTaskTransition(
     userId,
     taskId,

@@ -304,14 +304,12 @@ function optimisticTask(
   if (action === "move") {
     const status = body?.status as TaskStatus | undefined;
     if (!status || status === task.status) return task;
-    const previousStatus =
-      status === "PENDING_REVIEW"
-        ? task.status
-        : status === "DONE"
-          ? task.status === "DONE"
-            ? task.previousStatus
-            : task.status
-          : null;
+    let previousStatus: Exclude<TaskStatus, "DONE"> | null = null;
+    if (status === "PENDING_REVIEW" && task.status !== "DONE") {
+      previousStatus = task.status;
+    } else if (status === "DONE") {
+      previousStatus = task.status === "DONE" ? task.previousStatus : task.status;
+    }
     return {
       ...task,
       status,

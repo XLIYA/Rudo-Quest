@@ -1,11 +1,15 @@
 "use client";
 
+import type { Route } from "next";
 import { useParams } from "next/navigation";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
+
 import type {
+  ActivityEventDto,
   ActivityPageDto,
+  ArchivedTaskFilters,
   ProfileDto,
   ProfileSummary,
   ProjectRole,
@@ -14,28 +18,43 @@ import type {
   TaskStatus,
 } from "@/types/domain";
 import {
+  AlertCircle,
+  Archive,
+  Calendar,
   CheckCircle2,
   Circle,
   CircleDotDashed,
   Clock3,
   ChevronDown,
+  Filter,
   GripVertical,
   ListTodo,
   Play,
   Plus,
+  RotateCcw,
+  Search,
   Settings2,
+  User,
+  X,
 } from "lucide-react";
 import { AppAvatarStack } from "@/components/ui/app-avatar-stack";
 import { AppEmptyState } from "@/components/ui/app-empty-state";
+import { AppInput } from "@/components/ui/app-input";
+import { AppPagination } from "@/components/ui/app-pagination";
+import { AppSelect } from "@/components/ui/app-select";
 import { AppSkeleton } from "@/components/ui/app-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
 import { AppButton } from "@/components/ui/app-button";
-import { AppPagination } from "@/components/ui/app-pagination";
+import { AppDatePicker } from "@/components/ui/app-date-picker";
 import { useTaskMutation } from "@/features/tasks/task-hooks";
 import { getDateInTimeZone, getMondayWeekStart } from "@/lib/utils/dates";
 import { TaskDetailSheet } from "@/components/ui/task-detail-sheet";
 import { useOnline } from "@/hooks/use-online";
 import { useState, type DragEvent } from "react";
+import {
+  useRestoreTask,
+  useProjectArchivedTasks,
+} from "@/features/tasks/task-history-hooks";
 import Link from "next/link";
 import { ProjectIconGlyph } from "./project-pickers";
 import { getProjectColor } from "@/lib/theme/project-colors";
@@ -110,6 +129,16 @@ export function ProjectDetailScreen() {
   const online = useOnline();
   const [selectedTask, setSelectedTask] = useState<TaskDto | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [archivedSearch, setArchivedSearch] = useState("");
+  const [archivedFilters, setArchivedFilters] = useState<ArchivedTaskFilters>({});
+  const [showArchivedFilters, setShowArchivedFilters] = useState(false);
+  const archivedTasks = useProjectArchivedTasks(
+    projectId,
+    archivedSearch,
+    archivedFilters,
+  );
+  const restore = useRestoreTask();
+  const archivedItems = archivedTasks.data?.pages.flatMap((page) => page.items) ?? [];
   if (project.isLoading)
     return (
       <main className="p-5 md:p-8">
@@ -268,6 +297,30 @@ export function ProjectDetailScreen() {
           ) : null}
         </div>
       </Panel>
+      <ArchivedTasksSection
+        _projectId={projectId}
+        _projectData={project.data}
+        members={members.data ?? []}
+        archivedSearch={archivedSearch}
+        setArchivedSearch={setArchivedSearch}
+        archivedFilters={archivedFilters}
+        setArchivedFilters={setArchivedFilters}
+        showArchivedFilters={showArchivedFilters}
+        setShowArchivedFilters={setShowArchivedFilters}
+        archivedItems={archivedItems}
+        archivedIsLoading={archivedTasks.isLoading}
+        archivedIsError={archivedTasks.isError}
+        archivedHasNextPage={archivedTasks.hasNextPage}
+        archivedIsFetchingNextPage={archivedTasks.isFetchingNextPage}
+        archivedFetchNextPage={archivedTasks.fetchNextPage}
+        archivedRefetch={archivedTasks.refetch}
+        restore={restore}
+        online={online}
+        _mutation={mutation}
+        _selectedTask={selectedTask}
+        setSelectedTask={setSelectedTask}
+        _calendarTimeZone={calendarTimeZone}
+      />
       <TaskDetailSheet
         task={selectedTask}
         open={Boolean(selectedTask)}
@@ -599,7 +652,7 @@ function ActivityAccordionItem({
             dateTime={event.createdAt}
             className="font-mono text-xs text-text-tertiary whitespace-nowrap"
           >
-            {formatRelativeDay(event.createdAt)} ·{" "}
+            {formatRelativeDay(event.createdAt, todayDate)} ·{" "}
             {new Date(event.createdAt).toLocaleString()}
           </time>
         </div>
@@ -660,7 +713,7 @@ function getTaskActivityHref(
   return `/weekly?date=${task.scheduledDate}&task=${taskId}`;
 }
 
-function formatRelativeDay(date: string): string {
+function formatRelativeDay(date: string, todayDate: string): string {
   const eventDate = new Date(date);
   const today = new Date(todayDate);
   const diff = Math.floor(
@@ -672,4 +725,343 @@ function formatRelativeDay(date: string): string {
   if (diff < -1 && diff >= -6) return `${Math.abs(diff)} days ago`;
   if (diff > 1 && diff <= 6) return `In ${diff} days`;
   return eventDate.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+/**
+ * Purpose: Render the Archived Tasks section for a project.
+ * Inputs: Project data, members, search/filters state, archived tasks data, and callbacks.
+ * Output: Searchable, filterable list of archived tasks with restore capability.
+ * Side effects: Fetches archived tasks, handles restore mutations.
+ */
+function ArchivedTasksSection({
+  _projectId,
+  _projectData,
+  members,
+  archivedSearch,
+  setArchivedSearch,
+  archivedFilters,
+  setArchivedFilters,
+  showArchivedFilters,
+  setShowArchivedFilters,
+  archivedItems,
+  archivedIsLoading,
+  archivedIsError,
+  archivedHasNextPage,
+  archivedIsFetchingNextPage,
+  archivedFetchNextPage,
+  archivedRefetch,
+  restore,
+  online,
+  _mutation,
+  _selectedTask,
+  setSelectedTask,
+  _calendarTimeZone,
+}: {
+  _projectId: string;
+  _projectData: ProjectSummary;
+  members: (ProfileSummary & { role: ProjectRole; joinedAt: string })[];
+  archivedSearch: string;
+  setArchivedSearch: (value: string) => void;
+  archivedFilters: ArchivedTaskFilters;
+  setArchivedFilters: (
+    value: ArchivedTaskFilters | ((prev: ArchivedTaskFilters) => ArchivedTaskFilters),
+  ) => void;
+  showArchivedFilters: boolean;
+  setShowArchivedFilters: (value: boolean) => void;
+  archivedItems: TaskDto[];
+  archivedIsLoading: boolean;
+  archivedIsError: boolean;
+  archivedHasNextPage: boolean;
+  archivedIsFetchingNextPage: boolean;
+  archivedFetchNextPage: () => void;
+  archivedRefetch: () => void;
+  restore: ReturnType<typeof useRestoreTask>;
+  online: boolean;
+  _mutation: ReturnType<typeof useTaskMutation>;
+  _selectedTask: TaskDto | null;
+  setSelectedTask: (task: TaskDto | null) => void;
+  _calendarTimeZone: string;
+}) {
+  const hasActiveFilters = Boolean(
+    archivedFilters.priority ||
+    archivedFilters.assigneeId ||
+    archivedFilters.completedFrom ||
+    archivedFilters.completedTo ||
+    archivedFilters.archivedFrom ||
+    archivedFilters.archivedTo ||
+    archivedFilters.status,
+  );
+
+  const handleFilterChange = (
+    key: keyof ArchivedTaskFilters,
+    value: string | undefined,
+  ) => {
+    setArchivedFilters((prev: ArchivedTaskFilters) => {
+      const next: ArchivedTaskFilters = { ...prev };
+      if (value) {
+        next[key] = value;
+      } else {
+        delete next[key];
+      }
+      return next;
+    });
+  };
+
+  const clearFilters = () => {
+    setArchivedFilters({});
+  };
+
+  const memberOptions = members.map((m) => ({
+    value: m.id,
+    label: m.displayName,
+  }));
+
+  const priorityOptions = [
+    { value: "NONE", label: "None" },
+    { value: "LOW", label: "Low" },
+    { value: "MEDIUM", label: "Medium" },
+    { value: "HIGH", label: "High" },
+    { value: "URGENT", label: "Urgent" },
+  ];
+
+  const statusOptions = [
+    { value: "TODO", label: "To Do" },
+    { value: "IN_PROGRESS", label: "In Progress" },
+    { value: "PENDING_REVIEW", label: "Pending for Review" },
+    { value: "DONE", label: "Done" },
+  ];
+
+  const openArchivedTask = (task: TaskDto) => {
+    setSelectedTask(task);
+  };
+
+  const handleRestore = (task: TaskDto) => {
+    restore.mutate(task);
+  };
+
+  return (
+    <Panel title="Archived Tasks">
+      <div className="space-y-4">
+        {/* Search and Filter Bar */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-text-tertiary"
+              aria-hidden="true"
+            />
+            <AppInput
+              placeholder="Search by title or description..."
+              value={archivedSearch}
+              onChange={(e) => setArchivedSearch(e.currentTarget.value)}
+              className="pl-9"
+              disabled={archivedIsLoading}
+            />
+          </div>
+          <AppButton
+            variant={showArchivedFilters ? "secondary" : "ghost"}
+            onClick={() => setShowArchivedFilters(!showArchivedFilters)}
+            className="gap-2"
+          >
+            <Filter className="size-4" aria-hidden="true" />
+            Filters
+            {hasActiveFilters && (
+              <span className="inline-flex size-5 items-center justify-center rounded-full bg-brand text-white text-[10px] font-medium">
+                {Object.values(archivedFilters).filter(Boolean).length}
+              </span>
+            )}
+          </AppButton>
+          {archivedIsError && (
+            <AppButton variant="secondary" size="sm" onClick={() => archivedRefetch()}>
+              <RotateCcw className="size-4" aria-hidden="true" />
+              Retry
+            </AppButton>
+          )}
+        </div>
+
+        {/* Advanced Filters Panel */}
+        {showArchivedFilters && (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 p-3 rounded-lg border border-border bg-surface-muted/50">
+            <AppSelect
+              label="Priority"
+              value={archivedFilters.priority ?? ""}
+              onValueChange={(v) => handleFilterChange("priority", v)}
+              options={[{ value: "", label: "All priorities" }, ...priorityOptions]}
+              placeholder="All priorities"
+            />
+            <AppSelect
+              label="Assignee"
+              value={archivedFilters.assigneeId ?? ""}
+              onValueChange={(v) => handleFilterChange("assigneeId", v)}
+              options={[{ value: "", label: "All assignees" }, ...memberOptions]}
+              placeholder="All assignees"
+            />
+            <AppSelect
+              label="Status"
+              value={archivedFilters.status ?? ""}
+              onValueChange={(v) => handleFilterChange("status", v)}
+              options={[{ value: "", label: "All statuses" }, ...statusOptions]}
+              placeholder="All statuses"
+            />
+            <div className="flex items-center gap-2">
+              <AppButton
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                className="h-10"
+              >
+                <X className="size-3.5 mr-1" aria-hidden="true" />
+                Clear all
+              </AppButton>
+            </div>
+            <div className="grid gap-1">
+              <label className="text-xs text-text-secondary">Completed from</label>
+              <AppDatePicker
+                value={archivedFilters.completedFrom ?? ""}
+                onChange={(e) =>
+                  handleFilterChange("completedFrom", e.currentTarget.value)
+                }
+                placeholder="YYYY-MM-DD"
+                className="h-10"
+              />
+            </div>
+            <div className="grid gap-1">
+              <label className="text-xs text-text-secondary">Completed to</label>
+              <AppDatePicker
+                value={archivedFilters.completedTo ?? ""}
+                onChange={(e) => handleFilterChange("completedTo", e.currentTarget.value)}
+                placeholder="YYYY-MM-DD"
+                className="h-10"
+              />
+            </div>
+            <div className="grid gap-1">
+              <label className="text-xs text-text-secondary">Archived from</label>
+              <AppDatePicker
+                value={archivedFilters.archivedFrom ?? ""}
+                onChange={(e) =>
+                  handleFilterChange("archivedFrom", e.currentTarget.value)
+                }
+                placeholder="YYYY-MM-DD"
+                className="h-10"
+              />
+            </div>
+            <div className="grid gap-1">
+              <label className="text-xs text-text-secondary">Archived to</label>
+              <AppDatePicker
+                value={archivedFilters.archivedTo ?? ""}
+                onChange={(e) => handleFilterChange("archivedTo", e.currentTarget.value)}
+                placeholder="YYYY-MM-DD"
+                className="h-10"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Archived Tasks List */}
+        <div className="grid gap-2 h-[28rem] overflow-y-auto pr-2 [scrollbar-gutter:stable]">
+          {archivedIsLoading ? (
+            <AppSkeleton className="h-64" />
+          ) : archivedIsError ? (
+            <AppEmptyState
+              title="Archived tasks unavailable"
+              description="The archived tasks list could not be loaded."
+              action={
+                <AppButton variant="secondary" onClick={() => archivedRefetch()}>
+                  Try again
+                </AppButton>
+              }
+            />
+          ) : !archivedItems.length ? (
+            <AppEmptyState
+              title="No archived tasks"
+              description={
+                archivedSearch || hasActiveFilters
+                  ? "No archived tasks match your search or filters."
+                  : "Archived tasks will appear here when tasks are archived."
+              }
+            />
+          ) : (
+            <>
+              {archivedItems.map((task) => (
+                <ArchivedTaskRow
+                  key={task.id}
+                  task={task}
+                  online={online}
+                  restoring={restore.isPending}
+                  onOpen={openArchivedTask}
+                  onRestore={handleRestore}
+                />
+              ))}
+              <AppPagination
+                hasNext={Boolean(archivedHasNextPage)}
+                pending={archivedIsFetchingNextPage}
+                label="Load older archived tasks"
+                pendingLabel="Loading older tasks…"
+                onNext={() => void archivedFetchNextPage()}
+              />
+            </>
+          )}
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function ArchivedTaskRow({
+  task,
+  online,
+  restoring,
+  onOpen,
+  onRestore,
+}: {
+  task: TaskDto;
+  online: boolean;
+  restoring: boolean;
+  onOpen: (task: TaskDto) => void;
+  onRestore: (task: TaskDto) => void;
+}) {
+  const weekStart = getMondayWeekStart(parseISO(task.scheduledDate));
+  const _mutation = useTaskMutation(weekStart);
+
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return "";
+    return new Date(dateString).toLocaleString();
+  };
+
+  return (
+    <article className="grid gap-3 rounded-lg border border-border bg-surface p-4 shadow-[var(--shadow-surface)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center opacity-80">
+      <button
+        type="button"
+        onClick={() => onOpen(task)}
+        className="min-h-11 min-w-0 rounded-md text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+      >
+        <span className="block break-words font-semibold">{task.title}</span>
+        <TaskClassification
+          taskType={task.taskType}
+          priority={task.priority}
+          className="mt-2"
+        />
+        <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-secondary">
+          <Archive className="size-3.5" aria-hidden="true" />
+          Archived {formatDate(task.archivedAt)}
+          <span>·</span>
+          <Calendar className="size-3.5" aria-hidden="true" />
+          Completed {formatDate(task.completedAt)}
+          <span>·</span>
+          <User className="size-3.5" aria-hidden="true" />
+          {task.assignee?.displayName ?? "Unassigned"}
+          <span>·</span>
+          <span>{task.status.replace("_", " ")}</span>
+        </span>
+      </button>
+      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+        <AppButton
+          disabled={!online || restoring || !task.permissions.canArchive}
+          onClick={() => onRestore(task)}
+          aria-label={`Restore ${task.title}`}
+        >
+          <RotateCcw className="size-4" aria-hidden="true" /> Restore
+        </AppButton>
+      </div>
+    </article>
+  );
 }
