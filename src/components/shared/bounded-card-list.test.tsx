@@ -12,6 +12,22 @@ describe("BoundedCardList", () => {
 
     const region = screen.getByRole("region", { name: "Today's tasks" });
     expect(region).toHaveAttribute("tabindex", "0");
-    expect(region).toHaveClass("max-h-[30rem]", "overflow-y-auto", "overscroll-contain");
+    expect(region).toHaveClass(
+      "flex-1",
+      "min-h-0",
+      "overflow-y-auto",
+      "overscroll-contain",
+    );
+  });
+
+  it("accepts layout overrides such as a maximum height bound", () => {
+    render(
+      <BoundedCardList label="Projects" className="max-h-[24rem] lg:max-h-none">
+        <div>Project card</div>
+      </BoundedCardList>,
+    );
+
+    const region = screen.getByRole("region", { name: "Projects" });
+    expect(region).toHaveClass("max-h-[24rem]", "lg:max-h-none");
   });
 });

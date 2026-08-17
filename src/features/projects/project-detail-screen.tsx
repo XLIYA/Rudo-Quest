@@ -599,7 +599,12 @@ function ProjectKanban({
                 />
               ))}
               {!columnTasks.length ? (
-                <div className="grid min-h-28 place-items-center rounded-md border border-dashed border-border p-4 text-center text-xs text-text-tertiary">
+                <div
+                  className={cn(
+                    "grid min-h-28 place-items-center rounded-md border border-dashed border-border p-4 text-center text-xs text-text-tertiary",
+                    column.status === "DONE" && "lg:col-span-3",
+                  )}
+                >
                   <span>
                     <CircleDotDashed className="mx-auto mb-2 size-5" aria-hidden="true" />
                     Drop tasks here
