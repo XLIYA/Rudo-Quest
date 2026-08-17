@@ -23,14 +23,30 @@ import { ProjectIconGlyph } from "@/features/projects/project-pickers";
 import { getProjectColor } from "@/lib/theme/project-colors";
 
 type DashboardData = {
-  today: { overdue: TaskDto[]; tasks: TaskDto[] };
+  today: {
+    overdue: TaskDto[];
+    tasks: TaskDto[];
+  };
+
   weeklyProgress: {
     completed: number;
     total: number;
     percent: number;
-    days: { date: string; completed: number; total: number }[];
+    days: {
+      date: string;
+      completed: number;
+      total: number;
+    }[];
   };
-  heatmap: { days: { date: string; count: number }[]; streak: number };
+
+  heatmap: {
+    days: {
+      date: string;
+      count: number;
+    }[];
+    streak: number;
+  };
+
   projects: ProjectSummary[];
 };
 
@@ -45,21 +61,32 @@ export function DashboardScreen() {
     queryKey: queryKeys.me,
     queryFn: ({ signal }) => apiGet<ProfileDto>("/api/me", signal),
   });
+
   const timeZone =
     profile.data?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+
   const todayDate = getDateInTimeZone(new Date(), timeZone);
+
   const from = getMondayWeekStart(parseISO(todayDate));
+
   const to = format(addDays(parseISO(from), 6), "yyyy-MM-dd");
+
   const query = useQuery({
     queryKey: queryKeys.dashboard(from, to),
     queryFn: ({ signal }) =>
       apiGet<DashboardData>(`/api/dashboard?from=${from}&to=${to}`, signal),
   });
+
   const taskMutation = useTaskMutation(from);
+
   const online = useOnline();
+
   const [selectedTask, setSelectedTask] = useState<TaskDto | null>(null);
 
-  if (query.isLoading) return <DashboardSkeleton />;
+  if (query.isLoading) {
+    return <DashboardSkeleton />;
+  }
+
   if (query.isError || !query.data) {
     return (
       <AppEmptyState
@@ -68,61 +95,93 @@ export function DashboardScreen() {
       />
     );
   }
+
   const todayTasks = [...query.data.today.overdue, ...query.data.today.tasks];
+
   const todayGroups = Array.from(
     todayTasks.reduce((groups, task) => {
       const key = task.project?.id ?? "personal";
+
       const current = groups.get(key) ?? {
         title: task.project?.title ?? "Personal",
         tasks: [] as TaskDto[],
       };
+
       current.tasks.push(task);
+
       groups.set(key, current);
+
       return groups;
     }, new Map<string, { title: string; tasks: TaskDto[] }>()),
   );
+
   const chartMax = Math.max(1, ...query.data.weeklyProgress.days.map((day) => day.total));
+
   return (
     <main className="app-enter mx-auto grid min-w-0 max-w-7xl gap-4 overflow-x-hidden px-4 py-5 sm:gap-5 sm:px-5 md:gap-6 md:p-8">
       <PageHeader
         title="Dashboard"
         description="Today, weekly progress, completion rhythm, and project load."
       />
-      <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-        <Widget title="Today" description="Overdue and scheduled work for the day.">
+
+      {/* ====================================================== */}
+      {/* TOP ROW — TODAY + WEEKLY PROGRESS */}
+      {/* ====================================================== */}
+
+      <section className="grid min-w-0 items-stretch gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+        {/* ==================================================== */}
+        {/* TODAY */}
+        {/* Weekly Progress determines row height on desktop. */}
+        {/* Today fills that height and scrolls internally. */}
+        {/* ==================================================== */}
+
+        <Widget
+          title="Today"
+          description="Overdue and scheduled work for the day."
+          className="lg:[contain:size]"
+        >
           {todayTasks.length ? (
             <BoundedCardList
               label="Today's tasks"
-              className="gap-3 max-h-[14rem] lg:max-h-none lg:flex-1"
+              className="max-h-[24rem] gap-3 lg:max-h-none"
             >
               {todayGroups.map(([key, group]) => (
-                <section key={key} className="grid gap-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-sm font-semibold">{group.title}</h3>
+                <section key={key} className="grid min-w-0 gap-2">
+                  <div className="flex min-w-0 items-center justify-between gap-3">
+                    <h3 className="min-w-0 truncate text-sm font-semibold">
+                      {group.title}
+                    </h3>
+
                     <Link
                       href={`/weekly?date=${todayDate}`}
-                      className="inline-flex min-h-11 items-center text-xs font-semibold text-brand hover:underline"
+                      className="inline-flex min-h-11 shrink-0 items-center text-xs font-semibold text-brand hover:underline"
                     >
                       Open in Weekly
                     </Link>
                   </div>
-                  {group.tasks.map((task) => (
-                    <TaskRow
-                      key={task.id}
-                      task={task}
-                      disabled={!online}
-                      onOpen={(target) => setSelectedTask(target)}
-                      onStart={(target) =>
-                        taskMutation.mutate({ task: target, action: "start" })
-                      }
-                      onCompleteToggle={(target) =>
-                        taskMutation.mutate({
-                          task: target,
-                          action: target.status === "DONE" ? "reopen" : "complete",
-                        })
-                      }
-                    />
-                  ))}
+
+                  <div className="grid min-w-0 gap-2">
+                    {group.tasks.map((task) => (
+                      <TaskRow
+                        key={task.id}
+                        task={task}
+                        disabled={!online}
+                        onOpen={(target) => setSelectedTask(target)}
+                        onStart={(target) =>
+                          taskMutation.mutate({
+                            task: target,
+                            action: "start",
+                          })
+                        }
+                        onCompleteToggle={(target) =>
+                          taskMutation.mutate({
+                            task: target,
+                            action: target.status === "DONE" ? "reopen" : "complete",
+                          })
+                        }
+                      />
+                    ))}
+                  </div>
                 </section>
               ))}
             </BoundedCardList>
@@ -133,62 +192,85 @@ export function DashboardScreen() {
             />
           )}
         </Widget>
+
+        {/* ==================================================== */}
+        {/* WEEKLY PROGRESS */}
+        {/* This widget determines the height of the top row. */}
+        {/* ==================================================== */}
+
         <Widget title="Weekly progress" description="Completed tasks across this week.">
           <div className="flex min-w-0 items-end justify-between">
             <div className="min-w-0">
               <p className="font-mono text-3xl font-semibold sm:text-4xl">
                 {query.data.weeklyProgress.percent}%
               </p>
+
               <p className="text-sm text-text-secondary">
                 {query.data.weeklyProgress.completed} / {query.data.weeklyProgress.total}{" "}
                 completed
               </p>
             </div>
           </div>
+
           <div
-            className="mt-5 grid h-36 min-w-0 grid-cols-7 items-end gap-2 overflow-hidden rounded-lg bg-surface-muted/45 px-3 pb-2 pt-4"
+            className="mt-5 grid h-36 min-w-0 shrink-0 grid-cols-7 items-end gap-2 overflow-hidden rounded-lg bg-surface-muted/45 px-3 pb-2 pt-4"
             role="img"
             aria-label={`Seven-day completion chart. ${query.data.weeklyProgress.completed} of ${query.data.weeklyProgress.total} tasks completed this week.`}
           >
             {query.data.weeklyProgress.days.map((day) => {
               const totalHeight = Math.max(10, (day.total / chartMax) * 100);
+
               const completedHeight = day.total
                 ? Math.max(8, (day.completed / day.total) * 100)
                 : 0;
+
               return (
                 <div
                   key={day.date}
                   className="grid h-full min-w-0 grid-rows-[1fr_auto] items-end gap-2"
-                  title={`${format(parseISO(day.date), "EEEE")}: ${day.completed} of ${day.total} completed`}
+                  title={`${format(
+                    parseISO(day.date),
+                    "EEEE",
+                  )}: ${day.completed} of ${day.total} completed`}
                 >
                   <div className="flex h-full items-end justify-center">
                     <span
                       className="relative block w-full max-w-8 overflow-hidden rounded-t-md bg-quest-muted/55"
-                      style={{ height: `${totalHeight}%` }}
+                      style={{
+                        height: `${totalHeight}%`,
+                      }}
                     >
                       <span
                         className="absolute inset-x-0 bottom-0 rounded-t-md bg-quest transition-[height] duration-400 ease-out"
-                        style={{ height: `${completedHeight}%` }}
+                        style={{
+                          height: `${completedHeight}%`,
+                        }}
                       />
                     </span>
                   </div>
+
                   <span className="truncate text-center font-mono text-[10px] text-text-tertiary">
                     {format(parseISO(day.date), "EEE").slice(0, 1)}
                   </span>
                 </div>
               );
             })}
+
             <span className="sr-only">
               {query.data.weeklyProgress.days
                 .map(
                   (day) =>
-                    `${format(parseISO(day.date), "EEEE")}: ${day.completed} of ${day.total} completed`,
+                    `${format(
+                      parseISO(day.date),
+                      "EEEE",
+                    )}: ${day.completed} of ${day.total} completed`,
                 )
                 .join("; ")}
             </span>
           </div>
         </Widget>
       </section>
+
       <TaskDetailSheet
         task={selectedTask}
         open={Boolean(selectedTask)}
@@ -201,38 +283,70 @@ export function DashboardScreen() {
           "status" in taskMutation.error &&
           taskMutation.error.status === 409
         }
-        onOpenChange={(open) => !open && setSelectedTask(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedTask(null);
+          }
+        }}
         onOpenRelatedTask={setSelectedTask}
-        onAction={(task, action) => taskMutation.mutate({ task, action })}
+        onAction={(task, action) =>
+          taskMutation.mutate({
+            task,
+            action,
+          })
+        }
         onArchive={(task) => {
-          taskMutation.mutate({ task, action: "archive" });
+          taskMutation.mutate({
+            task,
+            action: "archive",
+          });
+
           setSelectedTask(null);
         }}
         onSave={async (task, values) => {
-          await taskMutation.mutateAsync({ task, action: "update", body: values });
+          await taskMutation.mutateAsync({
+            task,
+            action: "update",
+            body: values,
+          });
         }}
       />
-      <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+
+      {/* ====================================================== */}
+      {/* BOTTOM ROW — ACTIVITY + PROJECTS */}
+      {/* ====================================================== */}
+
+      <section className="grid min-w-0 items-stretch gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+        {/* ==================================================== */}
+        {/* ACTIVITY */}
+        {/* This widget determines the bottom row height. */}
+        {/* ==================================================== */}
+
         <Widget
           title="Activity"
           description={`${query.data.heatmap.streak} day current completion streak.`}
         >
           <ActivityHeatmap days={query.data.heatmap.days} endDate={todayDate} />
         </Widget>
+
+        {/* ==================================================== */}
+        {/* PROJECTS */}
+        {/* Activity determines row height on desktop. */}
+        {/* Projects fills that height and scrolls internally. */}
+        {/* ==================================================== */}
+
         <Widget
           title="Projects"
           description="Open work and weekly completion by project."
+          className="lg:[contain:size]"
         >
           {query.data.projects.length ? (
-            <BoundedCardList
-              label="Projects"
-              className="max-h-[20rem] lg:max-h-none lg:flex-1"
-            >
+            <BoundedCardList label="Projects" className="max-h-[24rem] lg:max-h-none">
               {query.data.projects.map((project) => (
                 <Link
                   key={project.id}
                   href={`/projects/${project.id}` as Route}
-                  className="block min-w-0 rounded-md border border-border p-3 hover:bg-surface-muted"
+                  className="block min-w-0 rounded-md border border-border p-3 transition-colors hover:bg-surface-muted"
                 >
                   <div className="flex min-w-0 items-center justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-2">
@@ -245,16 +359,20 @@ export function DashboardScreen() {
                       >
                         <ProjectIconGlyph iconKey={project.iconKey} className="size-4" />
                       </span>
+
                       <h3 className="min-w-0 truncate font-semibold">{project.title}</h3>
                     </div>
+
                     <span className="shrink-0 font-mono text-sm text-text-secondary">
                       {project.openTaskCount} open
                     </span>
                   </div>
+
                   <p className="mt-1 text-sm text-text-secondary">
                     {project.completedThisWeek} completed ·{" "}
                     {project.weeklyCompletionPercent}% of scheduled work
                   </p>
+
                   <div className="mt-2">
                     <AppAvatarStack users={project.members} />
                   </div>
@@ -274,31 +392,69 @@ export function DashboardScreen() {
 }
 
 /**
- * Purpose: Render a consistent dashboard widget container.
- * Inputs: Title and children.
- * Output: Section card.
- * Side effects: None.
+ * Purpose:
+ * Render a consistent dashboard widget container.
+ *
+ * Behaviour:
+ * - Supports size containment for widgets whose content
+ *   should not determine the CSS Grid row height.
+ * - Prevents internal scrollable content from expanding
+ *   the widget.
+ * - Keeps widget header fixed while body content can scroll.
+ *
+ * Inputs:
+ * Title, optional description, children and optional classes.
+ *
+ * Output:
+ * Dashboard section card.
+ *
+ * Side effects:
+ * None.
  */
 function Widget({
   title,
   description,
   children,
+  className = "",
 }: {
   title: string;
   description?: string;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <section className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface p-4 shadow-[var(--shadow-surface)] md:p-5">
-      <div className="mb-4">
+    <section
+      className={[
+        "flex",
+        "min-h-0",
+        "min-w-0",
+        "flex-col",
+        "overflow-hidden",
+        "rounded-lg",
+        "border",
+        "border-border",
+        "bg-surface",
+        "p-4",
+        "shadow-[var(--shadow-surface)]",
+        "md:p-5",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      <div className="mb-4 shrink-0">
         <h2 className="text-xl font-bold tracking-[-0.02em] text-text-primary">
           {title}
         </h2>
+
         {description ? (
           <p className="mt-1 text-sm leading-5 text-text-secondary">{description}</p>
         ) : null}
       </div>
-      <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {children}
+      </div>
     </section>
   );
 }
