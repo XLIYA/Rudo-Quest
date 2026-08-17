@@ -158,6 +158,7 @@ export async function listWeekTasks(input: {
   from?: string;
   to: string;
   projectId?: string;
+  personalOnly?: boolean;
   incompleteOnly?: boolean;
 }): Promise<TaskDto[]> {
   const db = getDb();
@@ -219,6 +220,7 @@ export async function listWeekTasks(input: {
         lte(tasks.scheduledDate, input.to),
         input.incompleteOnly ? ne(tasks.status, "DONE") : undefined,
         input.projectId ? eq(tasks.projectId, input.projectId) : undefined,
+        input.personalOnly ? isNull(tasks.projectId) : undefined,
         isNull(tasks.parentTaskId),
         isNull(tasks.archivedAt),
         or(

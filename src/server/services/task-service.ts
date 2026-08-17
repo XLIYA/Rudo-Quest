@@ -54,8 +54,9 @@ export async function getVisibleTask(userId: string, taskId: string): Promise<Ta
 }
 
 /**
- * Purpose: List current user's weekly tasks Monday through Sunday.
- * Inputs: Actor ID and week start date.
+ * Purpose: List weekly tasks Monday through Sunday. Without a project ID the
+ * result contains only personal tasks, keeping Project tasks out of Weekly.
+ * Inputs: Actor ID, week start date, and optional project ID.
  * Output: Task DTOs.
  * Side effects: Reads tasks.
  */
@@ -70,6 +71,7 @@ export async function getWeekTasks(
     from: dates[0] ?? weekStart,
     to: dates[6] ?? weekStart,
     projectId,
+    personalOnly: !projectId,
   });
 }
 
