@@ -88,10 +88,10 @@ export function DashboardScreen() {
         title="Dashboard"
         description="Today, weekly progress, completion rhythm, and project load."
       />
-      <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+      <section className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
         <Widget title="Today" description="Overdue and scheduled work for the day.">
           {todayTasks.length ? (
-            <BoundedCardList label="Today's tasks" className="gap-4 max-h-[20rem]">
+            <BoundedCardList label="Today's tasks" className="gap-3 max-h-[16rem]">
               {todayGroups.map(([key, group]) => (
                 <section key={key} className="grid gap-2">
                   <div className="flex items-center justify-between gap-3">
@@ -209,7 +209,7 @@ export function DashboardScreen() {
           await taskMutation.mutateAsync({ task, action: "update", body: values });
         }}
       />
-      <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+      <section className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
         <Widget
           title="Activity"
           description={`${query.data.heatmap.streak} day current completion streak.`}

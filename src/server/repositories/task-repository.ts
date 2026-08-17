@@ -160,6 +160,7 @@ export async function listWeekTasks(input: {
   projectId?: string;
   personalOnly?: boolean;
   incompleteOnly?: boolean;
+  includeOpenOutsideWeek?: boolean;
 }): Promise<TaskDto[]> {
   const db = getDb();
   const creator = alias(profiles, "creator_profiles");
@@ -216,8 +217,13 @@ export async function listWeekTasks(input: {
     )
     .where(
       and(
-        input.from ? gte(tasks.scheduledDate, input.from) : undefined,
-        lte(tasks.scheduledDate, input.to),
+        or(
+          and(
+            input.from ? gte(tasks.scheduledDate, input.from) : undefined,
+            lte(tasks.scheduledDate, input.to),
+          ),
+          input.includeOpenOutsideWeek ? ne(tasks.status, "DONE") : undefined,
+        ),
         input.incompleteOnly ? ne(tasks.status, "DONE") : undefined,
         input.projectId ? eq(tasks.projectId, input.projectId) : undefined,
         input.personalOnly ? isNull(tasks.projectId) : undefined,

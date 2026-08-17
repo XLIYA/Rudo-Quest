@@ -72,6 +72,7 @@ export async function getWeekTasks(
     to: dates[6] ?? weekStart,
     projectId,
     personalOnly: !projectId,
+    includeOpenOutsideWeek: Boolean(projectId),
   });
 }
 

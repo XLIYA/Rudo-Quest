@@ -118,7 +118,7 @@ export function TaskHistoryScreen({
           />
         ) : null}
         <div
-          className="h-[70vh] max-h-[600px] overflow-y-auto pr-2 [scrollbar-gutter:stable]"
+          className="grid max-h-[600px] gap-3 overflow-y-auto pr-2 [scrollbar-gutter:stable]"
           role="region"
           aria-label="Task history list"
         >

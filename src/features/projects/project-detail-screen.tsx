@@ -132,6 +132,8 @@ export function ProjectDetailScreen() {
   const [archivedSearch, setArchivedSearch] = useState("");
   const [archivedFilters, setArchivedFilters] = useState<ArchivedTaskFilters>({});
   const [showArchivedFilters, setShowArchivedFilters] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(true);
+  const [archivedOpen, setArchivedOpen] = useState(false);
   const archivedTasks = useProjectArchivedTasks(
     projectId,
     archivedSearch,
@@ -270,57 +272,97 @@ export function ProjectDetailScreen() {
           />
         ) : null}
       </section>
-      <Panel title="Activity">
-        {activity.isLoading ? <AppSkeleton className="h-28" /> : null}
-        {activity.isError ? (
-          <AppEmptyState
-            title="Activity unavailable"
-            description="Project history could not be loaded."
+      <section className="rounded-lg border border-border bg-surface p-4">
+        <button
+          type="button"
+          onClick={() => setActivityOpen(!activityOpen)}
+          aria-expanded={activityOpen}
+          className="flex w-full min-h-11 items-center justify-between gap-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        >
+          <h2 className="text-sm font-semibold uppercase text-text-secondary">
+            Activity
+          </h2>
+          <ChevronDown
+            className={cn(
+              "size-4 text-text-tertiary transition-transform duration-200",
+              activityOpen && "rotate-180",
+            )}
+            aria-hidden="true"
           />
-        ) : null}
-        <div className="grid gap-2 max-h-[30rem] overflow-y-auto pr-2 [scrollbar-gutter:stable]">
-          {activityItems.slice(0, 10).map((event) => (
-            <ActivityAccordionItem key={event.id} event={event} todayDate={currentDate} />
-          ))}
-          <AppPagination
-            hasNext={Boolean(activity.hasNextPage)}
-            pending={activity.isFetchingNextPage}
-            label="Load older activity"
-            pendingLabel="Loading older activity…"
-            onNext={() => void activity.fetchNextPage()}
-          />
-          {!activity.isLoading && !activity.isError && !activityItems.length ? (
-            <AppEmptyState
-              title="No project activity"
-              description="Task and membership changes will appear here."
-            />
-          ) : null}
+        </button>
+        <div
+          className={cn(
+            "grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+            activityOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+          )}
+          aria-hidden={!activityOpen}
+          inert={!activityOpen}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <div className="pt-3">
+              {activity.isLoading ? <AppSkeleton className="h-28" /> : null}
+              {activity.isError ? (
+                <AppEmptyState
+                  title="Activity unavailable"
+                  description="Project history could not be loaded."
+                />
+              ) : null}
+              <div className="grid gap-2 max-h-[30rem] overflow-y-auto pr-2 [scrollbar-gutter:stable]">
+                {activityItems.slice(0, 10).map((event) => (
+                  <ActivityAccordionItem
+                    key={event.id}
+                    event={event}
+                    todayDate={currentDate}
+                  />
+                ))}
+                <AppPagination
+                  hasNext={Boolean(activity.hasNextPage)}
+                  pending={activity.isFetchingNextPage}
+                  label="Load older activity"
+                  pendingLabel="Loading older activity…"
+                  onNext={() => void activity.fetchNextPage()}
+                />
+                {!activity.isLoading && !activity.isError && !activityItems.length ? (
+                  <AppEmptyState
+                    title="No project activity"
+                    description="Task and membership changes will appear here."
+                  />
+                ) : null}
+              </div>
+            </div>
+          </div>
         </div>
-      </Panel>
-      <ArchivedTasksSection
-        _projectId={projectId}
-        _projectData={project.data}
-        members={members.data ?? []}
-        archivedSearch={archivedSearch}
-        setArchivedSearch={setArchivedSearch}
-        archivedFilters={archivedFilters}
-        setArchivedFilters={setArchivedFilters}
-        showArchivedFilters={showArchivedFilters}
-        setShowArchivedFilters={setShowArchivedFilters}
-        archivedItems={archivedItems}
-        archivedIsLoading={archivedTasks.isLoading}
-        archivedIsError={archivedTasks.isError}
-        archivedHasNextPage={archivedTasks.hasNextPage}
-        archivedIsFetchingNextPage={archivedTasks.isFetchingNextPage}
-        archivedFetchNextPage={archivedTasks.fetchNextPage}
-        archivedRefetch={archivedTasks.refetch}
-        restore={restore}
-        online={online}
-        _mutation={mutation}
-        _selectedTask={selectedTask}
-        setSelectedTask={setSelectedTask}
-        _calendarTimeZone={calendarTimeZone}
-      />
+      </section>
+      <CollapsiblePanel
+        title="Archived Tasks"
+        open={archivedOpen}
+        onToggle={() => setArchivedOpen(!archivedOpen)}
+      >
+        <ArchivedTasksSection
+          _projectId={projectId}
+          _projectData={project.data}
+          members={members.data ?? []}
+          archivedSearch={archivedSearch}
+          setArchivedSearch={setArchivedSearch}
+          archivedFilters={archivedFilters}
+          setArchivedFilters={setArchivedFilters}
+          showArchivedFilters={showArchivedFilters}
+          setShowArchivedFilters={setShowArchivedFilters}
+          archivedItems={archivedItems}
+          archivedIsLoading={archivedTasks.isLoading}
+          archivedIsError={archivedTasks.isError}
+          archivedHasNextPage={archivedTasks.hasNextPage}
+          archivedIsFetchingNextPage={archivedTasks.isFetchingNextPage}
+          archivedFetchNextPage={archivedTasks.fetchNextPage}
+          archivedRefetch={archivedTasks.refetch}
+          restore={restore}
+          online={online}
+          _mutation={mutation}
+          _selectedTask={selectedTask}
+          setSelectedTask={setSelectedTask}
+          _calendarTimeZone={calendarTimeZone}
+        />
+      </CollapsiblePanel>
       <TaskDetailSheet
         task={selectedTask}
         open={Boolean(selectedTask)}
@@ -375,6 +417,56 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
         {title}
       </h2>
       {children}
+    </section>
+  );
+}
+
+/**
+ * Purpose: Render an openable/closable section panel for Activity and Archived Tasks.
+ * Inputs: Title, open state, toggle callback, and children.
+ * Output: Accordion-style section card.
+ * Side effects: None.
+ */
+function CollapsiblePanel({
+  title,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-lg border border-border bg-surface p-4">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full min-h-11 items-center justify-between gap-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+      >
+        <h2 className="text-sm font-semibold uppercase text-text-secondary">{title}</h2>
+        <ChevronDown
+          className={cn(
+            "size-4 text-text-tertiary transition-transform duration-200",
+            open && "rotate-180",
+          )}
+          aria-hidden="true"
+        />
+      </button>
+      <div
+        className={cn(
+          "grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+          open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+        )}
+        aria-hidden={!open}
+        inert={!open}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="pt-3">{children}</div>
+        </div>
+      </div>
     </section>
   );
 }
@@ -449,6 +541,7 @@ function ProjectKanban({
             key={column.status}
             className={cn(
               "min-h-72 rounded-lg border bg-surface p-3 transition-[border-color,background-color,box-shadow] duration-150",
+              column.status === "DONE" && "lg:col-span-3",
               activeDrop
                 ? "border-quest bg-quest-soft/45 shadow-[0_0_0_3px_var(--quest-soft)]"
                 : "border-border",
@@ -480,7 +573,12 @@ function ProjectKanban({
                 {columnTasks.length}
               </span>
             </header>
-            <div className="grid gap-2">
+            <div
+              className={cn(
+                "grid gap-2",
+                column.status === "DONE" && "lg:grid-cols-3 lg:items-start",
+              )}
+            >
               {columnTasks.map((task) => (
                 <KanbanTaskCard
                   key={task.id}
@@ -840,169 +938,158 @@ function ArchivedTasksSection({
   };
 
   return (
-    <Panel title="Archived Tasks">
-      <div className="space-y-4">
-        {/* Search and Filter Bar */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-text-tertiary"
-              aria-hidden="true"
-            />
-            <AppInput
-              placeholder="Search by title or description..."
-              value={archivedSearch}
-              onChange={(e) => setArchivedSearch(e.currentTarget.value)}
-              className="pl-9"
-              disabled={archivedIsLoading}
-            />
-          </div>
-          <AppButton
-            variant={showArchivedFilters ? "secondary" : "ghost"}
-            onClick={() => setShowArchivedFilters(!showArchivedFilters)}
-            className="gap-2"
-          >
-            <Filter className="size-4" aria-hidden="true" />
-            Filters
-            {hasActiveFilters && (
-              <span className="inline-flex size-5 items-center justify-center rounded-full bg-brand text-white text-[10px] font-medium">
-                {Object.values(archivedFilters).filter(Boolean).length}
-              </span>
-            )}
+    <div className="space-y-4">
+      {/* Search and Filter Bar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-text-tertiary"
+            aria-hidden="true"
+          />
+          <AppInput
+            placeholder="Search by title or description..."
+            value={archivedSearch}
+            onChange={(e) => setArchivedSearch(e.currentTarget.value)}
+            className="pl-9"
+            disabled={archivedIsLoading}
+          />
+        </div>
+        <AppButton
+          variant={showArchivedFilters ? "secondary" : "ghost"}
+          onClick={() => setShowArchivedFilters(!showArchivedFilters)}
+          className="gap-2"
+        >
+          <Filter className="size-4" aria-hidden="true" />
+          Filters
+          {hasActiveFilters && (
+            <span className="inline-flex size-5 items-center justify-center rounded-full bg-brand text-white text-[10px] font-medium">
+              {Object.values(archivedFilters).filter(Boolean).length}
+            </span>
+          )}
+        </AppButton>
+        {archivedIsError && (
+          <AppButton variant="secondary" size="sm" onClick={() => archivedRefetch()}>
+            <RotateCcw className="size-4" aria-hidden="true" />
+            Retry
           </AppButton>
-          {archivedIsError && (
-            <AppButton variant="secondary" size="sm" onClick={() => archivedRefetch()}>
-              <RotateCcw className="size-4" aria-hidden="true" />
-              Retry
-            </AppButton>
-          )}
-        </div>
-
-        {/* Advanced Filters Panel */}
-        {showArchivedFilters && (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 p-3 rounded-lg border border-border bg-surface-muted/50">
-            <AppSelect
-              label="Priority"
-              value={archivedFilters.priority ?? ""}
-              onValueChange={(v) => handleFilterChange("priority", v)}
-              options={[{ value: "", label: "All priorities" }, ...priorityOptions]}
-              placeholder="All priorities"
-            />
-            <AppSelect
-              label="Assignee"
-              value={archivedFilters.assigneeId ?? ""}
-              onValueChange={(v) => handleFilterChange("assigneeId", v)}
-              options={[{ value: "", label: "All assignees" }, ...memberOptions]}
-              placeholder="All assignees"
-            />
-            <AppSelect
-              label="Status"
-              value={archivedFilters.status ?? ""}
-              onValueChange={(v) => handleFilterChange("status", v)}
-              options={[{ value: "", label: "All statuses" }, ...statusOptions]}
-              placeholder="All statuses"
-            />
-            <div className="flex items-center gap-2">
-              <AppButton
-                variant="ghost"
-                size="sm"
-                onClick={clearFilters}
-                className="h-10"
-              >
-                <X className="size-3.5 mr-1" aria-hidden="true" />
-                Clear all
-              </AppButton>
-            </div>
-            <div className="grid gap-1">
-              <label className="text-xs text-text-secondary">Completed from</label>
-              <AppDatePicker
-                value={archivedFilters.completedFrom ?? ""}
-                onChange={(e) =>
-                  handleFilterChange("completedFrom", e.currentTarget.value)
-                }
-                placeholder="YYYY-MM-DD"
-                className="h-10"
-              />
-            </div>
-            <div className="grid gap-1">
-              <label className="text-xs text-text-secondary">Completed to</label>
-              <AppDatePicker
-                value={archivedFilters.completedTo ?? ""}
-                onChange={(e) => handleFilterChange("completedTo", e.currentTarget.value)}
-                placeholder="YYYY-MM-DD"
-                className="h-10"
-              />
-            </div>
-            <div className="grid gap-1">
-              <label className="text-xs text-text-secondary">Archived from</label>
-              <AppDatePicker
-                value={archivedFilters.archivedFrom ?? ""}
-                onChange={(e) =>
-                  handleFilterChange("archivedFrom", e.currentTarget.value)
-                }
-                placeholder="YYYY-MM-DD"
-                className="h-10"
-              />
-            </div>
-            <div className="grid gap-1">
-              <label className="text-xs text-text-secondary">Archived to</label>
-              <AppDatePicker
-                value={archivedFilters.archivedTo ?? ""}
-                onChange={(e) => handleFilterChange("archivedTo", e.currentTarget.value)}
-                placeholder="YYYY-MM-DD"
-                className="h-10"
-              />
-            </div>
-          </div>
         )}
-
-        {/* Archived Tasks List */}
-        <div className="grid gap-2 h-[28rem] overflow-y-auto pr-2 [scrollbar-gutter:stable]">
-          {archivedIsLoading ? (
-            <AppSkeleton className="h-64" />
-          ) : archivedIsError ? (
-            <AppEmptyState
-              title="Archived tasks unavailable"
-              description="The archived tasks list could not be loaded."
-              action={
-                <AppButton variant="secondary" onClick={() => archivedRefetch()}>
-                  Try again
-                </AppButton>
-              }
-            />
-          ) : !archivedItems.length ? (
-            <AppEmptyState
-              title="No archived tasks"
-              description={
-                archivedSearch || hasActiveFilters
-                  ? "No archived tasks match your search or filters."
-                  : "Archived tasks will appear here when tasks are archived."
-              }
-            />
-          ) : (
-            <>
-              {archivedItems.map((task) => (
-                <ArchivedTaskRow
-                  key={task.id}
-                  task={task}
-                  online={online}
-                  restoring={restore.isPending}
-                  onOpen={openArchivedTask}
-                  onRestore={handleRestore}
-                />
-              ))}
-              <AppPagination
-                hasNext={Boolean(archivedHasNextPage)}
-                pending={archivedIsFetchingNextPage}
-                label="Load older archived tasks"
-                pendingLabel="Loading older tasks…"
-                onNext={() => void archivedFetchNextPage()}
-              />
-            </>
-          )}
-        </div>
       </div>
-    </Panel>
+
+      {/* Advanced Filters Panel */}
+      {showArchivedFilters && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 p-3 rounded-lg border border-border bg-surface-muted/50">
+          <AppSelect
+            label="Priority"
+            value={archivedFilters.priority ?? ""}
+            onValueChange={(v) => handleFilterChange("priority", v)}
+            options={[{ value: "", label: "All priorities" }, ...priorityOptions]}
+            placeholder="All priorities"
+          />
+          <AppSelect
+            label="Assignee"
+            value={archivedFilters.assigneeId ?? ""}
+            onValueChange={(v) => handleFilterChange("assigneeId", v)}
+            options={[{ value: "", label: "All assignees" }, ...memberOptions]}
+            placeholder="All assignees"
+          />
+          <AppSelect
+            label="Status"
+            value={archivedFilters.status ?? ""}
+            onValueChange={(v) => handleFilterChange("status", v)}
+            options={[{ value: "", label: "All statuses" }, ...statusOptions]}
+            placeholder="All statuses"
+          />
+          <div className="flex items-center gap-2">
+            <AppButton variant="ghost" size="sm" onClick={clearFilters} className="h-10">
+              <X className="size-3.5 mr-1" aria-hidden="true" />
+              Clear all
+            </AppButton>
+          </div>
+          <div className="grid gap-1">
+            <label className="text-xs text-text-secondary">Completed from</label>
+            <AppDatePicker
+              value={archivedFilters.completedFrom ?? ""}
+              onChange={(e) => handleFilterChange("completedFrom", e.currentTarget.value)}
+              placeholder="YYYY-MM-DD"
+              className="h-10"
+            />
+          </div>
+          <div className="grid gap-1">
+            <label className="text-xs text-text-secondary">Completed to</label>
+            <AppDatePicker
+              value={archivedFilters.completedTo ?? ""}
+              onChange={(e) => handleFilterChange("completedTo", e.currentTarget.value)}
+              placeholder="YYYY-MM-DD"
+              className="h-10"
+            />
+          </div>
+          <div className="grid gap-1">
+            <label className="text-xs text-text-secondary">Archived from</label>
+            <AppDatePicker
+              value={archivedFilters.archivedFrom ?? ""}
+              onChange={(e) => handleFilterChange("archivedFrom", e.currentTarget.value)}
+              placeholder="YYYY-MM-DD"
+              className="h-10"
+            />
+          </div>
+          <div className="grid gap-1">
+            <label className="text-xs text-text-secondary">Archived to</label>
+            <AppDatePicker
+              value={archivedFilters.archivedTo ?? ""}
+              onChange={(e) => handleFilterChange("archivedTo", e.currentTarget.value)}
+              placeholder="YYYY-MM-DD"
+              className="h-10"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Archived Tasks List */}
+      <div className="grid gap-2 max-h-[28rem] overflow-y-auto pr-2 [scrollbar-gutter:stable]">
+        {archivedIsLoading ? (
+          <AppSkeleton className="h-64" />
+        ) : archivedIsError ? (
+          <AppEmptyState
+            title="Archived tasks unavailable"
+            description="The archived tasks list could not be loaded."
+            action={
+              <AppButton variant="secondary" onClick={() => archivedRefetch()}>
+                Try again
+              </AppButton>
+            }
+          />
+        ) : !archivedItems.length ? (
+          <AppEmptyState
+            title="No archived tasks"
+            description={
+              archivedSearch || hasActiveFilters
+                ? "No archived tasks match your search or filters."
+                : "Archived tasks will appear here when tasks are archived."
+            }
+          />
+        ) : (
+          <>
+            {archivedItems.map((task) => (
+              <ArchivedTaskRow
+                key={task.id}
+                task={task}
+                online={online}
+                restoring={restore.isPending}
+                onOpen={openArchivedTask}
+                onRestore={handleRestore}
+              />
+            ))}
+            <AppPagination
+              hasNext={Boolean(archivedHasNextPage)}
+              pending={archivedIsFetchingNextPage}
+              label="Load older archived tasks"
+              pendingLabel="Loading older tasks…"
+              onNext={() => void archivedFetchNextPage()}
+            />
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1028,19 +1115,19 @@ function ArchivedTaskRow({
   };
 
   return (
-    <article className="grid gap-3 rounded-lg border border-border bg-surface p-4 shadow-[var(--shadow-surface)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center opacity-80">
+    <article className="grid gap-2 rounded-lg border border-border bg-surface p-3 shadow-[var(--shadow-surface)] sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center opacity-80">
       <button
         type="button"
         onClick={() => onOpen(task)}
-        className="min-h-11 min-w-0 rounded-md text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        className="min-w-0 rounded-md text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       >
-        <span className="block break-words font-semibold">{task.title}</span>
+        <span className="block break-words text-sm font-semibold">{task.title}</span>
         <TaskClassification
           taskType={task.taskType}
           priority={task.priority}
-          className="mt-2"
+          className="mt-1"
         />
-        <span className="mt-1 flex flex-wrap items-center gap-2 text-xs text-text-secondary">
+        <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-text-secondary">
           <Archive className="size-3.5" aria-hidden="true" />
           Archived {formatDate(task.archivedAt)}
           <span>·</span>
@@ -1055,6 +1142,7 @@ function ArchivedTaskRow({
       </button>
       <div className="flex flex-wrap items-center gap-2 sm:justify-end">
         <AppButton
+          size="sm"
           disabled={!online || restoring || !task.permissions.canArchive}
           onClick={() => onRestore(task)}
           aria-label={`Restore ${task.title}`}
