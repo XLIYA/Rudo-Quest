@@ -22,7 +22,7 @@ export function BoundedCardList({
       role="region"
       aria-label={label}
       tabIndex={0}
-      className={`grid max-h-[30rem] min-w-0 gap-3 overflow-y-auto overscroll-contain pr-2 [scrollbar-gutter:stable] focus-visible:rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${className}`}
+      className={`grid max-h-[30rem] min-h-0 min-w-0 gap-3 overflow-y-auto overscroll-contain pr-2 [scrollbar-gutter:stable] focus-visible:rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${className}`}
     >
       {children}
     </div>

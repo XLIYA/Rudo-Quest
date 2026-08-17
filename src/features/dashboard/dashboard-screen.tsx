@@ -88,10 +88,13 @@ export function DashboardScreen() {
         title="Dashboard"
         description="Today, weekly progress, completion rhythm, and project load."
       />
-      <section className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+      <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
         <Widget title="Today" description="Overdue and scheduled work for the day.">
           {todayTasks.length ? (
-            <BoundedCardList label="Today's tasks" className="gap-3 max-h-[16rem]">
+            <BoundedCardList
+              label="Today's tasks"
+              className="gap-3 max-h-[14rem] lg:max-h-none lg:flex-1"
+            >
               {todayGroups.map(([key, group]) => (
                 <section key={key} className="grid gap-2">
                   <div className="flex items-center justify-between gap-3">
@@ -209,7 +212,7 @@ export function DashboardScreen() {
           await taskMutation.mutateAsync({ task, action: "update", body: values });
         }}
       />
-      <section className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+      <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
         <Widget
           title="Activity"
           description={`${query.data.heatmap.streak} day current completion streak.`}
@@ -221,7 +224,10 @@ export function DashboardScreen() {
           description="Open work and weekly completion by project."
         >
           {query.data.projects.length ? (
-            <BoundedCardList label="Projects" className="max-h-[20rem]">
+            <BoundedCardList
+              label="Projects"
+              className="max-h-[20rem] lg:max-h-none lg:flex-1"
+            >
               {query.data.projects.map((project) => (
                 <Link
                   key={project.id}
@@ -283,7 +289,7 @@ function Widget({
   children: React.ReactNode;
 }) {
   return (
-    <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-surface p-4 shadow-[var(--shadow-surface)] md:p-5">
+    <section className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface p-4 shadow-[var(--shadow-surface)] md:p-5">
       <div className="mb-4">
         <h2 className="text-xl font-bold tracking-[-0.02em] text-text-primary">
           {title}
@@ -292,7 +298,7 @@ function Widget({
           <p className="mt-1 text-sm leading-5 text-text-secondary">{description}</p>
         ) : null}
       </div>
-      {children}
+      <div className="flex min-h-0 flex-1 flex-col">{children}</div>
     </section>
   );
 }
