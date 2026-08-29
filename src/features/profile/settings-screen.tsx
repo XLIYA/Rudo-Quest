@@ -282,7 +282,7 @@ export function SettingsScreen() {
             href="/projects"
             className="inline-flex min-h-11 w-fit items-center text-sm font-semibold text-brand hover:underline"
           >
-            Open project connections
+            Open project connections.
           </Link>
         </section>
       </fieldset>
