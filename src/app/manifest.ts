@@ -1,5 +1,4 @@
 import type { MetadataRoute } from "next";
-
 /**
  * Purpose: Provide the web app manifest for PWA installability.
  * Inputs: None.
