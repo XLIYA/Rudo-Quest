@@ -13,7 +13,11 @@ vi.mock("next/navigation", () => ({ useRouter: () => router }));
 vi.mock("@/hooks/use-online", () => ({ useOnline: () => true }));
 vi.mock("@/features/tasks/task-history-hooks", () => ({
   useTaskHistory: (view: TaskHistoryView) => useTaskHistory(view),
-  useRestoreTask: () => ({ mutate: restoreMutate, isPending: false }),
+  useRestoreTask: () => ({
+    mutate: restoreMutate,
+    isPending: false,
+    __internal_weekStart: "2024-01-01",
+  }),
 }));
 vi.mock("@/features/tasks/task-hooks", () => ({
   useTaskMutation: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),

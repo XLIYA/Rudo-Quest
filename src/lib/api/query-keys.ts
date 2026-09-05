@@ -13,4 +13,7 @@ export const queryKeys = {
   dashboard: (from: string, to: string) => ["dashboard", from, to] as const,
   notifications: ["notifications"] as const,
   activity: (cursor?: string) => ["activity", cursor ?? "first"] as const,
+  taskActivity: (taskId: string) => ["task-activity", taskId] as const,
+  projectArchivedTasks: (projectId: string, search: string, filters: string) =>
+    ["project-archived-tasks", projectId, search, filters] as const,
 };

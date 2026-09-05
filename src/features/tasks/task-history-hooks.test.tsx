@@ -76,7 +76,9 @@ describe("useRestoreTask", () => {
     const wrapper = ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
-    const { result } = renderHook(() => useRestoreTask(), { wrapper });
+    const { result } = renderHook(() => useRestoreTask({ weekStart: "2024-01-01" }), {
+      wrapper,
+    });
 
     act(() => result.current.mutate(archivedTask));
 

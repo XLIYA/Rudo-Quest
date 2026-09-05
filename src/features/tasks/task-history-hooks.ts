@@ -43,7 +43,7 @@ export function useProjectArchivedTasks(
   filters: ArchivedTaskFilters,
 ) {
   return useInfiniteQuery({
-    queryKey: ["project-archived-tasks", projectId, search, filters],
+    queryKey: queryKeys.projectArchivedTasks(projectId, search, JSON.stringify(filters)),
     queryFn: ({ pageParam, signal }) => {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
@@ -73,7 +73,7 @@ export function useProjectArchivedTasks(
  * Output: TanStack restore mutation.
  * Side effects: Mutates cache, posts the versioned restore, rolls back failures, and invalidates affected surfaces.
  */
-export function useRestoreTask() {
+export function useRestoreTask({ weekStart }: { weekStart: string }) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (task: TaskDto) =>
@@ -108,14 +108,16 @@ export function useRestoreTask() {
       AppToast(`${restored.title} restored.`, "success");
     },
     onSettled: (_data, _error, task) => {
-      void queryClient.invalidateQueries({ queryKey: ["task-history"] });
-      void queryClient.invalidateQueries({ queryKey: ["tasks-week"] });
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.taskHistory("archived") });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasksWeek(weekStart) });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.dashboard("today", "today"),
+      });
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
-      void queryClient.invalidateQueries({ queryKey: ["project"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.project(task.id) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.task(task.id) });
-      void queryClient.invalidateQueries({ queryKey: ["activity"] });
-      void queryClient.invalidateQueries({ queryKey: ["task-activity", task.id] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.activity() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.taskActivity(task.id) });
     },
   });
 }

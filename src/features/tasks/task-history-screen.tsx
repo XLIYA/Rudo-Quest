@@ -41,7 +41,7 @@ export function TaskHistoryScreen({
   const [view, setView] = useState(initialView);
   const [selectedTaskId, setSelectedTaskId] = useState(initialTaskId ?? null);
   const history = useTaskHistory(view);
-  const restore = useRestoreTask();
+  const restore = useRestoreTask({ weekStart: selectedWeek });
   const items = history.data?.pages.flatMap((page) => page.items) ?? [];
   const selectedFromPage = items.find((task) => task.id === selectedTaskId) ?? null;
   const selectedQuery = useQuery({

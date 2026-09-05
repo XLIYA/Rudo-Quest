@@ -51,7 +51,7 @@ export function useCreateTask(weekStart: string) {
     onMutate: async (body) => {
       await Promise.all([
         queryClient.cancelQueries({ queryKey: queryKeys.tasksWeek(weekStart) }),
-        queryClient.cancelQueries({ queryKey: ["dashboard"] }),
+        queryClient.cancelQueries({ queryKey: queryKeys.dashboard }),
       ]);
       const previous = queryClient.getQueriesData<TaskDto[]>({
         queryKey: queryKeys.tasksWeek(weekStart),
@@ -65,14 +65,12 @@ export function useCreateTask(weekStart: string) {
           displayName: "You",
           avatarUrl: null,
         },
-        assignee: body.projectId
-          ? null
-          : {
-              id: "optimistic",
-              handle: "you",
-              displayName: "You",
-              avatarUrl: null,
-            },
+        assignee: {
+          id: "optimistic",
+          handle: "you",
+          displayName: "You",
+          avatarUrl: null,
+        },
         title: body.title,
         description: body.description ?? null,
         iconKey: body.iconKey ?? null,
@@ -114,7 +112,7 @@ export function useCreateTask(weekStart: string) {
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tasksWeek(weekStart) });
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dashboard });
       void queryClient.invalidateQueries({ queryKey: ["task-history"] });
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
       void queryClient.invalidateQueries({ queryKey: ["project"] });

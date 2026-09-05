@@ -139,7 +139,7 @@ export function ProjectDetailScreen() {
     archivedSearch,
     archivedFilters,
   );
-  const restore = useRestoreTask();
+  const restore = useRestoreTask({ weekStart });
   const archivedItems = archivedTasks.data?.pages.flatMap((page) => page.items) ?? [];
   if (project.isLoading)
     return (
@@ -268,6 +268,16 @@ export function ProjectDetailScreen() {
             onOpen={setSelectedTask}
             onMove={(task, status) =>
               mutation.mutate({ task, action: "move", body: { status } })
+            }
+          />
+        ) : null === tasks.data ? (
+          <AppEmptyState
+            title="No tasks in this project yet"
+            description="Create your first task to get started"
+            action={
+              <AppButton variant="primary" onClick={() => setActivityOpen(true)}>
+                Create first task
+              </AppButton>
             }
           />
         ) : null}
