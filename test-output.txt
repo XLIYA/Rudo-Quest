@@ -1,0 +1,180 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.10 [39m[90mD:/Projects/rudo-quest/Rudo-Quest[39m
+
+[90mstdout[2m | src/app/api/auth/signin/route.test.ts[2m > [22m[2msignin route[2m > [22m[2msigns in and ensures the application profile
+[22m[39m{"timestamp":"2026-09-05T12:28:03.689Z","level":"info","event":"api_request_completed","requestId":"1613db71-8ed3-419b-b0ee-ade52f92c32e","method":"POST","route":"/api/auth/signin","status":200,"durationMs":8}
+
+[90mstdout[2m | src/app/api/auth/signin/route.test.ts[2m > [22m[2msignin route[2m > [22m[2mreturns a retryable 503 when local Supabase is unavailable
+[22m[39m{"timestamp":"2026-09-05T12:28:03.695Z","level":"info","event":"api_request_completed","requestId":"482894fd-a8ca-400e-a760-a654aab981c7","method":"POST","route":"/api/auth/signin","status":503,"durationMs":2}
+
+[90mstdout[2m | src/app/api/auth/signin/route.test.ts[2m > [22m[2msignin route[2m > [22m[2mclears the local session when profile setup is unavailable
+[22m[39m{"timestamp":"2026-09-05T12:28:03.699Z","level":"info","event":"api_request_completed","requestId":"b33b9a9a-c9d9-443d-99f9-2a13c6c6dbba","method":"POST","route":"/api/auth/signin","status":503,"durationMs":2}
+
+ [32m✓[39m src/app/api/auth/signin/route.test.ts[2m > [22msignin route[2m > [22msigns in and ensures the application profile[32m 195[2mms[22m[39m
+ [32m✓[39m src/app/api/auth/signin/route.test.ts[2m > [22msignin route[2m > [22mreturns a retryable 503 when local Supabase is unavailable[32m 5[2mms[22m[39m
+ [32m✓[39m src/app/api/auth/signin/route.test.ts[2m > [22msignin route[2m > [22mclears the local session when profile setup is unavailable[32m 2[2mms[22m[39m
+ [32m✓[39m src/server/security/rate-limit.test.ts[2m > [22massertRateLimit[2m > [22mkeeps separate Upstash limiter policies per route key, limit, and window[32m 136[2mms[22m[39m
+ [32m✓[39m src/server/security/rate-limit.test.ts[2m > [22massertRateLimit[2m > [22msupports credentials injected by the Vercel Upstash Marketplace integration[32m 7[2mms[22m[39m
+ [32m✓[39m src/server/security/rate-limit.test.ts[2m > [22massertRateLimit[2m > [22mdoes not trust browser-controlled forwarded addresses in production[32m 8[2mms[22m[39m
+ [32m✓[39m src/server/jobs/notification-job.test.ts[2m > [22mnotification cron eligibility[2m > [22mevaluates reminder time in the user's timezone[32m 149[2mms[22m[39m
+ [32m✓[39m src/lib/env/server.test.ts[2m > [22mserver environment helpers[2m > [22maccepts the current Supabase publishable key name[32m 100[2mms[22m[39m
+ [32m✓[39m src/lib/env/server.test.ts[2m > [22mserver environment helpers[2m > [22mprefers the current Supabase secret key name over the legacy service role name[32m 1[2mms[22m[39m
+ [32m✓[39m src/lib/env/server.test.ts[2m > [22mserver environment helpers[2m > [22mrequires Cron and Redis alongside core production infrastructure[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/jobs/notification-job.test.ts[2m > [22mnotification cron eligibility[2m > [22msuppresses delivery during quiet hours and still retries old failures separately[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/jobs/notification-job.test.ts[2m > [22mnotification cron eligibility[2m > [22mcreates a daily digest even when there are no due tasks[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/jobs/notification-job.test.ts[2m > [22mcron authorization[2m > [22mrejects missing or incorrect bearer credentials[32m 6[2mms[22m[39m
+ [32m✓[39m src/components/shared/bounded-card-list.test.tsx[2m > [22mBoundedCardList[2m > [22mcontains long card content in a keyboard-scrollable named region[32m 181[2mms[22m[39m
+ [32m✓[39m src/components/shared/bounded-card-list.test.tsx[2m > [22mBoundedCardList[2m > [22maccepts layout overrides such as a maximum height bound[32m 10[2mms[22m[39m
+ [32m✓[39m src/features/tasks/task-history-hooks.test.tsx[2m > [22museRestoreTask[2m > [22moptimistically removes an archived row and restores it after failure[32m 168[2mms[22m[39m
+ [32m✓[39m src/components/ui/task-classification.test.tsx[2m > [22mTaskClassification[2m > [22mcommunicates task type and priority with visible text[32m 182[2mms[22m[39m
+ [32m✓[39m src/components/ui/task-classification.test.tsx[2m > [22mTaskClassification[2m > [22momits the neutral priority badge while retaining the task type[32m 10[2mms[22m[39m
+ [32m✓[39m src/components/ui/app-button.test.tsx[2m > [22mAppButton[2m > [22mdefaults to type button while preserving explicit submit buttons[32m 207[2mms[22m[39m
+ [32m✓[39m src/features/weekly/weekly-progress.test.tsx[2m > [22mWeeklyProgress[2m > [22mshows the rounded percentage and exposes the exact ratio accessibly[32m 248[2mms[22m[39m
+ [32m✓[39m src/features/weekly/weekly-progress.test.tsx[2m > [22mWeeklyProgress[2m > [22mdoes not render misleading progress for an empty day[32m 23[2mms[22m[39m
+ [32m✓[39m src/components/ui/task-attachments.test.tsx[2m > [22mTaskAttachments[2m > [22mrenders external links with safe new-tab isolation[32m 223[2mms[22m[39m
+ [32m✓[39m src/components/ui/task-attachments.test.tsx[2m > [22mTaskAttachments[2m > [22mkeeps archived attachment views read-only[32m 8[2mms[22m[39m
+ [32m✓[39m src/components/ui/task-row.test.tsx[2m > [22mTaskRow[2m > [22mdoes not open details when toggling completion[32m 256[2mms[22m[39m
+ [32m✓[39m src/components/ui/task-row.test.tsx[2m > [22mTaskRow[2m > [22mopens details from the content button[32m 84[2mms[22m[39m
+ [32m✓[39m src/components/ui/app-checkbox.test.tsx[2m > [22mAppCheckbox[2m > [22mprovides an accessible 44px control and toggles from its visible label[33m 421[2mms[22m[39m
+ [32m✓[39m src/features/auth/auth-form.test.tsx[2m > [22mgetSafePostLoginPath[2m > [22mallows internal app paths with search and hash[32m 1[2mms[22m[39m
+ [32m✓[39m src/features/auth/auth-form.test.tsx[2m > [22mgetSafePostLoginPath[2m > [22mrejects external and non-path redirects[32m 0[2mms[22m[39m
+ [32m✓[39m src/features/auth/auth-form.test.tsx[2m > [22mAuthForm[2m > [22mtoggles password visibility with an accessible control[33m 329[2mms[22m[39m
+ [32m✓[39m src/features/auth/auth-form.test.tsx[2m > [22mAuthForm[2m > [22mplaces password recovery below verification resend[32m 48[2mms[22m[39m
+[90mstdout[2m | src/app/api/auth/signup/route.test.ts[2m > [22m[2msignup route[2m > [22m[2mreturns created when Supabase creates a user
+[22m[39m{"timestamp":"2026-09-05T12:28:05.867Z","level":"info","event":"api_request_completed","requestId":"e9fa34b3-3eb9-43ab-922e-46da7280aa57","method":"POST","route":"/api/auth/signup","status":201,"durationMs":69}
+
+[90mstdout[2m | src/app/api/auth/signup/route.test.ts[2m > [22m[2msignup route[2m > [22m[2mbootstraps an autoconfirmed local user without requiring email verification
+[22m[39m{"timestamp":"2026-09-05T12:28:05.879Z","level":"info","event":"api_request_completed","requestId":"b6e5f8b6-fddd-41a6-bebf-827c8856338c","method":"POST","route":"/api/auth/signup","status":201,"durationMs":1}
+
+[90mstdout[2m | src/app/api/auth/signup/route.test.ts[2m > [22m[2msignup route[2m > [22m[2mdoes not report success when Supabase rejects signup
+[22m[39m{"timestamp":"2026-09-05T12:28:05.883Z","level":"info","event":"api_request_completed","requestId":"e09f92c9-dc95-4cd8-99bf-814708d2f53e","method":"POST","route":"/api/auth/signup","status":400,"durationMs":2}
+
+[90mstdout[2m | src/app/api/auth/signup/route.test.ts[2m > [22m[2msignup route[2m > [22m[2mreturns a retryable 503 when local Supabase is unavailable
+[22m[39m{"timestamp":"2026-09-05T12:28:05.893Z","level":"info","event":"api_request_completed","requestId":"9d3b56b3-c1f2-4c82-b2fa-e532e9eba1b8","method":"POST","route":"/api/auth/signup","status":503,"durationMs":6}
+
+[90mstdout[2m | src/app/api/auth/signup/route.test.ts[2m > [22m[2msignup route[2m > [22m[2mclears the local session when profile setup is unavailable
+[22m[39m{"timestamp":"2026-09-05T12:28:05.897Z","level":"info","event":"api_request_completed","requestId":"8213059e-b047-4a41-b4ca-7006a52e4963","method":"POST","route":"/api/auth/signup","status":503,"durationMs":2}
+
+ [32m✓[39m src/app/api/auth/signup/route.test.ts[2m > [22msignup route[2m > [22mreturns created when Supabase creates a user[33m 2437[2mms[22m[39m
+ [32m✓[39m src/app/api/auth/signup/route.test.ts[2m > [22msignup route[2m > [22mbootstraps an autoconfirmed local user without requiring email verification[32m 4[2mms[22m[39m
+ [32m✓[39m src/app/api/auth/signup/route.test.ts[2m > [22msignup route[2m > [22mdoes not report success when Supabase rejects signup[32m 5[2mms[22m[39m
+ [32m✓[39m src/app/api/auth/signup/route.test.ts[2m > [22msignup route[2m > [22mreturns a retryable 503 when local Supabase is unavailable[32m 8[2mms[22m[39m
+ [32m✓[39m src/app/api/auth/signup/route.test.ts[2m > [22msignup route[2m > [22mclears the local session when profile setup is unavailable[32m 5[2mms[22m[39m
+ [32m✓[39m src/app/auth/callback/route.test.ts[2m > [22mSupabase auth callback[2m > [22mexchanges a PKCE code and redirects to the dashboard[32m 25[2mms[22m[39m
+ [32m✓[39m src/app/auth/callback/route.test.ts[2m > [22mSupabase auth callback[2m > [22mroutes a valid recovery exchange to the password form[32m 1[2mms[22m[39m
+ [32m✓[39m src/app/auth/callback/route.test.ts[2m > [22mSupabase auth callback[2m > [22mdoes not accept arbitrary callback redirect targets[32m 1[2mms[22m[39m
+ [32m✓[39m src/app/auth/callback/route.test.ts[2m > [22mSupabase auth callback[2m > [22mmaps an expired confirmation to a clean login error[32m 1[2mms[22m[39m
+ [32m✓[39m src/app/auth/callback/route.test.ts[2m > [22mSupabase auth callback[2m > [22mhandles a rejected code without exposing callback details[32m 1[2mms[22m[39m
+ [32m✓[39m src/app/auth/callback/route.test.ts[2m > [22mSupabase auth callback[2m > [22mclears a confirmed session when profile bootstrap fails[32m 1[2mms[22m[39m
+ [32m✓[39m src/lib/pwa/query-persistence.test.ts[2m > [22muser-scoped query persistence[2m > [22mpersists and restores selected successful reads per user[32m 16[2mms[22m[39m
+ [32m✓[39m src/lib/pwa/query-persistence.test.ts[2m > [22muser-scoped query persistence[2m > [22mrejects expired cache entries[32m 1[2mms[22m[39m
+ [32m✓[39m src/lib/github/app.test.ts[2m > [22mGitHub webhook verification[2m > [22maccepts valid sha256 signatures[32m 7[2mms[22m[39m
+ [32m✓[39m src/lib/github/app.test.ts[2m > [22mGitHub webhook verification[2m > [22mrejects invalid signatures[32m 1[2mms[22m[39m
+ [32m✓[39m src/lib/github/app.test.ts[2m > [22mGitHub user authorization URL[2m > [22muses the callback registered in GitHub instead of sending a mismatched URI[32m 1[2mms[22m[39m
+ [32m✓[39m src/lib/github/app.test.ts[2m > [22mGitHub user code exchange[2m > [22mreturns the user token after a successful exchange[32m 7[2mms[22m[39m
+ [32m✓[39m src/lib/github/app.test.ts[2m > [22mGitHub user code exchange[2m > [22mreports invalid client credentials as deployment configuration[32m 5[2mms[22m[39m
+ [32m✓[39m src/lib/github/app.test.ts[2m > [22mGitHub user code exchange[2m > [22masks the user to restart when GitHub rejects an expired code[32m 1[2mms[22m[39m
+ [32m✓[39m src/lib/github/app.test.ts[2m > [22mGitHub installation state[2m > [22mround-trips signed state for the same user[32m 1[2mms[22m[39m
+ [32m✓[39m src/lib/github/app.test.ts[2m > [22mGitHub installation state[2m > [22mrejects tampered or cross-user state[32m 1[2mms[22m[39m
+ [32m✓[39m src/components/shared/activity-feed-item.test.tsx[2m > [22mActivityFeedItem[2m > [22mnames and links an active task to its dated weekly detail[32m 287[2mms[22m[39m
+ [32m✓[39m src/components/shared/activity-feed-item.test.tsx[2m > [22mActivityFeedItem[2m > [22mroutes missed and archived task context to the matching history view[32m 31[2mms[22m[39m
+ [32m✓[39m src/components/shared/activity-feed-item.test.tsx[2m > [22mActivityFeedItem[2m > [22momits task context for project-only events[32m 6[2mms[22m[39m
+ [32m✓[39m src/components/ui/task-detail-sheet.test.tsx[2m > [22mTaskDetailSheet save lifecycle[2m > [22mwaits for a successful save before closing[33m 1290[2mms[22m[39m
+ [32m✓[39m src/components/ui/task-detail-sheet.test.tsx[2m > [22mTaskDetailSheet save lifecycle[2m > [22mkeeps the sheet and draft open when saving fails[33m 831[2mms[22m[39m
+ [32m✓[39m src/components/ui/story-subtasks.test.tsx[2m > [22mStorySubtasks[2m > [22mshows the numeric and accessible Story completion ratio[32m 232[2mms[22m[39m
+ [32m✓[39m src/lib/api/client.test.ts[2m > [22mnormalizeApiClientError[2m > [22mreturns already-normalized API client errors unchanged[32m 2[2mms[22m[39m
+ [32m✓[39m src/lib/api/client.test.ts[2m > [22mnormalizeApiClientError[2m > [22munwraps successful API envelopes and sends a request ID[32m 7[2mms[22m[39m
+ [32m✓[39m src/lib/api/client.test.ts[2m > [22mnormalizeApiClientError[2m > [22mnormalizes structured HTTP failures[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/security/origin.test.ts[2m > [22massertSameOrigin[2m > [22maccepts the request host when the configured app URL points at another Vercel alias[32m 21[2mms[22m[39m
+ [32m✓[39m src/server/security/origin.test.ts[2m > [22massertSameOrigin[2m > [22mrejects cross-origin state-changing requests[32m 4[2mms[22m[39m
+ [32m✓[39m src/server/services/github-service.test.ts[2m > [22mGitHub webhook verification[2m > [22mreturns a configuration error when the webhook secret is absent[32m 3[2mms[22m[39m
+ [32m✓[39m src/server/services/github-service.test.ts[2m > [22mGitHub webhook verification[2m > [22mrejects invalid signatures without logging delivery metadata[32m 0[2mms[22m[39m
+ [32m✓[39m src/server/services/github-service.test.ts[2m > [22mGitHub webhook verification[2m > [22mlogs only safe identifiers after a valid signature[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/services/github-service.test.ts[2m > [22mGitHub installation ownership[2m > [22mrejects a callback replay after the nonce was consumed[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/services/github-service.test.ts[2m > [22mGitHub installation ownership[2m > [22mrejects an installation already owned by another Rudo user[32m 0[2mms[22m[39m
+ [32m✓[39m src/server/services/github-service.test.ts[2m > [22mGitHub installation ownership[2m > [22mrejects repository listing for installations not owned by the actor[32m 0[2mms[22m[39m
+ [32m✓[39m src/server/services/github-service.test.ts[2m > [22mGitHub installation ownership[2m > [22muses GitHub-verified repository metadata when connecting a repository[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/services/github-service.test.ts[2m > [22mGitHub installation ownership[2m > [22mrequires disconnecting an existing project repository before replacement[32m 0[2mms[22m[39m
+ [32m✓[39m src/server/services/project-service.test.ts[2m > [22mchangeInvitationStatus authorization[2m > [22mrejects decline attempts from users who were not invited[32m 3[2mms[22m[39m
+ [32m✓[39m src/server/services/project-service.test.ts[2m > [22mchangeInvitationStatus authorization[2m > [22mallows the invited user to decline their own invitation[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/services/project-service.test.ts[2m > [22mchangeInvitationStatus authorization[2m > [22mkeeps revocation limited to project admins and owners[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/services/project-service.test.ts[2m > [22mproject administration rules[2m > [22mprevents an admin from promoting another member to admin[32m 0[2mms[22m[39m
+ [32m✓[39m src/server/services/project-service.test.ts[2m > [22mproject administration rules[2m > [22mprevents an admin from demoting another admin[32m 0[2mms[22m[39m
+ [32m✓[39m src/server/services/project-service.test.ts[2m > [22mproject administration rules[2m > [22mallows the owner to change a non-owner member role[32m 0[2mms[22m[39m
+ [32m✓[39m src/server/services/project-service.test.ts[2m > [22mimmediate project notification delivery[2m > [22mdelivers the durable invitation notification after project creation[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/services/project-service.test.ts[2m > [22mimmediate project notification delivery[2m > [22mdelivers a directly-created invitation notification after commit[32m 1[2mms[22m[39m
+ [32m✓[39m src/features/tasks/task-history-screen.test.tsx[2m > [22mTaskHistoryScreen[2m > [22muses URL-backed tabs and renders the selected history collection[33m 514[2mms[22m[39m
+ [32m✓[39m src/features/tasks/task-history-screen.test.tsx[2m > [22mTaskHistoryScreen[2m > [22moffers an explicit task-specific restore action for archived work[32m 128[2mms[22m[39m
+ [32m✓[39m src/server/services/task-history-service.test.ts[2m > [22mgetTaskHistory[2m > [22muses the viewer profile timezone to calculate the missed cutoff[32m 27[2mms[22m[39m
+ [32m✓[39m src/server/services/task-history-service.test.ts[2m > [22mrestoreTask[2m > [22mrestores an archived task and records activity in the same transaction[32m 4[2mms[22m[39m
+ [32m✓[39m src/server/services/task-history-service.test.ts[2m > [22mrestoreTask[2m > [22mrejects restore inside an archived project[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/services/task-history-service.test.ts[2m > [22mrestoreTask[2m > [22mrejects restore without mutation permission[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/services/task-history-service.test.ts[2m > [22mrestoreTask[2m > [22mrejects restoring a Subtask while its Story is archived[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/services/task-history-service.test.ts[2m > [22mrestoreTask[2m > [22mrecalculates the Story after restoring an active Subtask[32m 1[2mms[22m[39m
+ [32m✓[39m src/lib/theme/project-colors.test.ts[2m > [22mproject color palette[2m > [22mprovides exactly 24 unique project colors[32m 2[2mms[22m[39m
+ [32m✓[39m src/lib/theme/project-colors.test.ts[2m > [22mproject color palette[2m > [22mprovides every semantic token for every project color[32m 2[2mms[22m[39m
+ [32m✓[39m src/lib/api/errors.test.ts[2m > [22mnormalizeAppError[2m > [22mnormalizes PostgreSQL check violations without exposing database details[32m 3[2mms[22m[39m
+ [32m✓[39m src/lib/validation/schemas.test.ts[2m > [22mvalidation schemas[2m > [22mrejects owner invitations[32m 21[2mms[22m[39m
+ [32m✓[39m src/lib/validation/schemas.test.ts[2m > [22mvalidation schemas[2m > [22maccepts a valid personal task payload[32m 2[2mms[22m[39m
+ [32m✓[39m src/lib/validation/schemas.test.ts[2m > [22mvalidation schemas[2m > [22maccepts approved task classification and rejects unknown values[32m 1[2mms[22m[39m
+ [32m✓[39m src/lib/validation/schemas.test.ts[2m > [22mvalidation schemas[2m > [22mdoes not allow a Story to be nested as a subtask[32m 1[2mms[22m[39m
+ [32m✓[39m src/lib/validation/schemas.test.ts[2m > [22mvalidation schemas[2m > [22mdoes not inject create defaults into a partial task update[32m 2[2mms[22m[39m
+ [32m✓[39m src/lib/validation/schemas.test.ts[2m > [22mvalidation schemas[2m > [22mallows only http(s) attachment links[32m 1[2mms[22m[39m
+ [32m✓[39m src/lib/validation/schemas.test.ts[2m > [22mvalidation schemas[2m > [22mrejects executable and oversized task uploads[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/services/profile-service.test.ts[2m > [22mcreateProfileUploadUrl[2m > [22mcreates a private signed upload and records its lifecycle[32m 10[2mms[22m[39m
+ [32m✓[39m src/server/services/profile-service.test.ts[2m > [22mcreateProfileUploadUrl[2m > [22mreports safe storage diagnostics and returns a typed gateway failure[32m 2[2mms[22m[39m
+ [32m✓[39m src/components/ui/task-create-sheet.test.tsx[2m > [22mTaskCreateSheet[2m > [22mkeeps project scope fixed and creates an unassigned classified task[33m 2324[2mms[22m[39m
+ [32m✓[39m src/server/services/task-service.test.ts[2m > [22mupdateTask project reassignment authorization[2m > [22mrejects moving a task into a project where the actor has no role[32m 4[2mms[22m[39m
+ [32m✓[39m src/server/services/task-service.test.ts[2m > [22mupdateTask project reassignment authorization[2m > [22mrejects moving a task into a project where the actor is only a viewer[32m 0[2mms[22m[39m
+ [32m✓[39m src/server/services/task-service.test.ts[2m > [22mupdateTask project reassignment authorization[2m > [22mallows moving a task into a project where the actor can create tasks[32m 3[2mms[22m[39m
+ [32m✓[39m src/server/services/task-service.test.ts[2m > [22mupdateTask Story hierarchy[2m > [22mrejects changing a Story type while it still has children[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/services/task-service.test.ts[2m > [22mcreateTask assignment defaults[2m > [22mdefaults an omitted project assignee to unassigned[32m 3[2mms[22m[39m
+ [32m✓[39m src/server/services/task-service.test.ts[2m > [22mcreateTask assignment defaults[2m > [22mpreserves an explicit unassigned project task[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/services/task-service.test.ts[2m > [22mcreateTask assignment defaults[2m > [22mdelivers an assignment notification when another member is assigned[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/services/task-service.test.ts[2m > [22mcreateTask hierarchy authorization[2m > [22mrejects a subtask when its parent Story is not visible[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/services/task-service.test.ts[2m > [22mcreateTask hierarchy authorization[2m > [22mrejects a subtask whose parent does not share its scope[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/services/task-service.test.ts[2m > [22mmoveTask Kanban transitions[2m > [22mmoves an in-progress task back to TODO with optimistic concurrency[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/services/task-service.test.ts[2m > [22mmoveTask Kanban transitions[2m > [22mrejects a stale explicit move[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/services/task-service.test.ts[2m > [22mStory roll-up[2m > [22mrejects manually completing a Story with incomplete active subtasks[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/services/task-service.test.ts[2m > [22mStory roll-up[2m > [22mrolls up the Story after completing its final active subtask[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/services/task-service.test.ts[2m > [22mStory roll-up[2m > [22mreopens the Story after one of its completed subtasks is reopened[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/task-attachments.test.ts[2m > [22mtask attachment byte validation[2m > [22maccepts a PDF signature and rejects spoofed PDF bytes[32m 4[2mms[22m[39m
+ [32m✓[39m src/server/task-attachments.test.ts[2m > [22mtask attachment byte validation[2m > [22mrequires valid JSON content[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/policies/project-policy.test.ts[2m > [22mproject permissions[2m > [22mranks roles according to the permission matrix[32m 3[2mms[22m[39m
+ [32m✓[39m src/server/policies/project-policy.test.ts[2m > [22mtask transitions[2m > [22mcompletes active tasks and stores previous status[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/policies/project-policy.test.ts[2m > [22mtask transitions[2m > [22mreopens completed tasks to previous non-done status[32m 1[2mms[22m[39m
+ [32m✓[39m src/lib/auth/provider-errors.test.ts[2m > [22mSupabase Auth provider errors[2m > [22mrecognizes network and upstream failures[32m 2[2mms[22m[39m
+ [32m✓[39m src/lib/auth/provider-errors.test.ts[2m > [22mSupabase Auth provider errors[2m > [22mdoes not mistake credential errors for an outage[32m 0[2mms[22m[39m
+ [32m✓[39m src/lib/auth/provider-errors.test.ts[2m > [22mSupabase Auth provider errors[2m > [22mkeeps the provider failure as the safe 503 error cause[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/services/task-attachment-service.test.ts[2m > [22mtask attachment mutations[2m > [22mprevents a read-only viewer from adding a link[32m 4[2mms[22m[39m
+ [32m✓[39m src/server/services/task-attachment-service.test.ts[2m > [22mtask attachment mutations[2m > [22mcreates a private signed upload authorization bound to task and user[32m 4[2mms[22m[39m
+ [32m✓[39m src/server/services/task-attachment-service.test.ts[2m > [22mtask attachment mutations[2m > [22mvalidates stored bytes before atomically committing a file[32m 1[2mms[22m[39m
+ [32m✓[39m src/lib/api/response.test.ts[2m > [22mrequestIdFrom[2m > [22mpreserves a safe caller-provided request ID[32m 1[2mms[22m[39m
+ [32m✓[39m src/lib/api/response.test.ts[2m > [22mrequestIdFrom[2m > [22mreplaces unsafe request ID "contains a space"[32m 1[2mms[22m[39m
+ [32m✓[39m src/lib/api/response.test.ts[2m > [22mrequestIdFrom[2m > [22mreplaces unsafe request ID "line\nbreak"[32m 0[2mms[22m[39m
+ [32m✓[39m src/lib/api/response.test.ts[2m > [22mrequestIdFrom[2m > [22mreplaces unsafe request ID "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"[32m 0[2mms[22m[39m
+ [32m✓[39m src/server/profile-assets.test.ts[2m > [22mparseProfileAssetPath[2m > [22maccepts generated asset paths for the current user and kind[32m 2[2mms[22m[39m
+ [32m✓[39m src/server/profile-assets.test.ts[2m > [22mparseProfileAssetPath[2m > [22mrejects cross-user, wrong-kind, and unsupported-extension paths[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/repositories/task-history-repository.test.ts[2m > [22mtask history cursor[2m > [22mround-trips the strict ordering tuple[32m 2[2mms[22m[39m
+ [32m✓[39m src/server/repositories/task-history-repository.test.ts[2m > [22mtask history cursor[2m > [22mrejects malformed and forged cursor shapes[32m 2[2mms[22m[39m
+ [32m✓[39m src/lib/db/client.test.ts[2m > [22mgetPgSslConfig[2m > [22mdisables SSL for loopback database URLs[32m 2[2mms[22m[39m
+ [32m✓[39m src/lib/db/client.test.ts[2m > [22mgetPgSslConfig[2m > [22mhonors explicit sslmode settings[32m 1[2mms[22m[39m
+ [32m✓[39m src/lib/db/client.test.ts[2m > [22mgetPgSslConfig[2m > [22muses SSL for hosted database URLs by default[32m 0[2mms[22m[39m
+ [32m✓[39m src/lib/validation/task-attachments.test.ts[2m > [22mtask attachment validation[2m > [22maccepts only http and https links[32m 4[2mms[22m[39m
+ [32m✓[39m src/lib/validation/task-attachments.test.ts[2m > [22mtask attachment validation[2m > [22mrejects a permitted extension paired with the wrong MIME type[32m 1[2mms[22m[39m
+ [32m✓[39m src/lib/validation/task-attachments.test.ts[2m > [22mtask attachment validation[2m > [22mrejects files larger than ten MiB[32m 1[2mms[22m[39m
+ [32m✓[39m src/lib/validation/dashboard.test.ts[2m > [22mdashboardQuerySchema[2m > [22maccepts an inclusive 32-day dashboard window[32m 3[2mms[22m[39m
+ [32m✓[39m src/lib/validation/dashboard.test.ts[2m > [22mdashboardQuerySchema[2m > [22mrejects reversed dashboard windows[32m 1[2mms[22m[39m
+ [32m✓[39m src/lib/validation/dashboard.test.ts[2m > [22mdashboardQuerySchema[2m > [22mrejects dashboard windows longer than 32 calendar days[32m 0[2mms[22m[39m
+ [32m✓[39m src/server/repositories/notification-repository.test.ts[2m > [22mnotification repository[2m > [22mexcludes completed tasks from daily due counts[32m 4[2mms[22m[39m
+ [32m✓[39m src/server/repositories/notification-repository.test.ts[2m > [22mnotification repository[2m > [22muses targetless conflict handling for the partial dedupe index[32m 2[2mms[22m[39m
+ [32m✓[39m src/server/repositories/activity-repository.test.ts[2m > [22mcanViewActivityRow[2m > [22mallows project activity only when the user is a current project member[32m 3[2mms[22m[39m
+ [32m✓[39m src/server/repositories/activity-repository.test.ts[2m > [22mcanViewActivityRow[2m > [22mallows personal activity for the actor or related personal task[32m 0[2mms[22m[39m
+ [32m✓[39m src/server/repositories/activity-repository.test.ts[2m > [22mmapActivityTaskContext[2m > [22mincludes enough task context for an unambiguous activity destination[32m 1[2mms[22m[39m
+ [32m✓[39m src/server/repositories/activity-repository.test.ts[2m > [22mmapActivityTaskContext[2m > [22mreturns null for activity without a joined task[32m 0[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m44 passed[39m[22m[90m (44)[39m
+[2m      Tests [22m [1m[32m147 passed[39m[22m[90m (147)[39m
+[2m   Start at [22m 15:58:01
+[2m   Duration [22m 9.30s[2m (transform 3.81s, setup 6.41s, import 38.64s, tests 11.50s, environment 70.34s)[22m
+
