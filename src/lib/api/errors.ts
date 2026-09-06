@@ -40,6 +40,7 @@ export class AppError extends Error {
  * Inputs: Unknown error value.
  * Output: AppError with sanitized code and message.
  * Side effects: None.
+ * Debug: Logs the error type and code for root-cause analysis when falling through to INTERNAL_ERROR.
  */
 export function normalizeAppError(error: unknown): AppError {
   if (error instanceof AppError) return error;
@@ -74,5 +75,14 @@ export function normalizeAppError(error: unknown): AppError {
       `${error.message.split(":")[1]} is not configured.`,
     );
   }
+  // DEBUG: Log the raw error before defaulting to INTERNAL_ERROR
+  console.error(
+    "[normalizeAppError] UNHANDLED ERROR - type:",
+    error instanceof Error ? error.constructor.name : typeof error,
+    "- message:",
+    error instanceof Error ? error.message : String(error),
+    "- code:",
+    (error as { code?: string }).code,
+  );
   return new AppError("INTERNAL_ERROR", 500, "Something went wrong.");
 }

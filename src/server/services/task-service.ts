@@ -427,12 +427,38 @@ async function commitTaskTransition(
   const operation = async (tx: DbExecutor) => {
     const updated = await updateTaskRow(taskId, version, changes, userId, tx);
     if (!updated) throw new AppError("CONFLICT", 409, "Task changed on another device.");
-    await createActivityEvent(
-      { actorId: userId, projectId: updated.projectId, taskId, eventType },
-      tx,
-    );
+    try {
+      await createActivityEvent(
+        { actorId: userId, projectId: updated.projectId, taskId, eventType },
+        tx,
+      );
+    } catch (createEventError) {
+      console.error(
+        "[commitTaskTransition] createActivityEvent error:",
+        createEventError instanceof Error
+          ? createEventError.constructor.name
+          : typeof createEventError,
+        "- message:",
+        createEventError instanceof Error
+          ? createEventError.message
+          : String(createEventError),
+      );
+      throw createEventError;
+    }
     if (updated.parentTaskId) {
-      await applyStoryRollup(userId, updated.parentTaskId, tx);
+      try {
+        await applyStoryRollup(userId, updated.parentTaskId, tx);
+      } catch (rollupError) {
+        console.error(
+          "[commitTaskTransition] applyStoryRollup error:",
+          rollupError instanceof Error
+            ? rollupError.constructor.name
+            : typeof rollupError,
+          "- message:",
+          rollupError instanceof Error ? rollupError.message : String(rollupError),
+        );
+        throw rollupError;
+      }
     }
     return updated;
   };
