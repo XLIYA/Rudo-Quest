@@ -60,7 +60,11 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-function renderSheet(onSave: () => Promise<void>, onOpenChange = vi.fn()) {
+function renderSheet(
+  onSave: () => Promise<void>,
+  onOpenChange = vi.fn(),
+  onAction = vi.fn(),
+) {
   render(
     <TaskDetailSheet
       task={task}
@@ -68,17 +72,35 @@ function renderSheet(onSave: () => Promise<void>, onOpenChange = vi.fn()) {
       onOpenChange={onOpenChange}
       onOpenRelatedTask={vi.fn()}
       onSave={onSave}
-      onAction={vi.fn()}
+      onAction={onAction}
       onArchive={vi.fn()}
     />,
   );
-  return onOpenChange;
+  return { onOpenChange, onAction };
 }
+
+describe("TaskDetailSheet pending review action", () => {
+  it("calls onAction with pending_review when clicking Pending Review button", async () => {
+    const { onAction } = renderSheet(() => Promise.resolve());
+
+    // The sheet should show the Pending Review button for a TODO task
+    expect(screen.getByRole("button", { name: /pending review/i })).toBeInTheDocument();
+
+    // Click the Pending Review button
+    fireEvent.click(screen.getByRole("button", { name: /pending review/i }));
+
+    // The onAction callback should be called with pending_review action
+    expect(onAction).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "TODO" }),
+      "pending_review",
+    );
+  });
+});
 
 describe("TaskDetailSheet save lifecycle", () => {
   it("waits for a successful save before closing", async () => {
     const save = deferred();
-    const onOpenChange = renderSheet(() => save.promise);
+    const { onOpenChange } = renderSheet(() => save.promise);
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
     expect(onOpenChange).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
@@ -88,7 +110,7 @@ describe("TaskDetailSheet save lifecycle", () => {
 
   it("keeps the sheet and draft open when saving fails", async () => {
     const save = deferred();
-    const onOpenChange = renderSheet(() => save.promise);
+    const { onOpenChange } = renderSheet(() => save.promise);
     fireEvent.change(screen.getByRole("textbox", { name: "Title" }), {
       target: { value: "Retained draft" },
     });

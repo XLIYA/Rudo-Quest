@@ -4,6 +4,7 @@ import {
   apiMutation,
   normalizeApiClientError,
   type ApiClientError,
+  MAX_RESPONSE_BYTES,
 } from "./client";
 
 afterEach(() => {
@@ -69,6 +70,65 @@ describe("normalizeApiClientError", () => {
       fieldErrors: { title: ["Required"] },
       requestId: "server-request",
       status: 400,
+    });
+  });
+
+  it("rejects responses with Content-Length exceeding the size limit", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ data: { large: "payload" } }), {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+            "content-length": String(MAX_RESPONSE_BYTES + 1),
+          },
+        }),
+      ),
+    );
+
+    await expect(apiGet<{ large: string }>("/api/data")).rejects.toMatchObject({
+      code: "RESPONSE_TOO_LARGE",
+      message: "The response was too large. Try again.",
+    });
+  });
+
+  it("accepts responses with Content-Length within the size limit", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { title: "Small" } }), {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+          "content-length": "100",
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(apiGet<{ title: string }>("/api/data")).resolves.toEqual({
+      title: "Small",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/data",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("rejects responses exceeding the limit without Content-Length header", async () => {
+    // Create a response with a body larger than MAX_RESPONSE_BYTES but no Content-Length
+    const largeBody = "x".repeat(MAX_RESPONSE_BYTES + 1000);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(largeBody, {
+          status: 200,
+          headers: { "content-type": "text/plain" },
+        }),
+      ),
+    );
+
+    await expect(apiGet<{ data: string }>("/api/big")).rejects.toMatchObject({
+      code: "RESPONSE_TOO_LARGE",
     });
   });
 });

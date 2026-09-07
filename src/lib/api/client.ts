@@ -10,6 +10,13 @@ export type ApiClientError = {
   status: number;
 };
 
+/**
+ * Purpose: Maximum allowed response body size in bytes.
+ * Responses exceeding this limit are rejected before parsing to prevent
+ * memory exhaustion from malformed or maliciously large payloads.
+ */
+export const MAX_RESPONSE_BYTES = 5 * 1024 * 1024; // 5 MB
+
 const requestTimeoutMs = 20_000;
 
 /**
@@ -54,6 +61,62 @@ export function normalizeApiClientError(error: unknown): ApiClientError {
     requestId: crypto.randomUUID(),
     status: 0,
   };
+}
+
+/**
+ * Purpose: Read a bounded JSON response body, throwing if the payload exceeds the size limit.
+ * Inputs: Fetch Response object.
+ * Output: Parsed JSON value or null on parse failure.
+ * Side effects: Consumes the response body stream.
+ * Failure behavior: Throws RESPONSE_TOO_LARGE when the body exceeds MAX_RESPONSE_BYTES.
+ */
+async function readBoundedJson<T>(response: Response): Promise<T | null> {
+  // Check Content-Length header first if available
+  const contentLength = response.headers.get("content-length");
+  if (contentLength) {
+    const declaredLength = Number(contentLength);
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_RESPONSE_BYTES) {
+      throw {
+        code: "RESPONSE_TOO_LARGE",
+        message: "The response was too large. Try again.",
+        requestId: crypto.randomUUID(),
+        status: response.status,
+      } satisfies ApiClientError;
+    }
+  }
+
+  // Read the body as text with a byte limit since Content-Length may not be sent
+  if (!response.body) return null;
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let totalBytes = 0;
+  let text = "";
+  try {
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      totalBytes += chunk.value.byteLength;
+      if (totalBytes > MAX_RESPONSE_BYTES) {
+        await reader.cancel();
+        throw {
+          code: "RESPONSE_TOO_LARGE",
+          message: "The response was too large. Try again.",
+          requestId: crypto.randomUUID(),
+          status: response.status,
+        } satisfies ApiClientError;
+      }
+      text += decoder.decode(chunk.value, { stream: true });
+    }
+    text += decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -116,7 +179,7 @@ async function apiRequest<T>(
     signal?.removeEventListener("abort", abortFromCaller);
   }
 
-  const payload = (await response.json().catch(() => null)) as
+  const payload = (await readBoundedJson<ApiSuccess<T> | ApiFailure>(response)) as
     ApiSuccess<T> | ApiFailure | null;
   const responseRequestId =
     (payload && "requestId" in payload ? payload.requestId : undefined) ??

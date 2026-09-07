@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
+import { useMemo } from "react";
 
 import type {
   ActivityEventDto,
@@ -140,7 +141,14 @@ export function ProjectDetailScreen() {
     archivedFilters,
   );
   const restore = useRestoreTask({ weekStart });
-  const archivedItems = archivedTasks.data?.pages.flatMap((page) => page.items) ?? [];
+  const archivedItems = useMemo(
+    () => archivedTasks.data?.pages.flatMap((page) => page.items) ?? [],
+    [archivedTasks.data],
+  );
+  const activityItems = useMemo(
+    () => activity.data?.pages.flatMap((page) => page.items) ?? [],
+    [activity.data],
+  );
   if (project.isLoading)
     return (
       <main className="p-5 md:p-8">
@@ -156,7 +164,6 @@ export function ProjectDetailScreen() {
         />
       </main>
     );
-  const activityItems = activity.data?.pages.flatMap((page) => page.items) ?? [];
   const projectColor = getProjectColor(project.data.colorKey);
   return (
     <main className="mx-auto grid w-full max-w-[100rem] gap-5 p-5 md:p-8">
@@ -318,11 +325,12 @@ export function ProjectDetailScreen() {
                 />
               ) : null}
               <div className="grid gap-2 max-h-[30rem] overflow-y-auto pr-2 [scrollbar-gutter:stable]">
-                {activityItems.slice(0, 10).map((event) => (
+                {activityItems.slice(0, 10).map((event: ActivityEventDto) => (
                   <ActivityAccordionItem
                     key={event.id}
                     event={event}
                     todayDate={currentDate}
+                    timeZone={calendarTimeZone}
                   />
                 ))}
                 <AppPagination
@@ -735,9 +743,11 @@ function KanbanTaskCard({
 function ActivityAccordionItem({
   event,
   todayDate,
+  timeZone,
 }: {
   event: ActivityEventDto;
   todayDate: string;
+  timeZone: string;
 }) {
   const [open, setOpen] = useState(false);
   const href = event.task ? getTaskActivityHref(event.task, todayDate) : null;
@@ -766,7 +776,7 @@ function ActivityAccordionItem({
             className="font-mono text-xs text-text-tertiary whitespace-nowrap"
           >
             {formatRelativeDay(event.createdAt, todayDate)} ·{" "}
-            {new Date(event.createdAt).toLocaleString()}
+            {new Date(event.createdAt).toLocaleString(undefined, { timeZone })}
           </time>
         </div>
       </button>
@@ -834,9 +844,11 @@ function formatRelativeDay(date: string, todayDate: string): string {
   );
   if (diff === 0) return "Today";
   if (diff === -1) return "Yesterday";
-  if (diff === 1) return "Tomorrow";
+  // In activity feed contexts, events are typically historical.
+  // Use past-oriented phrasing for recent past events.
   if (diff < -1 && diff >= -6) return `${Math.abs(diff)} days ago`;
-  if (diff > 1 && diff <= 6) return `In ${diff} days`;
+  // For future events (rare in activity feeds), use neutral phrasing.
+  if (diff > 0 && diff <= 6) return `In ${diff} days`;
   return eventDate.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 

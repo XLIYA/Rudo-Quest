@@ -1,15 +1,22 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, Play, Archive, RotateCcw, AlertCircle } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
+import {
+  CheckCircle2,
+  Play,
+  Archive,
+  RotateCcw,
+  AlertCircle,
+  Loader2,
+} from "lucide-react";
+import { useState, type FormEvent } from "react";
 import { apiGet } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
+import { useAllProjects } from "@/features/projects/project-hooks";
 import {
   projectIconKeys,
   type ProjectIconKey,
   type ProfileSummary,
-  type ProjectSummary,
   type TaskDto,
   type TaskPriority,
   type TaskType,
@@ -84,8 +91,8 @@ function toDraft(task: TaskDto): TaskDraft {
 /**
  * Purpose: Select between personal scope and active editable projects.
  * Inputs: Current project, controlled change handler, and disabled state.
- * Output: Local project select UI.
- * Side effects: Reads the shared projects query.
+ * Output: Project select UI with loading state.
+ * Side effects: Reads the shared projects query via useAllProjects.
  */
 function ProjectCombobox({
   value,
@@ -96,30 +103,55 @@ function ProjectCombobox({
   onChange: (value: string | null) => void;
   disabled: boolean;
 }) {
-  const projectsQuery = useQuery({
-    queryKey: queryKeys.projects,
-    queryFn: ({ signal }) => apiGet<ProjectSummary[]>("/api/projects", signal),
-  });
-  const options = useMemo(
-    () => [
-      { value: "__personal__", label: "Personal task" },
-      ...(projectsQuery.data
-        ?.filter((project) => !project.archivedAt && project.role !== "VIEWER")
-        .map((project) => ({
-          value: project.id,
-          label: project.title,
-        })) ?? []),
-    ],
-    [projectsQuery.data],
-  );
+  const projectsQuery = useAllProjects();
+
+  const options = [
+    { value: "__personal__", label: "Personal task" },
+    ...(projectsQuery.data
+      ?.filter((project) => !project.archivedAt && project.role !== "VIEWER")
+      .map((project) => ({
+        value: project.id,
+        label: project.title,
+      })) ?? []),
+  ];
+
+  const isLoading = projectsQuery.isLoading;
+  const isError = projectsQuery.isError;
+
+  if (isError) {
+    return (
+      <AppSelect
+        label="Project"
+        value={value ?? "__personal__"}
+        onValueChange={(next) => onChange(next === "__personal__" ? null : next)}
+        options={[{ value: "__personal__", label: "Personal task" }]}
+        disabled={disabled || true}
+        placeholder="Failed to load projects"
+      />
+    );
+  }
+
   return (
-    <AppSelect
-      label="Project"
-      value={value ?? "__personal__"}
-      onValueChange={(next) => onChange(next === "__personal__" ? null : next)}
-      options={options}
-      disabled={disabled}
-    />
+    <div className="grid gap-1.5 text-sm font-medium">
+      {isLoading ? (
+        <>
+          <label className="text-sm font-medium text-text-primary">Project</label>
+          <div className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border bg-surface px-3 text-text-tertiary">
+            <Loader2 className="size-4 animate-spin" />
+            <span>Loading projects...</span>
+          </div>
+        </>
+      ) : (
+        <AppSelect
+          label="Project"
+          value={value ?? "__personal__"}
+          onValueChange={(next) => onChange(next === "__personal__" ? null : next)}
+          options={options}
+          disabled={disabled}
+          placeholder="Select a project..."
+        />
+      )}
+    </div>
   );
 }
 
@@ -374,7 +406,7 @@ export function TaskDetailSheet({
                 disabled={detailsDisabled}
               />
               <TaskAssigneeCombobox
-                key={`${activeTask.id}:${activeTask.version}:${draft.projectId ?? "personal"}`}
+                key={`${activeTask.id}:${activeTask.version}:${activeTask.projectId ?? "personal"}`}
                 value={draft.assigneeId}
                 currentAssignee={
                   draft.projectId === activeTask.projectId &&
@@ -444,7 +476,7 @@ export function TaskDetailSheet({
             </aside>
           </div>
           {!archivedReadOnly ? (
-            <div className="grid grid-cols-1 gap-2 border-t border-border pt-4 sm:grid-cols-3 lg:grid-cols-5 [&>*]:w-full">
+            <div className="grid grid-cols-2 gap-2 border-t border-border pt-4 sm:grid-cols-2 sm:grid-cols-auto lg:grid-cols-[repeat(auto-fit,minmax(120px,1fr))] [&>*]:w-full">
               {activeTask.status === "TODO" ? (
                 <>
                   <AppButton

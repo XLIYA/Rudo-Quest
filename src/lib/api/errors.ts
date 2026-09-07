@@ -75,14 +75,16 @@ export function normalizeAppError(error: unknown): AppError {
       `${error.message.split(":")[1]} is not configured.`,
     );
   }
-  // DEBUG: Log the raw error before defaulting to INTERNAL_ERROR
-  console.error(
-    "[normalizeAppError] UNHANDLED ERROR - type:",
-    error instanceof Error ? error.constructor.name : typeof error,
-    "- message:",
-    error instanceof Error ? error.message : String(error),
-    "- code:",
-    (error as { code?: string }).code,
-  );
+  // DEBUG: Log the raw error before defaulting to INTERNAL_ERROR (development only)
+  if (process.env.NODE_ENV === "development") {
+    console.error(
+      "[normalizeAppError] UNHANDLED ERROR - type:",
+      error instanceof Error ? error.constructor.name : typeof error,
+      "- message:",
+      error instanceof Error ? error.message : String(error),
+      "- code:",
+      (error as { code?: string }).code,
+    );
+  }
   return new AppError("INTERNAL_ERROR", 500, "Something went wrong.");
 }

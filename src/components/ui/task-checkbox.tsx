@@ -13,32 +13,41 @@ export type TaskCheckboxProps = {
 /**
  * Purpose: Render the task completion checkbox with accessible label.
  * Inputs: Checked state, label, disabled state, and change handler.
- * Output: Button checkbox control.
+ * Output: Native checkbox control styled to match the design system.
  * Side effects: Calls onChange when activated.
  */
 export function TaskCheckbox({ checked, label, disabled, onChange }: TaskCheckboxProps) {
   return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={checked}
-      aria-label={label}
-      disabled={disabled}
-      onClick={(event) => {
-        event.stopPropagation();
-        onChange();
-      }}
-      className={cn("flex size-11 shrink-0 items-center justify-center rounded-md")}
+    <label
+      className={cn(
+        "flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand",
+      )}
+      title={label}
     >
+      <input
+        type="checkbox"
+        role="checkbox"
+        aria-label={label}
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => {
+          event.stopPropagation();
+          onChange();
+        }}
+        className="sr-only"
+      />
       <span
         aria-hidden="true"
         className={cn(
-          "flex size-6 items-center justify-center rounded-sm border border-border-strong",
-          checked ? "border-brand bg-brand text-white" : "bg-surface",
+          "flex size-6 items-center justify-center rounded-sm border border-border-strong transition-colors duration-150",
+          checked
+            ? "border-brand bg-brand text-white"
+            : "border-border-strong bg-surface hover:bg-surface-muted",
         )}
+        style={{ pointerEvents: "none" }}
       >
         {checked ? <Check className="size-4" /> : null}
       </span>
-    </button>
+    </label>
   );
 }

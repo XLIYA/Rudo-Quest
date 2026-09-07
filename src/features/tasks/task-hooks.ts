@@ -271,7 +271,7 @@ export function useTaskMutation(weekStart: string) {
  * Output: Updated task DTO.
  * Side effects: None.
  */
-function optimisticTask(
+export function optimisticTask(
   task: TaskDto,
   action: string,
   body?: Record<string, unknown>,
@@ -294,6 +294,16 @@ function optimisticTask(
       ...task,
       status: task.previousStatus ?? "TODO",
       previousStatus: null,
+      completedAt: null,
+      version: task.version + 1,
+      updatedAt: now,
+    };
+  }
+  if (action === "pending_review") {
+    return {
+      ...task,
+      status: "PENDING_REVIEW",
+      previousStatus: task.status !== "DONE" ? task.status : task.previousStatus,
       completedAt: null,
       version: task.version + 1,
       updatedAt: now,

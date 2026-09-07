@@ -25,6 +25,21 @@ export function useProjects(search = "") {
 }
 
 /**
+ * Purpose: Fetch all projects for use in selectors/comboboxes.
+ * Uses a longer staleTime since project lists change infrequently.
+ * Inputs: None.
+ * Output: TanStack Query result for all active projects.
+ * Side effects: Performs browser HTTP GET.
+ */
+export function useAllProjects() {
+  return useQuery({
+    queryKey: queryKeys.projects,
+    queryFn: ({ signal }) => apiGet<ProjectSummary[]>("/api/projects", signal),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+/**
  * Purpose: Create a project without optimistic updates.
  * Inputs: Validated project form payload.
  * Output: TanStack mutation.

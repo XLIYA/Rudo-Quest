@@ -43,8 +43,12 @@ export function registerSerwist(options?: {
       updateActivationRequested = true;
       serwist.messageSkipWaiting();
     };
+    // Only activate updates through the explicit onUpdate callback.
+    // This prevents automatic service worker activation that could interrupt
+    // in-progress user sessions. The caller (providers.tsx) always provides
+    // an onUpdate handler, so this else branch is removed for safety.
     if (options?.onUpdate) options.onUpdate(activateUpdate);
-    else activateUpdate();
+    // No else: updates require explicit handling via onUpdate.
   });
 
   serwist.addEventListener("controlling", () => {
