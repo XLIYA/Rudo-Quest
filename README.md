@@ -281,3 +281,12 @@ Details: [docs/PWA_OFFLINE.md](docs/PWA_OFFLINE.md).
 - Delivery rows enforce one notification/subscription pair, track attempts with exponential backoff, and remove subscriptions that return 404/410. Assignment/invitation notifications dispatch immediately after the DB transaction commits — a failed push never rolls back the product action.
 
 Details: [docs/PUSH_NOTIFICATIONS.md](docs/PUSH_NOTIFICATIONS.md).
+
+## GitHub App Integration
+
+- One repository connection per project (`project_repositories`), backed by a GitHub App installation.
+- Two server-validated legs: signed state + user authorization, then App installation; the callback verifies nonce, expiry, current user, and installation ownership before atomically consuming the state.
+- Server-generated app JWTs and installation tokens are short-lived and never persisted or sent to the browser.
+- V1 scope: metadata read permission only; no issue import, no two-way sync.
+
+Setup: [docs/GITHUB_APP_SETUP.md](docs/GITHUB_APP_SETUP.md).
