@@ -29,7 +29,3 @@ npm audit --omit=dev
 git diff --check
 npx playwright test
 ```
-
-## Environment
-
-All variables are listed in `.env.example`. Supabase and `DATABASE_URL` are required for authenticated application flows. GitHub, VAPID, and Sentry are optional integrations. Upstash Redis and `CRON_SECRET` are required in production because rate limiting, overlap-safe scheduled work, notifications, and abandoned-upload cleanup depend on them.
