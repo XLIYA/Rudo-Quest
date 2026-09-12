@@ -45,7 +45,3 @@ Browser mutations go through Route Handlers via the typed Fetch wrapper in `src/
 ## PWA
 
 Serwist builds `public/sw.js` from `src/app/sw.ts`. It caches public shell assets and the offline route, but never authenticated API or protected navigation responses. IndexedDB reads restore only after `/api/me` verifies the session; an already-open app keeps in-memory data while disconnected. Mutations are blocked offline. The app manifest is `src/app/manifest.ts`; icons are in `public/icons`.
-
-## Documentation
-
-Read `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, `docs/VERCEL_ENVIRONMENT.md`, `docs/GITHUB_APP_SETUP.md`, `docs/PUSH_NOTIFICATIONS.md`, `docs/PWA_OFFLINE.md`, `docs/AUDIT_FIXES.md`, and `docs/DECISIONS.md`.
