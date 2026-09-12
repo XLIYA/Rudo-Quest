@@ -13,5 +13,3 @@ The development seed creates or updates this verified login:
 ```bash
 npm run db:seed
 ```
-
-Use the seeded account from `.env.local` to sign in after migrations complete.
