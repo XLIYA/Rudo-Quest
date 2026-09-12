@@ -9,7 +9,3 @@ Install dependencies with `npm install`, copy `.env.example` to `.env.local`, co
 This application uses Supabase Auth and the database migration references `auth.users`, so local development requires a Supabase local stack or a hosted Supabase project. A plain PostgreSQL database is not enough. Copy the tracked `.env.example` to `.env.local`, then fill the local or hosted Supabase values before migrating and seeding.
 
 The development seed creates or updates this verified login:
-
-```bash
-npm run db:seed
-```
