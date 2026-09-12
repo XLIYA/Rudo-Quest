@@ -216,7 +216,7 @@ export function AppShell({
   return (
     <div
       className={cn(
-        "min-h-dvh bg-background text-text-primary md:grid md:transition-[grid-template-columns] md:duration-300 md:ease-out",
+        "min-h-dvh bg-background text-text-primary md:h-dvh md:grid md:overflow-hidden md:transition-[grid-template-columns] md:duration-300 md:ease-out",
         collapsed ? "md:grid-cols-[4.5rem_1fr]" : "md:grid-cols-[15rem_1fr]",
       )}
     >
@@ -399,7 +399,7 @@ export function AppShell({
           </div>
         </div>
       </aside>
-      <div className="min-w-0 pb-[calc(4.75rem+env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] md:pb-0 md:pl-0 md:pr-0 md:pt-0">
+      <div className="min-w-0 pb-[calc(4.75rem+env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] md:min-h-0 md:pb-0 md:pl-0 md:pr-0 md:pt-0 md:overflow-y-auto">
         {children}
         {showQuickAdd ? (
           <Link

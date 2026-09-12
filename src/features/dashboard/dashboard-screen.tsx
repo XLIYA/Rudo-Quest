@@ -118,7 +118,7 @@ export function DashboardScreen() {
   const chartMax = Math.max(1, ...query.data.weeklyProgress.days.map((day) => day.total));
 
   return (
-    <main className="app-enter mx-auto grid min-w-0 max-w-7xl gap-4 overflow-x-hidden px-4 py-5 sm:gap-5 sm:px-5 md:gap-6 md:p-8">
+    <main className="app-enter mx-auto grid min-w-0 max-w-7xl gap-4 overflow-x-hidden px-4 py-5 sm:gap-5 sm:px-5 md:gap-6 md:p-8 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:[scrollbar-gutter:stable]">
       <PageHeader
         title="Dashboard"
         description="Today, weekly progress, completion rhythm, and project load."
@@ -467,7 +467,7 @@ function Widget({
  */
 function DashboardSkeleton() {
   return (
-    <main className="grid min-w-0 gap-4 px-4 py-5 sm:px-5 md:p-8">
+    <main className="grid min-w-0 gap-4 px-4 py-5 sm:px-5 md:p-8 lg:h-full lg:min-h-0 lg:overflow-y-auto">
       <AppSkeleton className="h-12 w-56" />
       <AppSkeleton className="h-64 w-full" />
       <AppSkeleton className="h-64 w-full" />

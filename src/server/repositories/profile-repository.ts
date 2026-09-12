@@ -155,7 +155,7 @@ export async function suggestUsers(input: {
       ),
     )
     .orderBy(profiles.handle)
-    .limit(8);
+    .limit(20);
   const avatarUrls = await createProfileAssetUrlMap(rows.map((row) => row.avatarPath));
   return rows.map((row) => ({
     id: row.id,

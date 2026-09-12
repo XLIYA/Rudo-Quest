@@ -33,7 +33,7 @@ const serwist = new Serwist({
       handler: new CacheFirst({
         cacheName: "rudo-static-assets",
         plugins: [
-          new ExpirationPlugin({ maxEntries: 80, maxAgeSeconds: 7 * 24 * 60 * 60 }),
+          new ExpirationPlugin({ maxEntries: 60, maxAgeSeconds: 7 * 24 * 60 * 60 }),
         ],
       }),
     },

@@ -20,6 +20,46 @@ describe("normalizeAppError", () => {
     });
   });
 
+  it("maps a Drizzle-wrapped PostgreSQL check violation to BAD_REQUEST", () => {
+    // DrizzleQueryError wraps the original pg error on `.cause`; the code
+    // lives one level deep, so top-level matching alone would yield a 500.
+    const wrapped = new Error('Failed query: update "tasks" set "status" = $1');
+    (wrapped as Error & { cause?: unknown }).cause = {
+      code: "23514",
+      constraint: "tasks_status",
+      detail: "Failing row contains private values.",
+    };
+
+    expect(normalizeAppError(wrapped)).toMatchObject({
+      code: "BAD_REQUEST",
+      status: 400,
+      message: "That value is not accepted.",
+    });
+  });
+
+  it("maps a Drizzle-wrapped unique violation to CONFLICT", () => {
+    const wrapped = new Error('Failed query: insert into "profiles" ...');
+    (wrapped as Error & { cause?: unknown }).cause = {
+      code: "23505",
+      constraint: "profiles_email_unique",
+    };
+
+    expect(normalizeAppError(wrapped)).toMatchObject({
+      code: "CONFLICT",
+      status: 409,
+    });
+  });
+
+  it("still returns INTERNAL_ERROR when a wrapped error has no PostgreSQL code", () => {
+    const wrapped = new Error("Failed query: select 1");
+    (wrapped as Error & { cause?: unknown }).cause = new Error("connection refused");
+
+    expect(normalizeAppError(wrapped)).toMatchObject({
+      code: "INTERNAL_ERROR",
+      status: 500,
+    });
+  });
+
   it("does not call console.error in production mode", () => {
     vi.stubEnv("NODE_ENV", "production");
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});

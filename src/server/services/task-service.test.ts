@@ -317,6 +317,64 @@ describe("moveTask Kanban transitions", () => {
     });
     expect(taskRepository.updateTaskRow).not.toHaveBeenCalled();
   });
+
+  it("moves a TODO task to PENDING_REVIEW remembering the previous status", async () => {
+    const current = task({ status: "TODO", version: 1 });
+    const moved = task({ status: "PENDING_REVIEW", previousStatus: "TODO", version: 2 });
+    taskRepository.findTaskDto.mockResolvedValue(current);
+    taskRepository.updateTaskRow.mockResolvedValue(moved);
+
+    await expect(moveTask(userId, current.id, 1, "PENDING_REVIEW")).resolves.toEqual(
+      moved,
+    );
+
+    expect(taskRepository.updateTaskRow).toHaveBeenCalledWith(
+      current.id,
+      1,
+      { status: "PENDING_REVIEW", previousStatus: "TODO", completedAt: null },
+      userId,
+      transaction.executor,
+    );
+    expect(activityRepository.createActivityEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "TASK_UPDATED", taskId: current.id }),
+      transaction.executor,
+    );
+  });
+
+  it("moves an IN_PROGRESS task to PENDING_REVIEW with a matching version", async () => {
+    const current = task({ status: "IN_PROGRESS", version: 1 });
+    const moved = task({
+      status: "PENDING_REVIEW",
+      previousStatus: "IN_PROGRESS",
+      version: 2,
+    });
+    taskRepository.findTaskDto.mockResolvedValue(current);
+    taskRepository.updateTaskRow.mockResolvedValue(moved);
+
+    await expect(moveTask(userId, current.id, 1, "PENDING_REVIEW")).resolves.toEqual(
+      moved,
+    );
+
+    expect(taskRepository.updateTaskRow).toHaveBeenCalledWith(
+      current.id,
+      1,
+      { status: "PENDING_REVIEW", previousStatus: "IN_PROGRESS", completedAt: null },
+      userId,
+      transaction.executor,
+    );
+  });
+
+  it("returns the task unchanged when it is already in the requested status", async () => {
+    const current = task({ status: "PENDING_REVIEW", version: 1 });
+    taskRepository.findTaskDto.mockResolvedValue(current);
+
+    await expect(moveTask(userId, current.id, 1, "PENDING_REVIEW")).resolves.toEqual(
+      current,
+    );
+
+    expect(taskRepository.updateTaskRow).not.toHaveBeenCalled();
+    expect(activityRepository.createActivityEvent).not.toHaveBeenCalled();
+  });
 });
 
 describe("Story roll-up", () => {
