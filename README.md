@@ -33,7 +33,3 @@ npx playwright test
 ## Environment
 
 All variables are listed in `.env.example`. Supabase and `DATABASE_URL` are required for authenticated application flows. GitHub, VAPID, and Sentry are optional integrations. Upstash Redis and `CRON_SECRET` are required in production because rate limiting, overlap-safe scheduled work, notifications, and abandoned-upload cleanup depend on them.
-
-## Database
-
-Schema lives in `src/db/schema/index.ts`. Hand-authored, forward-only SQL in `src/db/migrations` is applied by `npm run db:migrate` under an advisory lock with checksum drift detection. Drizzle Kit snapshots go to `src/db/drizzle`, so generated baselines cannot enter the runtime migration chain.
