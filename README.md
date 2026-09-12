@@ -37,7 +37,3 @@ All variables are listed in `.env.example`. Supabase and `DATABASE_URL` are requ
 ## Database
 
 Schema lives in `src/db/schema/index.ts`. Hand-authored, forward-only SQL in `src/db/migrations` is applied by `npm run db:migrate` under an advisory lock with checksum drift detection. Drizzle Kit snapshots go to `src/db/drizzle`, so generated baselines cannot enter the runtime migration chain.
-
-## Application
-
-Browser mutations go through Route Handlers via the typed Fetch wrapper in `src/lib/api/client.ts`. Server Components and Route Handlers resolve the current Supabase user server-side. Business logic is in `src/server/services`, database access is in `src/server/repositories`, and authorization is in `src/server/policies`.
