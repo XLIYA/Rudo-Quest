@@ -4,4 +4,4 @@ Rudo Quest is a compact collaborative weekly task-management PWA built with Next
 
 ## Local Setup
 
-Install dependencies with `npm install`, copy `.env.example` to `.env.local`, configure Supabase and database credentials, then run `npm run db:migrate`, `npm run db:seed`, and `npm run dev`.
+Install dependencies with `npm install`, copy `.env.example` to `.env.local`, configure Supabase and database credentials, then run `npm run db:migrate`, `npm run db:seed`, and
