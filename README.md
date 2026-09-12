@@ -41,7 +41,3 @@ Schema lives in `src/db/schema/index.ts`. Hand-authored, forward-only SQL in `sr
 ## Application
 
 Browser mutations go through Route Handlers via the typed Fetch wrapper in `src/lib/api/client.ts`. Server Components and Route Handlers resolve the current Supabase user server-side. Business logic is in `src/server/services`, database access is in `src/server/repositories`, and authorization is in `src/server/policies`.
-
-## PWA
-
-Serwist builds `public/sw.js` from `src/app/sw.ts`. It caches public shell assets and the offline route, but never authenticated API or protected navigation responses. IndexedDB reads restore only after `/api/me` verifies the session; an already-open app keeps in-memory data while disconnected. Mutations are blocked offline. The app manifest is `src/app/manifest.ts`; icons are in `public/icons`.
