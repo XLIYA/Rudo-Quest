@@ -1,5 +1,6 @@
 import { AppError } from "@/lib/api/errors";
 import { getServerEnv } from "@/lib/env/server";
+import { timingSafeStringEqual } from "@/server/security/timing-safe";
 import {
   createNotification,
   preparePushDelivery,
@@ -24,7 +25,8 @@ const defaultReminderTime = "09:00";
  */
 export function assertCronAuthorized(header: string | null): void {
   const secret = getServerEnv().CRON_SECRET;
-  if (!secret || header !== `Bearer ${secret}`) {
+  // Timing-safe compare so request timing cannot probe the secret byte by byte.
+  if (!secret || !timingSafeStringEqual(header ?? "", `Bearer ${secret}`)) {
     throw new AppError("UNAUTHORIZED", 401, "Cron authorization failed.");
   }
 }

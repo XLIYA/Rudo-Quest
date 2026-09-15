@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createGitHubInstallationState,
+  decryptGitHubUserToken,
+  encryptGitHubUserToken,
   exchangeGitHubUserCode,
   getGitHubAuthorizationUrl,
   verifyGitHubInstallationState,
@@ -44,6 +46,7 @@ describe("GitHub user authorization URL", () => {
     vi.stubEnv("GITHUB_APP_CLIENT_SECRET", "client-secret");
     vi.stubEnv("GITHUB_APP_PRIVATE_KEY", "private-key");
     vi.stubEnv("GITHUB_WEBHOOK_SECRET", "webhook-secret");
+    vi.stubEnv("GITHUB_TOKEN_ENCRYPTION_KEY", "token-key");
 
     const url = new URL(getGitHubAuthorizationUrl("signed-state"));
 
@@ -110,9 +113,35 @@ describe("GitHub user code exchange", () => {
   });
 });
 
+describe("GitHub user token encryption", () => {
+  it("round-trips tokens using the dedicated encryption key", () => {
+    vi.stubEnv("GITHUB_TOKEN_ENCRYPTION_KEY", "test-token-encryption-key");
+
+    const encrypted = encryptGitHubUserToken("ghu_secret_value");
+
+    expect(encrypted).not.toContain("ghu_secret_value");
+    expect(decryptGitHubUserToken(encrypted)).toBe("ghu_secret_value");
+    vi.unstubAllEnvs();
+  });
+
+  it("fails to decrypt when the configured key differs", () => {
+    vi.stubEnv("GITHUB_TOKEN_ENCRYPTION_KEY", "key-one");
+    const encrypted = encryptGitHubUserToken("ghu_secret_value");
+    vi.stubEnv("GITHUB_TOKEN_ENCRYPTION_KEY", "key-two");
+
+    expect(() => decryptGitHubUserToken(encrypted)).toThrow();
+    vi.unstubAllEnvs();
+  });
+
+  it("throws integration-not-configured when the encryption key is missing", () => {
+    expect(() => encryptGitHubUserToken("ghu_secret_value")).toThrow();
+  });
+});
+
 describe("GitHub installation state", () => {
   it("round-trips signed state for the same user", () => {
     vi.stubEnv("GITHUB_APP_CLIENT_SECRET", "client-secret");
+    vi.stubEnv("GITHUB_TOKEN_ENCRYPTION_KEY", "token-key");
     const userId = "00000000-0000-4000-8000-000000000001";
 
     const state = createGitHubInstallationState(userId);

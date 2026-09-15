@@ -2,6 +2,9 @@ import crypto from "node:crypto";
 import { AppError } from "@/lib/api/errors";
 import { getServerEnv, hasGitHubEnv } from "@/lib/env/server";
 import { writeStructuredLog } from "@/server/observability/structured-log";
+// Shared with the cron authorization path so every secret comparison uses the
+// same hardened implementation.
+import { timingSafeStringEqual } from "@/server/security/timing-safe";
 
 export type GitHubRepository = {
   id: number;
@@ -94,6 +97,25 @@ function getStateSecret(): string {
 }
 
 /**
+ * Purpose: Resolve the dedicated key material for encrypting GitHub user tokens.
+ * Inputs: None.
+ * Output: Configured token encryption key.
+ * Side effects: Reads validated server environment state.
+ * Failure behavior: Throws a typed 503 when GitHub is not configured.
+ */
+function getTokenEncryptionKey(): string {
+  const key = getServerEnv().GITHUB_TOKEN_ENCRYPTION_KEY;
+  if (!key) {
+    throw new AppError(
+      "INTEGRATION_NOT_CONFIGURED",
+      503,
+      "GitHub token encryption key is not configured.",
+    );
+  }
+  return key;
+}
+
+/**
  * Purpose: Sign an encoded installation-state payload.
  * Inputs: URL-safe serialized state.
  * Output: Base64url HMAC signature.
@@ -104,19 +126,6 @@ function signStatePayload(payload: string): string {
     .createHmac("sha256", getStateSecret())
     .update(payload)
     .digest("base64url");
-}
-
-/**
- * Purpose: Compare two signatures without leaking matching-prefix timing.
- * Inputs: Candidate and expected signature strings.
- * Output: True only when equal in length and contents.
- * Side effects: None.
- */
-function timingSafeStringEqual(a: string, b: string): boolean {
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
-  if (left.byteLength !== right.byteLength) return false;
-  return crypto.timingSafeEqual(left, right);
 }
 
 /**
@@ -240,10 +249,10 @@ export function getGitHubAuthorizationUrl(state: string): string {
  * Inputs: GitHub user access token.
  * Output: Authenticated AES-GCM payload safe for server-side database storage.
  * Side effects: None.
- * Failure behavior: Throws integration error when the app secret is unavailable.
+ * Failure behavior: Throws integration error when GITHUB_TOKEN_ENCRYPTION_KEY is unavailable.
  */
 export function encryptGitHubUserToken(token: string): string {
-  const key = crypto.createHash("sha256").update(getStateSecret()).digest();
+  const key = crypto.createHash("sha256").update(getTokenEncryptionKey()).digest();
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
   const ciphertext = Buffer.concat([cipher.update(token, "utf8"), cipher.final()]);
@@ -264,7 +273,7 @@ export function decryptGitHubUserToken(value: string): string {
     if (!ivValue || !tagValue || !ciphertextValue) throw new Error("invalid token");
     const decipher = crypto.createDecipheriv(
       "aes-256-gcm",
-      crypto.createHash("sha256").update(getStateSecret()).digest(),
+      crypto.createHash("sha256").update(getTokenEncryptionKey()).digest(),
       Buffer.from(ivValue, "base64url"),
     );
     decipher.setAuthTag(Buffer.from(tagValue, "base64url"));

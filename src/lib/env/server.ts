@@ -15,6 +15,7 @@ const serverEnvSchema = z.object({
   GITHUB_APP_CLIENT_SECRET: z.string().optional(),
   GITHUB_APP_PRIVATE_KEY: z.string().optional(),
   GITHUB_WEBHOOK_SECRET: z.string().optional(),
+  GITHUB_TOKEN_ENCRYPTION_KEY: z.string().optional(),
   NEXT_PUBLIC_VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().optional(),
@@ -101,7 +102,8 @@ export function hasGitHubEnv(env: ServerEnv = getServerEnv()): boolean {
     env.GITHUB_APP_CLIENT_ID &&
     env.GITHUB_APP_CLIENT_SECRET &&
     env.GITHUB_APP_PRIVATE_KEY &&
-    env.GITHUB_WEBHOOK_SECRET,
+    env.GITHUB_WEBHOOK_SECRET &&
+    env.GITHUB_TOKEN_ENCRYPTION_KEY,
   );
 }
 
@@ -157,6 +159,10 @@ export function assertProductionEnv(env: ServerEnv = getServerEnv()): void {
     ["SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY", getSupabaseAdminKey(env)],
     ["DATABASE_URL", hasDatabaseEnv(env) ? "configured" : undefined],
     ["CRON_SECRET", env.CRON_SECRET],
+    [
+      "GITHUB_TOKEN_ENCRYPTION_KEY (required when the GitHub App is configured)",
+      env.GITHUB_APP_ID ? env.GITHUB_TOKEN_ENCRYPTION_KEY : "configured",
+    ],
     [
       "UPSTASH_REDIS_REST_URL/TOKEN or KV_REST_API_URL/TOKEN",
       getRedisRestCredentials(env) ? "configured" : undefined,

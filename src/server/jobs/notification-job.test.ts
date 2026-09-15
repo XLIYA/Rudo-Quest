@@ -97,4 +97,13 @@ describe("cron authorization", () => {
     expect(() => assertCronAuthorized("Bearer cron-secret")).not.toThrow();
     vi.unstubAllEnvs();
   });
+
+  it("rejects wrong secrets with timing-safe comparison, including equal-length guesses", async () => {
+    vi.stubEnv("CRON_SECRET", "cron-secret");
+    const { assertCronAuthorized } = await import("./notification-job");
+    expect(() => assertCronAuthorized("Bearer cron-secreX")).toThrow(AppError);
+    expect(() => assertCronAuthorized("Bearer short")).toThrow(AppError);
+    expect(() => assertCronAuthorized("Bearer ")).toThrow(AppError);
+    vi.unstubAllEnvs();
+  });
 });

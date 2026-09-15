@@ -1,6 +1,7 @@
 import { AppError } from "@/lib/api/errors";
 import { runDbTransaction, type DbExecutor } from "@/lib/db/client";
 import { getWeekDates } from "@/lib/utils/dates";
+import { writeStructuredLog } from "@/server/observability/structured-log";
 import type { TaskDto, TaskStatus } from "@/types/domain";
 import {
   assertCanMutateTask,
@@ -433,15 +434,20 @@ async function commitTaskTransition(
         tx,
       );
     } catch (createEventError) {
-      console.error(
-        "[commitTaskTransition] createActivityEvent error:",
-        createEventError instanceof Error
-          ? createEventError.constructor.name
-          : typeof createEventError,
-        "- message:",
-        createEventError instanceof Error
-          ? createEventError.message
-          : String(createEventError),
+      writeStructuredLog(
+        "task_transition_activity_event_failed",
+        {
+          taskId,
+          projectId: updated.projectId,
+          eventType,
+          errorName:
+            createEventError instanceof Error ? createEventError.name : "Unknown",
+          errorMessage:
+            createEventError instanceof Error
+              ? createEventError.message
+              : String(createEventError),
+        },
+        "error",
       );
       throw createEventError;
     }
@@ -449,13 +455,17 @@ async function commitTaskTransition(
       try {
         await applyStoryRollup(userId, updated.parentTaskId, tx);
       } catch (rollupError) {
-        console.error(
-          "[commitTaskTransition] applyStoryRollup error:",
-          rollupError instanceof Error
-            ? rollupError.constructor.name
-            : typeof rollupError,
-          "- message:",
-          rollupError instanceof Error ? rollupError.message : String(rollupError),
+        writeStructuredLog(
+          "task_transition_story_rollup_failed",
+          {
+            taskId,
+            projectId: updated.projectId,
+            storyId: updated.parentTaskId,
+            errorName: rollupError instanceof Error ? rollupError.name : "Unknown",
+            errorMessage:
+              rollupError instanceof Error ? rollupError.message : String(rollupError),
+          },
+          "error",
         );
         throw rollupError;
       }
