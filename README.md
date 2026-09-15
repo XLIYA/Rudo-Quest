@@ -364,3 +364,5 @@ Deliberate product and engineering choices (full rationale in [docs/DECISIONS.md
 | [docs/DECISIONS.md](docs/DECISIONS.md)                   | Product and engineering decision rationale                                  |
 
 ---
+
+Private project — all rights reserved. Not licensed for external distribution.
