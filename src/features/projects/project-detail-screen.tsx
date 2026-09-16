@@ -267,7 +267,17 @@ export function ProjectDetailScreen() {
               </AppButton>
             }
           />
-        ) : tasks.data ? (
+        ) : !tasks.data ? null : tasks.data.length === 0 ? (
+          <AppEmptyState
+            title="No tasks in this project yet"
+            description="Create your first task to get started"
+            action={
+              <AppButton variant="primary" onClick={() => setCreateOpen(true)}>
+                Create first task
+              </AppButton>
+            }
+          />
+        ) : (
           <ProjectKanban
             tasks={tasks.data}
             disabled={!online || Boolean(project.data.archivedAt)}
@@ -277,17 +287,7 @@ export function ProjectDetailScreen() {
               mutation.mutate({ task, action: "move", body: { status } })
             }
           />
-        ) : null === tasks.data ? (
-          <AppEmptyState
-            title="No tasks in this project yet"
-            description="Create your first task to get started"
-            action={
-              <AppButton variant="primary" onClick={() => setActivityOpen(true)}>
-                Create first task
-              </AppButton>
-            }
-          />
-        ) : null}
+        )}
       </section>
       <section className="rounded-lg border border-border bg-surface p-4">
         <button

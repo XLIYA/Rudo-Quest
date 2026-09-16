@@ -65,10 +65,14 @@ export function WeeklyScreen() {
         : dates.includes(today)
           ? today
           : weekStart;
-  const [quickDate, setQuickDate] = useState<string | null>(
-    searchParams.get("quickAdd") && selectedDate !== "closed" ? selectedDate : null,
-  );
   const [quickTitle, setQuickTitle] = useState("");
+  const [manualQuickDate, setManualQuickDate] = useState<string | null>(null);
+  // The quick-add FAB links to /weekly?quickAdd=1. Derive that open state from
+  // the URL on every render so an already-mounted screen still reacts to the
+  // navigation; the manual per-day "Add a task..." buttons keep local state.
+  const urlQuickDate =
+    searchParams.get("quickAdd") && selectedDate !== "closed" ? selectedDate : null;
+  const quickDate = manualQuickDate ?? urlQuickDate;
   const online = useOnline();
   const query = useWeekTasks(weekStart);
   const createTask = useCreateTask(weekStart);
@@ -107,6 +111,27 @@ export function WeeklyScreen() {
   };
 
   /**
+   * Purpose: Close quick-add and clear its URL flag so the next FAB press can
+   * re-trigger the effect above.
+   * Inputs: None.
+   * Output: Void.
+   * Side effects: Removes the quickAdd query parameter and resets local state.
+   */
+  const closeQuickAdd = () => {
+    setQuickTitle("");
+    setManualQuickDate(null);
+    const next = new URLSearchParams(searchParams.toString());
+    if (!next.has("quickAdd")) return;
+    next.delete("quickAdd");
+    const queryString = next.toString();
+    window.history.replaceState(
+      null,
+      "",
+      queryString ? `/weekly?${queryString}` : "/weekly",
+    );
+  };
+
+  /**
    * Purpose: Navigate exactly one Monday-Sunday interval.
    * Inputs: Previous or next direction.
    * Output: Void.
@@ -136,8 +161,7 @@ export function WeeklyScreen() {
     } catch {
       return;
     }
-    setQuickTitle("");
-    setQuickDate(null);
+    closeQuickAdd();
   };
 
   return (
@@ -259,8 +283,7 @@ export function WeeklyScreen() {
                               void submitQuick(date);
                             }
                             if (event.key === "Escape") {
-                              setQuickTitle("");
-                              setQuickDate(null);
+                              closeQuickAdd();
                             }
                           }}
                         />
@@ -268,7 +291,7 @@ export function WeeklyScreen() {
                         <AppButton
                           variant="ghost"
                           disabled={!online}
-                          onClick={() => setQuickDate(date)}
+                          onClick={() => setManualQuickDate(date)}
                         >
                           <Plus className="size-4" />
                           Add a task...
