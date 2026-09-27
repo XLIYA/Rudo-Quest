@@ -226,8 +226,11 @@ export function apiGet<T>(url: string, signal?: AbortSignal): Promise<T> {
  * Inputs: HTTP method, URL, optional body, and AbortSignal.
  * Output: Data payload.
  * Side effects: Performs same-origin HTTP mutation.
+ * Failure behavior: Rejects the returned promise while offline so callers
+ * always observe the failure through async error handling instead of a
+ * synchronous throw outside the promise chain.
  */
-export function apiMutation<T>(
+export async function apiMutation<T>(
   method: "post" | "patch" | "delete",
   url: string,
   body?: unknown,

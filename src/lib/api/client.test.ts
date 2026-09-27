@@ -114,6 +114,18 @@ describe("normalizeApiClientError", () => {
     );
   });
 
+  it("rejects apiMutation through the promise chain while offline", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("navigator", { onLine: false });
+
+    await expect(apiMutation("post", "/api/projects", {})).rejects.toMatchObject({
+      code: "OFFLINE",
+      status: 0,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("rejects responses exceeding the limit without Content-Length header", async () => {
     // Create a response with a body larger than MAX_RESPONSE_BYTES but no Content-Length
     const largeBody = "x".repeat(MAX_RESPONSE_BYTES + 1000);

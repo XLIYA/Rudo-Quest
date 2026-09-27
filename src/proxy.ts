@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { isProtectedAppRoute } from "@/lib/app-routes";
 
 /**
  * Purpose: Create a per-request nonce for framework and application scripts.
@@ -152,15 +153,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { data, error } = await supabase.auth.getClaims();
   const authenticated = !error && typeof data?.claims?.sub === "string";
 
-  const protectedRoute = [
-    "/dashboard",
-    "/weekly",
-    "/projects",
-    "/profile",
-    "/notifications",
-    "/settings",
-    "/reset-password",
-  ].some((path) => request.nextUrl.pathname.startsWith(path));
+  const protectedRoute = isProtectedAppRoute(request.nextUrl.pathname);
 
   if (protectedRoute && !authenticated) {
     const redirectUrl = request.nextUrl.clone();

@@ -28,6 +28,29 @@ describe("assertSameOrigin", () => {
     ).not.toThrow();
   });
 
+  it("accepts a Host-matching Origin in production for Vercel preview deployments", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://rudo-quest.vercel.app");
+
+    expect(() =>
+      assertSameOrigin(
+        postRequest(
+          "https://rudo-quest-git-feature.vercel.app",
+          "rudo-quest-git-feature.vercel.app",
+        ),
+      ),
+    ).not.toThrow();
+  });
+
+  it("accepts apex and www host variants in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://rudo-quest.com");
+
+    expect(() =>
+      assertSameOrigin(postRequest("https://www.rudo-quest.com", "www.rudo-quest.com")),
+    ).not.toThrow();
+  });
+
   it("rejects cross-origin state-changing requests", () => {
     vi.stubEnv("NODE_ENV", "test");
     vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://rudo-quest.vercel.app");

@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { Toaster } from "sonner";
 import { AppToast } from "@/components/ui/app-toast";
+import { isProtectedAppRoute } from "@/lib/app-routes";
 import { queryKeys } from "@/lib/api/query-keys";
 import { registerSerwist } from "@/lib/pwa/register";
 import {
@@ -30,15 +31,7 @@ const Agentation = dynamic(
  */
 export function Providers({ children, nonce }: { children: ReactNode; nonce?: string }) {
   const pathname = usePathname();
-  const shouldBootstrapPrivateCache = [
-    "/dashboard",
-    "/weekly",
-    "/projects",
-    "/profile",
-    "/notifications",
-    "/settings",
-    "/reset-password",
-  ].some((path) => pathname.startsWith(path));
+  const shouldBootstrapPrivateCache = isProtectedAppRoute(pathname);
   const [queryClient] = useState(
     () =>
       new QueryClient({

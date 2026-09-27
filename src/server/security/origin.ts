@@ -5,12 +5,12 @@ import { getServerEnv } from "@/lib/env/server";
 const stateChangingMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 /**
- * Purpose: Normalize a configured URL to its origin for CSRF comparison.
+ * Purpose: Normalize a URL to its origin for CSRF comparison.
  * Inputs: Optional URL string.
  * Output: Origin or null when missing or malformed.
  * Side effects: None.
  */
-function toOrigin(value: string | undefined): string | null {
+function toOrigin(value: string | undefined | null): string | null {
   if (!value) return null;
   try {
     return new URL(value).origin;
@@ -24,6 +24,11 @@ function toOrigin(value: string | undefined): string | null {
  * Inputs: NextRequest for a route handler.
  * Output: Void when the origin is accepted.
  * Side effects: None.
+ * Business rule: An Origin that matches the request Host is always same-site:
+ * browsers only emit a Host-consistent Origin on legitimate navigations, and
+ * deployment platforms (Vercel previews, apex/www aliases) route arbitrary
+ * hosts that NEXT_PUBLIC_APP_URL cannot enumerate. Cross-origin attackers
+ * cannot forge a matching Host pair.
  * Failure behavior: Throws FORBIDDEN for cross-origin state-changing requests.
  */
 export function assertSameOrigin(
@@ -36,16 +41,14 @@ export function assertSameOrigin(
     if (options.allowMissingOrigin) return;
     throw new AppError("FORBIDDEN", 403, "Request origin is required.");
   }
-  const expected = getServerEnv().NEXT_PUBLIC_APP_URL;
+  const originUrl = toOrigin(origin);
   const host = request.headers.get("host");
-  const fallback = host ? `${request.nextUrl.protocol}//${host}` : request.nextUrl.origin;
-  const allowedOrigins = new Set(
-    [
-      toOrigin(expected),
-      getServerEnv().NODE_ENV === "production" ? null : toOrigin(fallback),
-    ].filter((value): value is string => Boolean(value)),
+  const hostOrigin = toOrigin(
+    host ? `${request.nextUrl.protocol}//${host}` : request.nextUrl.origin,
   );
-  if (!allowedOrigins.has(origin)) {
-    throw new AppError("FORBIDDEN", 403, "Request origin is not allowed.");
-  }
+  // Same Host+Origin pair is trusted regardless of the configured app URL.
+  if (originUrl && originUrl === hostOrigin) return;
+  const expected = toOrigin(getServerEnv().NEXT_PUBLIC_APP_URL);
+  if (originUrl && originUrl === expected) return;
+  throw new AppError("FORBIDDEN", 403, "Request origin is not allowed.");
 }
