@@ -7,6 +7,7 @@ import { queryKeys } from "@/lib/api/query-keys";
 import { useQuery } from "@tanstack/react-query";
 import type { ProfileDto, ProjectSummary, TaskDto } from "@/types/domain";
 import { AppEmptyState } from "@/components/ui/app-empty-state";
+import { AppButton } from "@/components/ui/app-button";
 import { AppSkeleton } from "@/components/ui/app-skeleton";
 import { AppAvatarStack } from "@/components/ui/app-avatar-stack";
 import { ActivityHeatmap } from "@/components/shared/activity-heatmap";
@@ -15,7 +16,11 @@ import { PageHeader } from "@/components/shared/page-header";
 import { TaskRow } from "@/components/ui/task-row";
 import { useTaskMutation } from "@/features/tasks/task-hooks";
 import { getDateInTimeZone, getMondayWeekStart } from "@/lib/utils/dates";
-import { TaskDetailSheet } from "@/components/ui/task-detail-sheet";
+import dynamic from "next/dynamic";
+
+const TaskDetailSheet = dynamic(() =>
+  import("@/components/ui/task-detail-sheet").then((module) => module.TaskDetailSheet),
+);
 import { useOnline } from "@/hooks/use-online";
 import { useState } from "react";
 import Link from "next/link";
@@ -89,10 +94,17 @@ export function DashboardScreen() {
 
   if (query.isError || !query.data) {
     return (
-      <AppEmptyState
-        title="Dashboard unavailable"
-        description="Rudo Quest could not load the dashboard aggregates."
-      />
+      <main className="mx-auto grid max-w-7xl gap-4 px-4 py-5 sm:px-5 md:p-8">
+        <AppEmptyState
+          title="Dashboard unavailable"
+          description="Rudo Quest could not load the dashboard aggregates."
+          action={
+            <AppButton variant="secondary" onClick={() => void query.refetch()}>
+              Try again
+            </AppButton>
+          }
+        />
+      </main>
     );
   }
 
@@ -118,7 +130,7 @@ export function DashboardScreen() {
   const chartMax = Math.max(1, ...query.data.weeklyProgress.days.map((day) => day.total));
 
   return (
-    <main className="app-enter mx-auto grid min-w-0 max-w-7xl gap-4 overflow-x-hidden px-4 py-5 sm:gap-5 sm:px-5 md:gap-6 md:p-8 lg:h-full lg:min-h-0 lg:overflow-y-auto lg:[scrollbar-gutter:stable]">
+    <main className="app-enter app-enter-flat mx-auto grid min-w-0 max-w-7xl gap-4 overflow-x-hidden px-4 py-5 sm:gap-5 sm:px-5 md:gap-6 md:p-8 lg:h-full lg:min-h-0 lg:grid-rows-[auto_minmax(0,1.2fr)_minmax(0,1fr)] lg:overflow-hidden">
       <PageHeader
         title="Dashboard"
         description="Today, weekly progress, completion rhythm, and project load."
@@ -128,7 +140,7 @@ export function DashboardScreen() {
       {/* TOP ROW — TODAY + WEEKLY PROGRESS */}
       {/* ====================================================== */}
 
-      <section className="grid min-w-0 items-stretch gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+      <section className="grid min-h-0 min-w-0 items-stretch gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
         {/* ==================================================== */}
         {/* TODAY */}
         {/* Weekly Progress determines row height on desktop. */}
@@ -213,7 +225,7 @@ export function DashboardScreen() {
           </div>
 
           <div
-            className="mt-5 grid h-36 min-w-0 shrink-0 grid-cols-7 items-end gap-2 overflow-hidden rounded-lg bg-surface-muted/45 px-3 pb-2 pt-4"
+            className="mt-5 grid h-36 min-w-0 shrink-0 grid-cols-7 items-end gap-2 overflow-hidden rounded-lg bg-surface-muted/45 px-3 pb-2 pt-4 lg:mt-3 lg:h-auto lg:max-h-36 lg:min-h-0 lg:flex-1 lg:shrink"
             role="img"
             aria-label={`Seven-day completion chart. ${query.data.weeklyProgress.completed} of ${query.data.weeklyProgress.total} tasks completed this week.`}
           >
@@ -271,52 +283,54 @@ export function DashboardScreen() {
         </Widget>
       </section>
 
-      <TaskDetailSheet
-        task={selectedTask}
-        open={Boolean(selectedTask)}
-        offline={!online}
-        pending={taskMutation.isPending}
-        conflict={
-          taskMutation.isError &&
-          typeof taskMutation.error === "object" &&
-          taskMutation.error !== null &&
-          "status" in taskMutation.error &&
-          taskMutation.error.status === 409
-        }
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedTask(null);
+      {selectedTask ? (
+        <TaskDetailSheet
+          task={selectedTask}
+          open={Boolean(selectedTask)}
+          offline={!online}
+          pending={taskMutation.isPending}
+          conflict={
+            taskMutation.isError &&
+            typeof taskMutation.error === "object" &&
+            taskMutation.error !== null &&
+            "status" in taskMutation.error &&
+            taskMutation.error.status === 409
           }
-        }}
-        onOpenRelatedTask={setSelectedTask}
-        onAction={(task, action) =>
-          taskMutation.mutate({
-            task,
-            action,
-          })
-        }
-        onArchive={(task) => {
-          taskMutation.mutate({
-            task,
-            action: "archive",
-          });
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedTask(null);
+            }
+          }}
+          onOpenRelatedTask={setSelectedTask}
+          onAction={(task, action) =>
+            taskMutation.mutate({
+              task,
+              action,
+            })
+          }
+          onArchive={(task) => {
+            taskMutation.mutate({
+              task,
+              action: "archive",
+            });
 
-          setSelectedTask(null);
-        }}
-        onSave={async (task, values) => {
-          await taskMutation.mutateAsync({
-            task,
-            action: "update",
-            body: values,
-          });
-        }}
-      />
+            setSelectedTask(null);
+          }}
+          onSave={async (task, values) => {
+            await taskMutation.mutateAsync({
+              task,
+              action: "update",
+              body: values,
+            });
+          }}
+        />
+      ) : null}
 
       {/* ====================================================== */}
       {/* BOTTOM ROW — ACTIVITY + PROJECTS */}
       {/* ====================================================== */}
 
-      <section className="grid min-w-0 items-stretch gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+      <section className="grid min-h-0 min-w-0 items-stretch gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
         {/* ==================================================== */}
         {/* ACTIVITY */}
         {/* This widget determines the bottom row height. */}
@@ -326,7 +340,7 @@ export function DashboardScreen() {
           title="Activity"
           description={`${query.data.heatmap.streak} day current completion streak.`}
         >
-          <ActivityHeatmap days={query.data.heatmap.days} endDate={todayDate} />
+          <ActivityHeatmap days={query.data.heatmap.days} endDate={todayDate} fitHeight />
         </Widget>
 
         {/* ==================================================== */}

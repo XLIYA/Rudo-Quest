@@ -6,6 +6,7 @@ import { AppTooltip } from "@/components/ui/app-tooltip";
 export type ActivityHeatmapProps = {
   days: { date: string; count: number }[];
   endDate?: string;
+  fitHeight?: boolean;
 };
 
 /**
@@ -14,7 +15,7 @@ export type ActivityHeatmapProps = {
  * Output: Keyboard-accessible 13-week grid with non-color tooltip labels.
  * Side effects: None.
  */
-export function ActivityHeatmap({ days, endDate }: ActivityHeatmapProps) {
+export function ActivityHeatmap({ days, endDate, fitHeight }: ActivityHeatmapProps) {
   const counts = new Map(days.map((day) => [day.date, day.count]));
   const lastVisibleDate = endDate ? parseISO(endDate) : new Date();
   const visibleDays = Array.from({ length: 91 }, (_, index) => {
@@ -24,7 +25,7 @@ export function ActivityHeatmap({ days, endDate }: ActivityHeatmapProps) {
 
   return (
     <div
-      className="grid grid-flow-col grid-rows-7 gap-1 [grid-auto-columns:minmax(0,1fr)]"
+      className={`grid grid-flow-col grid-rows-7 gap-1 [grid-auto-columns:minmax(0,1fr)] ${fitHeight ? "lg:min-h-0 lg:flex-1" : ""}`}
       aria-label="Last 13 weeks task completion heatmap"
     >
       {visibleDays.map((day) => (
@@ -32,7 +33,7 @@ export function ActivityHeatmap({ days, endDate }: ActivityHeatmapProps) {
           <span
             tabIndex={0}
             aria-label={heatmapLabel(day.date, day.count)}
-            className="aspect-square min-h-2 w-full rounded-[3px] transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-3"
+            className={`aspect-square min-h-2 w-full rounded-[3px] transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:min-h-3 ${fitHeight ? "lg:aspect-auto lg:min-h-0" : ""}`}
             style={{ background: heatmapColor(day.count) }}
           />
         </AppTooltip>
