@@ -21,7 +21,7 @@ export function useNotifications(initialPage?: NotificationPageDto) {
   return useInfiniteQuery({
     queryKey: queryKeys.notifications,
     staleTime: 30_000,
-    refetchOnMount: initialPage ? false : "always",
+    refetchOnMount: true,
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
     initialPageParam: "",

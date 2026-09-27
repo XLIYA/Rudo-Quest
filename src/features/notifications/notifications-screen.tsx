@@ -64,7 +64,7 @@ export function NotificationsPanel({ compact = false }: { compact?: boolean }) {
     onError: (error) => AppToast(normalizeApiClientError(error).message, "error"),
   });
   const notifications = query.data?.pages.flatMap((page) => page.items) ?? [];
-  const unreadCount = notifications.filter((notification) => !notification.readAt).length;
+  const unreadCount = query.data?.pages[0]?.unreadCount ?? 0;
 
   if (query.isError) {
     return (
@@ -82,7 +82,7 @@ export function NotificationsPanel({ compact = false }: { compact?: boolean }) {
 
   return (
     <section id="notifications" className="app-card overflow-hidden">
-      <header className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-muted/55 px-4 py-2">
+      <header className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="inline-flex size-8 items-center justify-center rounded-md bg-quest-soft text-quest">
             <Bell className="size-4" aria-hidden="true" />
@@ -91,7 +91,7 @@ export function NotificationsPanel({ compact = false }: { compact?: boolean }) {
             {compact ? <h2 className="font-semibold">Notifications</h2> : null}
             <p className="text-xs text-text-secondary" aria-live="polite">
               {unreadCount
-                ? `${unreadCount} unread on this page`
+                ? `${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}`
                 : "You are all caught up"}
             </p>
           </div>
@@ -122,7 +122,7 @@ export function NotificationsPanel({ compact = false }: { compact?: boolean }) {
 
       {!query.isLoading && notifications.length ? (
         <div
-          className="h-[70vh] max-h-[600px] overflow-y-auto pr-2 [scrollbar-gutter:stable]"
+          className="max-h-[70dvh] overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
           role="region"
           aria-label="Notifications list"
         >
@@ -134,28 +134,28 @@ export function NotificationsPanel({ compact = false }: { compact?: boolean }) {
                 <article
                   key={notification.id}
                   className={cn(
-                    "relative grid gap-3 px-4 py-3 transition-colors duration-150 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-start",
-                    unread ? "bg-quest-soft/55" : "bg-surface hover:bg-surface-muted/60",
+                    "relative grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 px-4 py-4 transition-colors duration-150",
+                    unread ? "bg-brand-soft/20" : "bg-surface hover:bg-surface-muted/60",
                   )}
                 >
                   {unread ? (
                     <span
-                      className="absolute left-0 top-0 h-full w-0.5 bg-quest"
+                      className="absolute left-1.5 top-8 size-1.5 rounded-full bg-brand"
                       aria-hidden="true"
                     />
                   ) : null}
                   <span
                     className={cn(
-                      "inline-flex size-9 items-center justify-center rounded-full border",
+                      "inline-flex size-9 items-center justify-center rounded-xl",
                       unread
-                        ? "border-quest-muted bg-surface text-quest"
-                        : "border-border bg-surface-muted text-text-secondary",
+                        ? "bg-brand-soft text-brand"
+                        : "bg-surface-muted text-text-tertiary",
                     )}
                   >
                     <Icon className="size-4" aria-hidden="true" />
                   </span>
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
                       <h2
                         className={cn("text-sm", unread ? "font-bold" : "font-semibold")}
                       >
@@ -195,7 +195,7 @@ export function NotificationsPanel({ compact = false }: { compact?: boolean }) {
                   {unread ? (
                     <AppIconButton
                       label={`Mark ${notification.title} as read`}
-                      className="size-9 min-h-9 min-w-9"
+                      className="size-11 min-h-11 min-w-11"
                       onClick={() => read.mutate({ id: notification.id })}
                       disabled={!online || read.isPending}
                     >
