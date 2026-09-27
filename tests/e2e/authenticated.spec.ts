@@ -1,5 +1,6 @@
 import { expect, test } from "./fixtures";
 import { Pool } from "pg";
+import { getDateInTimeZone } from "../../src/lib/utils/dates";
 
 const email = process.env.E2E_EMAIL ?? process.env.SEED_ADMIN_EMAIL;
 const password = process.env.E2E_PASSWORD ?? process.env.SEED_ADMIN_PASSWORD;
@@ -48,6 +49,7 @@ test.describe("authenticated production flow", () => {
     ).toBe(true);
     const meResponse = await page.request.get("/api/me");
     expect(meResponse.status(), `Profile response: ${await meResponse.text()}`).toBe(200);
+    const profile = (await meResponse.json()) as { data: { timeZone: string } };
     await expect(page).toHaveURL(/\/dashboard$/, { timeout: 20_000 });
     await page.waitForLoadState("load");
     await expect(page.getByRole("link", { name: "Weekly" })).toBeVisible({
@@ -62,14 +64,14 @@ test.describe("authenticated production flow", () => {
     }
 
     const origin = new URL(page.url()).origin;
-    const scheduledDate = new Date().toISOString().slice(0, 10);
+    const scheduledDate = getDateInTimeZone(new Date(), profile.data.timeZone);
     const title = `E2E task ${testInfo.project.name} ${crypto.randomUUID()}`;
     const createResponse = await page.request.post("/api/tasks", {
       headers: { origin },
       data: {
         title,
         scheduledDate,
-        scheduledTimeZone: "UTC",
+        scheduledTimeZone: profile.data.timeZone,
         projectId: null,
         assigneeId: null,
       },

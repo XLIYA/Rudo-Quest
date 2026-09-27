@@ -7,6 +7,10 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
     include: ["src/**/*.test.ts", "src/**/*.test.tsx", "tests/**/*.test.ts"],
+    // Cold route-handler imports (e.g. the signup route pulling in the full
+    // Supabase SSR stack) can exceed the default 5s on slower CI machines,
+    // so give first-import tests room without weakening any assertions.
+    testTimeout: 30_000,
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],

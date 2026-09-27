@@ -10,6 +10,7 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${port}`;
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  globalSetup: "./tests/e2e/global-setup.ts",
   timeout: 90_000,
   fullyParallel: false,
   workers: 1,
@@ -30,9 +31,10 @@ export default defineConfig({
     timeout: 180_000,
     env: {
       ...process.env,
-      // Next's development compiler otherwise reaches its 2 GB heap watcher
-      // while the full authenticated route surface is exercised in one run.
-      NODE_OPTIONS: process.env.NODE_OPTIONS ?? "--max-old-space-size=4096",
+      // Warming the complete authenticated surface plus two browser contexts
+      // can reach Next's 80% heap restart threshold during a mutation. Keep
+      // headroom for garbage collection without changing test assertions.
+      NODE_OPTIONS: process.env.NODE_OPTIONS ?? "--max-old-space-size=6144",
     },
   },
   projects: [

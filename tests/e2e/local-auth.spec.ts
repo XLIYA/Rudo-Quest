@@ -51,6 +51,9 @@ test.describe("local development authentication", () => {
       expect(meResponse.status(), await meResponse.text()).toBe(200);
       userId = ((await meResponse.json()) as { data: { id: string } }).data.id;
 
+      // Finish authenticated reads before clearing the cookie through the API.
+      await page.getByRole("heading", { name: "Today", exact: true }).waitFor();
+      await page.waitForLoadState("networkidle");
       const origin = new URL(page.url()).origin;
       const signoutResponse = await page.request.post("/api/auth/signout", {
         headers: { origin },
@@ -70,6 +73,8 @@ test.describe("local development authentication", () => {
       expect(signinResponse.status()).toBe(200);
       await expect(page).toHaveURL(/\/dashboard$/);
     } finally {
+      // Unmount the authenticated screen before deleting its temporary identity.
+      await page.goto("about:blank");
       if (userId) {
         const { error } = await admin.auth.admin.deleteUser(userId);
         expect(error?.message).toBeUndefined();

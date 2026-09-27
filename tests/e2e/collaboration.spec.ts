@@ -112,7 +112,8 @@ test.describe("local collaborative project lifecycle", () => {
       const suggestionsResponsePromise = page.waitForResponse(
         (response) =>
           response.request().method() === "GET" &&
-          new URL(response.url()).pathname === "/api/users/suggest",
+          new URL(response.url()).pathname === "/api/users/suggest" &&
+          new URL(response.url()).searchParams.get("q") === collaboratorName,
       );
       const collaboratorSearch = createDialog.getByLabel("Find collaborator");
       await collaboratorSearch.fill(collaboratorName);
@@ -157,19 +158,30 @@ test.describe("local collaborative project lifecycle", () => {
         timeout: 20_000,
       });
 
-      const origin = new URL(page.url()).origin;
-      const scheduledDate = new Date().toISOString().slice(0, 10);
-      const taskResponse = await page.request.post("/api/tasks", {
-        headers: { origin },
-        data: {
-          title: taskTitle,
-          projectId,
-          assigneeId: collaboratorUserId,
-          scheduledDate,
-          scheduledTimeZone: "UTC",
-        },
-      });
+      await page.goto(`/projects/${projectId}`);
+      await page.getByRole("button", { name: "Create task", exact: true }).click();
+      const taskDialog = page.getByRole("dialog", { name: "Create project task" });
+      await taskDialog.getByLabel("Title", { exact: true }).fill(taskTitle);
+      const scheduledDate = await taskDialog
+        .getByRole("textbox", { name: "Scheduled date", exact: true })
+        .inputValue();
+      await taskDialog.getByRole("combobox", { name: "Assignee" }).fill(collaboratorName);
+      await taskDialog
+        .getByRole("option", { name: new RegExp(collaboratorName) })
+        .click();
+      const taskResponsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === "/api/tasks",
+      );
+      await taskDialog.getByRole("button", { name: "Create task", exact: true }).click();
+      const taskResponse = await taskResponsePromise;
       expect(taskResponse.status(), await taskResponse.text()).toBe(201);
+      expect(taskResponse.request().postDataJSON()).toMatchObject({
+        projectId,
+        assigneeId: collaboratorUserId,
+        scheduledDate,
+      });
       const taskId = ((await taskResponse.json()) as { data: { id: string } }).data.id;
 
       const collaboratorTaskResponse = await collaboratorPage.request.get(
@@ -179,12 +191,16 @@ test.describe("local collaborative project lifecycle", () => {
       const collaboratorTask = (await collaboratorTaskResponse.json()) as {
         data: {
           status: string;
-          permissions: { canTransition: boolean; canEditDetails: boolean };
+          permissions: {
+            canTransition: boolean;
+            canEditDetails: boolean;
+            canAssign: boolean;
+          };
         };
       };
       expect(collaboratorTask.data).toMatchObject({
         status: "TODO",
-        permissions: { canTransition: true, canEditDetails: true },
+        permissions: { canTransition: true, canEditDetails: true, canAssign: true },
       });
 
       await collaboratorPage.goto(`/projects/${projectId}`);
