@@ -722,42 +722,50 @@ export function ProjectSettingsScreen({
                     return (
                       <div
                         key={member.id}
-                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-md border border-border bg-surface-muted"
+                        className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-surface p-3"
                       >
-                        <div className="flex items-center gap-3">
-                          <AppAvatar name={member.displayName} src={member.avatarUrl} />
-                          <div>
-                            <span className="font-medium">{member.displayName}</span>
-                            <span className="ml-2 rounded-sm bg-surface-muted px-2 py-0.5 font-mono text-xs text-text-secondary">
-                              {member.handle}
-                            </span>
-                          </div>
+                        <div className="contents">
+                          <AppAvatar
+                            name={member.displayName}
+                            src={member.avatarUrl}
+                            className="col-start-1 row-span-2 row-start-1 shrink-0"
+                          />
+                          <span
+                            className="col-start-2 row-start-1 min-w-0 truncate text-sm font-medium"
+                            title={member.displayName}
+                          >
+                            {member.displayName}
+                          </span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {canChangeRole ? (
-                            <AppSelect
-                              label="Role"
-                              value={member.role}
-                              onValueChange={(value) =>
-                                changeMemberRole.mutate({
-                                  userId: member.id,
-                                  role: value as Exclude<ProjectRole, "OWNER">,
-                                })
-                              }
-                              options={nonOwnerRoles.map((role) => ({
-                                value: role,
-                                label: role,
-                              }))}
-                              disabled={changeMemberRole.isPending}
-                            />
-                          ) : (
-                            <span className="rounded-sm bg-surface-muted px-2 py-1 font-mono text-xs text-text-secondary">
-                              {member.role}
-                            </span>
-                          )}
+                        <div className="contents">
+                          <div className="col-start-2 row-start-2 max-w-32">
+                            {canChangeRole ? (
+                              <AppSelect
+                                label={`Role for ${member.displayName}`}
+                                hideLabel
+                                value={member.role}
+                                onValueChange={(value) =>
+                                  changeMemberRole.mutate({
+                                    userId: member.id,
+                                    role: value as Exclude<ProjectRole, "OWNER">,
+                                  })
+                                }
+                                options={nonOwnerRoles.map((role) => ({
+                                  value: role,
+                                  label: role,
+                                }))}
+                                disabled={changeMemberRole.isPending}
+                              />
+                            ) : (
+                              <span className="rounded-sm bg-surface-muted px-2 py-1 font-mono text-xs text-text-secondary">
+                                {member.role}
+                              </span>
+                            )}
+                          </div>
                           {canRemove && (
                             <AppIconButton
                               label={`Remove ${member.displayName}`}
+                              className="col-start-3 row-span-2 row-start-1 self-center"
                               onClick={() =>
                                 setConfirmAction({
                                   type: "remove",
@@ -877,7 +885,7 @@ export function ProjectSettingsScreen({
                   {invitations.data.map((invitation) => (
                     <div
                       key={invitation.id}
-                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-md border border-border bg-surface-muted"
+                      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-border bg-surface p-3"
                     >
                       <div className="flex items-center gap-3">
                         <AppAvatar

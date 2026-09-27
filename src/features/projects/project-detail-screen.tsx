@@ -1,5 +1,8 @@
 "use client";
 
+import { ProjectRewards } from "./project-rewards";
+import { TaskDifficulty } from "@/components/ui/task-difficulty";
+
 import type { Route } from "next";
 import { useParams } from "next/navigation";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
@@ -38,7 +41,6 @@ import {
   User,
   X,
 } from "lucide-react";
-import { AppAvatarStack } from "@/components/ui/app-avatar-stack";
 import { AppEmptyState } from "@/components/ui/app-empty-state";
 import { AppInput } from "@/components/ui/app-input";
 import { AppPagination } from "@/components/ui/app-pagination";
@@ -49,7 +51,11 @@ import { AppButton } from "@/components/ui/app-button";
 import { AppDatePicker } from "@/components/ui/app-date-picker";
 import { useTaskMutation } from "@/features/tasks/task-hooks";
 import { getDateInTimeZone, getMondayWeekStart } from "@/lib/utils/dates";
-import { TaskDetailSheet } from "@/components/ui/task-detail-sheet";
+import dynamic from "next/dynamic";
+
+const TaskDetailSheet = dynamic(() =>
+  import("@/components/ui/task-detail-sheet").then((module) => module.TaskDetailSheet),
+);
 import { useOnline } from "@/hooks/use-online";
 import { useState, type DragEvent } from "react";
 import {
@@ -62,7 +68,9 @@ import { getProjectColor } from "@/lib/theme/project-colors";
 import { parseISO } from "date-fns";
 import { AppAvatar } from "@/components/ui/app-avatar";
 import { cn } from "@/lib/utils/cn";
-import { TaskCreateSheet } from "@/components/ui/task-create-sheet";
+const TaskCreateSheet = dynamic(() =>
+  import("@/components/ui/task-create-sheet").then((module) => module.TaskCreateSheet),
+);
 import { TaskClassification } from "@/components/ui/task-classification";
 
 /**
@@ -139,6 +147,7 @@ export function ProjectDetailScreen() {
     projectId,
     archivedSearch,
     archivedFilters,
+    archivedOpen,
   );
   const restore = useRestoreTask({ weekStart });
   const archivedItems = useMemo(
@@ -166,21 +175,22 @@ export function ProjectDetailScreen() {
     );
   const projectColor = getProjectColor(project.data.colorKey);
   return (
-    <main className="mx-auto grid w-full max-w-[100rem] gap-5 p-5 md:p-8">
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 sm:gap-4">
+    <main className="app-enter mx-auto grid min-w-0 w-full max-w-[100rem] gap-5 p-5 md:p-8">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] sm:grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 sm:gap-4">
         <span
-          className="flex size-12 shrink-0 items-center justify-center rounded-lg sm:size-14"
+          className="flex size-10 shrink-0 items-center justify-center rounded-lg sm:size-12"
           style={{ background: projectColor.soft, color: projectColor.text }}
         >
           <ProjectIconGlyph iconKey={project.data.iconKey} className="size-6" />
         </span>
         <div className="min-w-0">
           <PageHeader
+            compact
             title={project.data.title}
             description={project.data.description ?? "Project task space."}
           />
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="col-span-2 flex items-center justify-start gap-2 sm:col-span-3">
           {project.data.role !== "VIEWER" && !project.data.archivedAt ? (
             <AppButton onClick={() => setCreateOpen(true)}>
               <Plus className="size-4" aria-hidden="true" />
@@ -201,43 +211,63 @@ export function ProjectDetailScreen() {
           ) : null}
         </div>
       </div>
-      <section className="grid gap-4 md:grid-cols-3">
-        <Panel title="Status">
-          <p className="font-mono text-3xl font-semibold">{project.data.openTaskCount}</p>
-          <p className="text-sm text-text-secondary">open tasks</p>
-          <p className="mt-3 text-sm text-text-secondary">
-            {project.data.githubRepositoryFullName ?? "No GitHub repository connected."}
-          </p>
-          <p className="mt-2 text-xs text-text-tertiary">Role: {project.data.role}</p>
-        </Panel>
-        <Panel title="Members">
-          {members.isLoading ? <AppSkeleton className="h-10" /> : null}
-          {members.data?.length ? <AppAvatarStack users={members.data} /> : null}
-          {members.data ? (
-            <p className="mt-2 text-sm text-text-secondary">
-              {members.data.length} active member{members.data.length === 1 ? "" : "s"}
-            </p>
-          ) : null}
-          {invitations.data?.length ? (
-            <Link
-              href={`/projects/${project.data.id}/settings`}
-              className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-brand hover:underline"
-            >
-              {invitations.data.length} pending invitation
-              {invitations.data.length === 1 ? "" : "s"}
-            </Link>
-          ) : null}
-        </Panel>
-        <Panel title="Completion">
-          <p className="font-mono text-3xl font-semibold">
-            {project.data.completedThisWeek}
-          </p>
-          <p className="text-sm text-text-secondary">completed this week</p>
+      <section
+        aria-label="Project overview"
+        className="rounded-xl border border-border bg-surface p-4 sm:flex sm:items-center sm:gap-8"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <span className="font-medium text-text-secondary">This week’s progress</span>
+            <span className="font-mono font-semibold text-brand">
+              {project.data.weeklyCompletionPercent}%
+            </span>
+          </div>
+          <div
+            role="progressbar"
+            aria-label="Weekly completion"
+            aria-valuenow={project.data.weeklyCompletionPercent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-muted"
+          >
+            <div
+              className="h-full rounded-full bg-brand transition-[width] duration-300"
+              style={{ width: `${project.data.weeklyCompletionPercent}%` }}
+            />
+          </div>
           <p className="mt-2 text-xs text-text-tertiary">
-            {project.data.weeklyCompletionPercent}% of scheduled tasks complete
+            {project.data.completedThisWeek} completed this week
           </p>
-        </Panel>
+        </div>
+        <dl className="mt-3 flex items-center justify-between gap-5 text-xs sm:mt-0 sm:justify-start">
+          <div className="flex items-center gap-2">
+            <ListTodo className="size-4 text-text-tertiary" aria-hidden="true" />
+            <dt className="text-text-secondary">Open tasks</dt>
+            <dd className="font-mono font-semibold">{project.data.openTaskCount}</dd>
+          </div>
+          <div className="flex items-center gap-2">
+            <User className="size-4 text-text-tertiary" aria-hidden="true" />
+            <dt className="text-text-secondary">Members</dt>
+            <dd className="font-mono font-semibold">
+              {members.data?.length ?? project.data.members.length}
+            </dd>
+          </div>
+        </dl>
+        {invitations.data?.length ? (
+          <Link
+            href={`/projects/${project.data.id}/settings`}
+            className="mt-2 inline-block text-xs text-brand sm:mt-0"
+          >
+            {invitations.data.length} invited
+          </Link>
+        ) : null}
       </section>
+      <ProjectRewards
+        projectId={projectId}
+        tasks={tasks.data ?? []}
+        canManage={project.data.role === "OWNER" || project.data.role === "ADMIN"}
+        disabled={!online || Boolean(project.data.archivedAt)}
+      />
       {project.data.archivedAt ? (
         <p className="rounded-lg border border-warning bg-warning-soft p-4 text-sm text-text-primary">
           This project is archived. Its tasks and history remain available in read-only
@@ -325,7 +355,7 @@ export function ProjectDetailScreen() {
                 />
               ) : null}
               <div className="grid gap-2 max-h-[30rem] overflow-y-auto pr-2 [scrollbar-gutter:stable]">
-                {activityItems.slice(0, 10).map((event: ActivityEventDto) => (
+                {activityItems.map((event: ActivityEventDto) => (
                   <ActivityAccordionItem
                     key={event.id}
                     event={event}
@@ -357,8 +387,6 @@ export function ProjectDetailScreen() {
         onToggle={() => setArchivedOpen(!archivedOpen)}
       >
         <ArchivedTasksSection
-          _projectId={projectId}
-          _projectData={project.data}
           members={members.data ?? []}
           archivedSearch={archivedSearch}
           setArchivedSearch={setArchivedSearch}
@@ -375,35 +403,34 @@ export function ProjectDetailScreen() {
           archivedRefetch={archivedTasks.refetch}
           restore={restore}
           online={online}
-          _mutation={mutation}
-          _selectedTask={selectedTask}
           setSelectedTask={setSelectedTask}
-          _calendarTimeZone={calendarTimeZone}
         />
       </CollapsiblePanel>
-      <TaskDetailSheet
-        task={selectedTask}
-        open={Boolean(selectedTask)}
-        offline={!online}
-        pending={mutation.isPending}
-        conflict={
-          mutation.isError &&
-          typeof mutation.error === "object" &&
-          mutation.error !== null &&
-          "status" in mutation.error &&
-          mutation.error.status === 409
-        }
-        onOpenChange={(open) => !open && setSelectedTask(null)}
-        onOpenRelatedTask={setSelectedTask}
-        onAction={(task, action) => mutation.mutate({ task, action })}
-        onArchive={(task) => {
-          mutation.mutate({ task, action: "archive" });
-          setSelectedTask(null);
-        }}
-        onSave={async (task, values) => {
-          await mutation.mutateAsync({ task, action: "update", body: values });
-        }}
-      />
+      {selectedTask ? (
+        <TaskDetailSheet
+          task={selectedTask}
+          open={Boolean(selectedTask)}
+          offline={!online}
+          pending={mutation.isPending}
+          conflict={
+            mutation.isError &&
+            typeof mutation.error === "object" &&
+            mutation.error !== null &&
+            "status" in mutation.error &&
+            mutation.error.status === 409
+          }
+          onOpenChange={(open) => !open && setSelectedTask(null)}
+          onOpenRelatedTask={setSelectedTask}
+          onAction={(task, action) => mutation.mutate({ task, action })}
+          onArchive={(task) => {
+            mutation.mutate({ task, action: "archive" });
+            setSelectedTask(null);
+          }}
+          onSave={async (task, values) => {
+            await mutation.mutateAsync({ task, action: "update", body: values });
+          }}
+        />
+      ) : null}
       {createOpen ? (
         <TaskCreateSheet
           open
@@ -415,27 +442,9 @@ export function ProjectDetailScreen() {
           scheduledDate={currentDate}
           offline={!online}
           onOpenChange={setCreateOpen}
-          onCreated={() => undefined}
         />
       ) : null}
     </main>
-  );
-}
-
-/**
- * Purpose: Render a project detail panel.
- * Inputs: Title and children.
- * Output: Bordered section.
- * Side effects: None.
- */
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-lg border border-border bg-surface p-4">
-      <h2 className="mb-3 text-sm font-semibold uppercase text-text-secondary">
-        {title}
-      </h2>
-      {children}
-    </section>
   );
 }
 
@@ -657,17 +666,18 @@ function KanbanTaskCard({
   const canMove = !disabled && task.permissions.canTransition;
   return (
     <article
+      data-reward={task.rewardId ? "true" : undefined}
       draggable={canMove}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       className={cn(
-        "group rounded-lg border border-border bg-surface p-3 shadow-[var(--shadow-surface)] transition-[border-color,box-shadow,transform,opacity] duration-150 hover:-translate-y-0.5 hover:border-quest-muted hover:shadow-[var(--shadow-raised)]",
+        "group rounded-xl border border-border bg-surface p-3.5 shadow-[var(--shadow-surface)] transition-[border-color,box-shadow,transform,opacity] duration-150 hover:-translate-y-0.5 hover:border-quest-muted hover:shadow-[var(--shadow-raised)]",
         dragging ? "scale-[0.98] opacity-45" : null,
       )}
     >
       <div className="flex items-start gap-2">
         <GripVertical
-          className="mt-0.5 size-4 shrink-0 text-text-tertiary group-hover:text-quest"
+          className="mt-0.5 hidden size-4 shrink-0 text-text-tertiary sm:block sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
           aria-hidden="true"
         />
         <button
@@ -682,29 +692,52 @@ function KanbanTaskCard({
                 className="mt-0.5 size-4 shrink-0 text-quest"
               />
             ) : null}
-            <span className="line-clamp-2">{task.title}</span>
+            <span className="line-clamp-2 break-words">{task.title}</span>
           </span>
           {task.description ? (
             <span className="mt-1 line-clamp-2 text-xs leading-5 text-text-secondary">
               {task.description}
             </span>
           ) : null}
-          <TaskClassification
-            taskType={task.taskType}
-            priority={task.priority}
-            className="mt-2"
-          />
+          <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <TaskClassification taskType={task.taskType} priority={task.priority} />
+            <TaskDifficulty value={task.difficulty} />
+            {task.rewardId ? <span className="text-xs text-brand">Reward</span> : null}
+          </span>
         </button>
       </div>
-      <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-2">
-        <div className="flex min-w-0 items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-text-secondary">
+        <span className="inline-flex items-center gap-1.5">
+          <Calendar className="size-3.5" aria-hidden="true" />
+          <time dateTime={task.scheduledDate}>
+            {new Date(task.scheduledDate + "T12:00:00").toLocaleDateString(undefined, {
+              month: "short",
+              day: "numeric",
+            })}
+          </time>
+        </span>
+        {task.subtaskTotal > 0 ? (
+          <span>
+            {task.subtaskCompleted}/{task.subtaskTotal} subtasks
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-2 border-t border-border/60 pt-1">
+        <div className="flex min-w-0 max-w-full items-center gap-2">
           {task.assignee ? (
-            <AppAvatar
-              name={task.assignee.displayName}
-              src={task.assignee.avatarUrl}
-              className="size-7"
-            />
-          ) : null}
+            <>
+              <AppAvatar
+                name={task.assignee.displayName}
+                src={task.assignee.avatarUrl}
+                className="size-6"
+              />
+              <span className="max-w-28 truncate text-[11px] text-text-secondary">
+                {task.assignee.displayName}
+              </span>
+            </>
+          ) : (
+            <span className="text-[11px] text-text-tertiary">Unassigned</span>
+          )}
           {task.scheduledTime ? (
             <span className="inline-flex items-center gap-1 font-mono text-[10px] text-text-tertiary">
               <Clock3 className="size-3" aria-hidden="true" />
@@ -712,7 +745,11 @@ function KanbanTaskCard({
             </span>
           ) : null}
         </div>
-        <div className="flex items-center gap-1" aria-label={`Move ${task.title}`}>
+        <div
+          className="flex items-center gap-1"
+          role="group"
+          aria-label={`Move ${task.title}`}
+        >
           {kanbanColumns
             .filter((column) => column.status !== task.status)
             .map((column) => (
@@ -721,11 +758,11 @@ function KanbanTaskCard({
                 type="button"
                 title={`Move to ${column.title}`}
                 aria-label={`Move ${task.title} to ${column.title}`}
-                className="inline-flex size-8 items-center justify-center rounded-md text-text-tertiary hover:bg-quest-soft hover:text-quest disabled:opacity-40"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-quest-soft hover:text-quest disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-quest"
                 disabled={!canMove}
                 onClick={() => onMove(column.status)}
               >
-                <column.icon className="size-3.5" aria-hidden="true" />
+                <column.icon className="size-4" aria-hidden="true" />
               </button>
             ))}
         </div>
@@ -859,8 +896,6 @@ function formatRelativeDay(date: string, todayDate: string): string {
  * Side effects: Fetches archived tasks, handles restore mutations.
  */
 function ArchivedTasksSection({
-  _projectId,
-  _projectData,
   members,
   archivedSearch,
   setArchivedSearch,
@@ -877,13 +912,8 @@ function ArchivedTasksSection({
   archivedRefetch,
   restore,
   online,
-  _mutation,
-  _selectedTask,
   setSelectedTask,
-  _calendarTimeZone,
 }: {
-  _projectId: string;
-  _projectData: ProjectSummary;
   members: (ProfileSummary & { role: ProjectRole; joinedAt: string })[];
   archivedSearch: string;
   setArchivedSearch: (value: string) => void;
@@ -902,10 +932,7 @@ function ArchivedTasksSection({
   archivedRefetch: () => void;
   restore: ReturnType<typeof useRestoreTask>;
   online: boolean;
-  _mutation: ReturnType<typeof useTaskMutation>;
-  _selectedTask: TaskDto | null;
   setSelectedTask: (task: TaskDto | null) => void;
-  _calendarTimeZone: string;
 }) {
   const hasActiveFilters = Boolean(
     archivedFilters.priority ||
@@ -1033,37 +1060,37 @@ function ArchivedTasksSection({
             </AppButton>
           </div>
           <div className="grid gap-1">
-            <label className="text-xs text-text-secondary">Completed from</label>
             <AppDatePicker
+              label="Completed from"
               value={archivedFilters.completedFrom ?? ""}
-              onChange={(e) => handleFilterChange("completedFrom", e.currentTarget.value)}
+              onValueChange={(value) => handleFilterChange("completedFrom", value)}
               placeholder="YYYY-MM-DD"
               className="h-10"
             />
           </div>
           <div className="grid gap-1">
-            <label className="text-xs text-text-secondary">Completed to</label>
             <AppDatePicker
+              label="Completed to"
               value={archivedFilters.completedTo ?? ""}
-              onChange={(e) => handleFilterChange("completedTo", e.currentTarget.value)}
+              onValueChange={(value) => handleFilterChange("completedTo", value)}
               placeholder="YYYY-MM-DD"
               className="h-10"
             />
           </div>
           <div className="grid gap-1">
-            <label className="text-xs text-text-secondary">Archived from</label>
             <AppDatePicker
+              label="Archived from"
               value={archivedFilters.archivedFrom ?? ""}
-              onChange={(e) => handleFilterChange("archivedFrom", e.currentTarget.value)}
+              onValueChange={(value) => handleFilterChange("archivedFrom", value)}
               placeholder="YYYY-MM-DD"
               className="h-10"
             />
           </div>
           <div className="grid gap-1">
-            <label className="text-xs text-text-secondary">Archived to</label>
             <AppDatePicker
+              label="Archived to"
               value={archivedFilters.archivedTo ?? ""}
-              onChange={(e) => handleFilterChange("archivedTo", e.currentTarget.value)}
+              onValueChange={(value) => handleFilterChange("archivedTo", value)}
               placeholder="YYYY-MM-DD"
               className="h-10"
             />
@@ -1133,9 +1160,6 @@ function ArchivedTaskRow({
   onOpen: (task: TaskDto) => void;
   onRestore: (task: TaskDto) => void;
 }) {
-  const weekStart = getMondayWeekStart(parseISO(task.scheduledDate));
-  const _mutation = useTaskMutation(weekStart);
-
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return "";
     return new Date(dateString).toLocaleString();

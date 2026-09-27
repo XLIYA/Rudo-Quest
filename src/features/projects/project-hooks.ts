@@ -13,13 +13,14 @@ import type {
 
 /**
  * Purpose: Fetch project list data.
- * Inputs: Optional query string.
+ * Inputs: Optional query string. The empty search shares the canonical
+ * ["projects"] cache entry used by selectors so the same fetch serves both.
  * Output: TanStack Query result.
  * Side effects: Performs browser HTTP GET.
  */
 export function useProjects(search = "") {
   return useQuery({
-    queryKey: [...queryKeys.projects, search],
+    queryKey: search ? [...queryKeys.projects, search] : queryKeys.projects,
     queryFn: ({ signal }) => apiGet<ProjectSummary[]>(`/api/projects${search}`, signal),
   });
 }

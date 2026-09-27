@@ -93,6 +93,8 @@ const task = (overrides: Partial<TaskDto> = {}): TaskDto => ({
   iconKey: null,
   taskType: "TASK",
   priority: "MEDIUM",
+  difficulty: 1,
+  rewardId: null,
   parentTaskId: null,
   subtaskTotal: 0,
   subtaskCompleted: 0,
@@ -118,6 +120,7 @@ const task = (overrides: Partial<TaskDto> = {}): TaskDto => ({
     canCreateSubtasks: true,
     canTransition: true,
     canArchive: true,
+    canAssign: true,
   },
   ...overrides,
 });
