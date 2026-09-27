@@ -27,7 +27,7 @@ import { AppConfirmDialog } from "./app-confirm-dialog";
 import { AppDatePicker } from "./app-date-picker";
 import { AppInput } from "./app-input";
 import { AppSelect } from "./app-select";
-import { AppSheet } from "./app-sheet";
+import { AppDialog } from "./app-dialog";
 import { AppTextarea } from "./app-textarea";
 import { AppTimePicker } from "./app-time-picker";
 import { TaskAssigneeCombobox } from "./task-assignee-combobox";
@@ -39,6 +39,8 @@ import {
   taskTypeOptions,
 } from "./task-classification";
 
+import { TaskDifficulty, TaskDifficultyPicker } from "./task-difficulty";
+
 type TaskDraft = {
   title: string;
   description: string | null;
@@ -49,10 +51,19 @@ type TaskDraft = {
   iconKey: ProjectIconKey | null;
   taskType: TaskType;
   priority: TaskPriority;
+  difficulty: number;
   version: number;
 };
 
 export type TaskDetailAction = "start" | "complete" | "reopen" | "pending_review";
+
+/**
+ * Payload sent to onSave. Viewers without detail-edit rights may submit an
+ * assignment-only change, so a partial field set must be representable.
+ */
+export type TaskDetailSaveValues = Partial<Omit<TaskDraft, "version">> & {
+  version: number;
+};
 
 export type TaskDetailSheetProps = {
   task: TaskDto | null;
@@ -61,7 +72,7 @@ export type TaskDetailSheetProps = {
   pending?: boolean;
   conflict?: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (task: TaskDto, values: TaskDraft) => Promise<void>;
+  onSave: (task: TaskDto, values: TaskDetailSaveValues) => Promise<void>;
   onAction: (task: TaskDto, action: TaskDetailAction) => void;
   onArchive: (task: TaskDto) => void;
   onOpenRelatedTask: (task: TaskDto) => void;
@@ -84,6 +95,7 @@ function toDraft(task: TaskDto): TaskDraft {
     iconKey: task.iconKey,
     taskType: task.taskType,
     priority: task.priority,
+    difficulty: task.difficulty,
     version: task.version,
   };
 }
@@ -226,7 +238,7 @@ function StatusBadge({ status }: { status: TaskDto["status"] }) {
 /**
  * Purpose: Render editable task data and immediately persistent state actions in a responsive sheet.
  * Inputs: Selected task, offline state, save/action/archive callbacks, and open state.
- * Output: Accessible mobile bottom sheet and desktop side sheet.
+ * Output: Accessible centered task dialog.
  * Side effects: Reads fresh task/activity data and invokes mutation callbacks.
  * Failure behavior: Parent mutation errors roll back through TanStack Query and keep the sheet open.
  */
@@ -244,9 +256,14 @@ export function TaskDetailSheet({
 }: TaskDetailSheetProps) {
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [draftState, setDraftState] = useState<{ key: string; draft: TaskDraft } | null>(
-    () => (task ? { key: `${task.id}:${task.version}`, draft: toDraft(task) } : null),
-  );
+  // The draft is keyed to the task identity only. Version bumps from
+  // optimistic updates or background refetches must not discard unsaved
+  // edits; the field values below keep precedence over a refetched task,
+  // matching the save-failure retention path.
+  const [draftState, setDraftState] = useState<{
+    taskId: string;
+    draft: TaskDraft;
+  } | null>(null);
   const taskQuery = useQuery({
     queryKey: queryKeys.task(task?.id ?? ""),
     queryFn: ({ signal }) => apiGet<TaskDto>(`/api/tasks/${task?.id}`, signal),
@@ -262,29 +279,35 @@ export function TaskDetailSheet({
     enabled: open && Boolean(activeTask?.id),
   });
 
-  const draftKey = activeTask ? `${activeTask.id}:${activeTask.version}` : null;
   const draft = activeTask
-    ? draftState?.key === draftKey
+    ? draftState?.taskId === activeTask.id
       ? draftState.draft
       : toDraft(activeTask)
     : null;
 
-  if (!activeTask || !draft || !draftKey) return null;
+  if (!activeTask || !draft) return null;
   const archivedReadOnly = Boolean(activeTask.archivedAt);
   const detailsDisabled =
     archivedReadOnly || offline || saving || !activeTask.permissions.canEditDetails;
+  // Members may reassign project tasks without broader edit rights, so the
+  // assignee combobox follows canAssign instead of the whole-pane gate.
+  const assigneeDisabled =
+    archivedReadOnly || offline || saving || !activeTask.permissions.canAssign;
   const transitionsDisabled =
     archivedReadOnly || offline || saving || !activeTask.permissions.canTransition;
   /**
-   * Purpose: Update one draft field while retaining its task-version identity.
+   * Purpose: Update one draft field while retaining its task identity.
    * Inputs: Draft key and typed replacement value.
    * Output: Void.
    * Side effects: Updates local form state.
    */
   const update = <K extends keyof TaskDraft>(key: K, value: TaskDraft[K]) =>
     setDraftState((current) => ({
-      key: draftKey,
-      draft: { ...(current?.key === draftKey ? current.draft : draft), [key]: value },
+      taskId: activeTask.id,
+      draft: {
+        ...(current?.taskId === activeTask.id ? current.draft : draft),
+        [key]: value,
+      },
     }));
 
   /**
@@ -292,19 +315,27 @@ export function TaskDetailSheet({
    * Inputs: Form submission event.
    * Output: Void.
    * Side effects: Prevents navigation and invokes the versioned save callback.
+   * Business rule: Viewers who may only assign send an assignment-only patch
+   * so the server accepts the update under the member assignment policy.
    */
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (saving) return;
     setSaving(true);
     try {
-      await onSave(activeTask, {
-        ...draft,
-        title: draft.title.trim(),
-        description: draft.description?.trim() || null,
-        scheduledTime: draft.scheduledTime || null,
-        assigneeId: draft.projectId ? draft.assigneeId : activeTask.createdBy.id,
-      });
+      const nextAssigneeId = draft.projectId ? draft.assigneeId : activeTask.createdBy.id;
+      const values: TaskDetailSaveValues =
+        !activeTask.permissions.canEditDetails && activeTask.permissions.canAssign
+          ? { version: draft.version, assigneeId: nextAssigneeId }
+          : {
+              ...draft,
+              title: draft.title.trim(),
+              description: draft.description?.trim() || null,
+              scheduledTime: draft.scheduledTime || null,
+              assigneeId: nextAssigneeId,
+              version: draft.version,
+            };
+      await onSave(activeTask, values);
       onOpenChange(false);
     } catch {
       // The mutation hook owns error presentation; preserve the draft for retry.
@@ -315,7 +346,7 @@ export function TaskDetailSheet({
 
   return (
     <>
-      <AppSheet open={open} onOpenChange={onOpenChange} title="Task details">
+      <AppDialog open={open} onOpenChange={onOpenChange} title="Task details">
         <form className="grid gap-5" onSubmit={submit}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -324,6 +355,7 @@ export function TaskDetailSheet({
                 taskType={activeTask.taskType}
                 priority={activeTask.priority}
               />
+              <TaskDifficulty value={activeTask.difficulty} />
             </div>
             <span className="font-mono text-xs text-text-tertiary">
               v{activeTask.version}
@@ -331,8 +363,9 @@ export function TaskDetailSheet({
           </div>
           {!activeTask.permissions.canEditDetails ? (
             <p className="rounded-md border border-border bg-surface-muted p-3 text-sm text-text-secondary">
-              You can view this task, but only its assignee or a project owner/admin can
-              edit it.
+              {activeTask.permissions.canAssign
+                ? "You can update the assignee, but only the assignee or a project owner/admin can edit the other details."
+                : "You can view this task, but only its assignee or a project owner/admin can edit it."}
             </p>
           ) : null}
           {archivedReadOnly ? (
@@ -340,13 +373,21 @@ export function TaskDetailSheet({
               This task is archived. Restore it from Task history before making changes.
             </p>
           ) : null}
-          {conflict ? (
+          {conflict || draft.version !== activeTask.version ? (
             <p
               role="alert"
               className="rounded-md border border-warning bg-warning-soft p-3 text-sm text-text-primary"
             >
-              This task changed on another device. The latest version is loaded; review it
-              before saving again.
+              This task changed. Your draft is preserved. Review your edits before
+              applying them to the latest version.
+              <AppButton
+                type="button"
+                variant="secondary"
+                disabled={pending || saving}
+                onClick={() => update("version", activeTask.version)}
+              >
+                Use latest version
+              </AppButton>
             </p>
           ) : null}
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(17rem,0.8fr)]">
@@ -382,10 +423,15 @@ export function TaskDetailSheet({
                   options={taskPriorityOptions}
                   disabled={detailsDisabled}
                 />
+                <TaskDifficultyPicker
+                  value={draft.difficulty}
+                  onChange={(value) => update("difficulty", value)}
+                  disabled={detailsDisabled}
+                />
                 <AppDatePicker
                   label="Scheduled date"
                   value={draft.scheduledDate}
-                  onChange={(event) => update("scheduledDate", event.currentTarget.value)}
+                  onValueChange={(value) => update("scheduledDate", value)}
                   disabled={detailsDisabled}
                 />
                 <AppTimePicker
@@ -406,7 +452,7 @@ export function TaskDetailSheet({
                 disabled={detailsDisabled}
               />
               <TaskAssigneeCombobox
-                key={`${activeTask.id}:${activeTask.version}:${activeTask.projectId ?? "personal"}`}
+                key={`${activeTask.id}:${activeTask.projectId ?? "personal"}`}
                 value={draft.assigneeId}
                 currentAssignee={
                   draft.projectId === activeTask.projectId &&
@@ -416,7 +462,7 @@ export function TaskDetailSheet({
                 }
                 projectId={draft.projectId}
                 onChange={(value) => update("assigneeId", value)}
-                disabled={detailsDisabled}
+                disabled={assigneeDisabled}
               />
               <IconPicker
                 value={draft.iconKey}
@@ -476,7 +522,7 @@ export function TaskDetailSheet({
             </aside>
           </div>
           {!archivedReadOnly ? (
-            <div className="grid grid-cols-2 gap-2 border-t border-border pt-4 sm:grid-cols-2 sm:grid-cols-auto lg:grid-cols-[repeat(auto-fit,minmax(120px,1fr))] [&>*]:w-full">
+            <div className="grid grid-cols-2 gap-2 border-t border-border pt-4 sm:grid-cols-3 lg:grid-cols-[repeat(auto-fit,minmax(120px,1fr))] [&>*]:w-full">
               {activeTask.status === "TODO" ? (
                 <>
                   <AppButton
@@ -566,7 +612,12 @@ export function TaskDetailSheet({
               <AppButton
                 type="submit"
                 aria-label="Save changes"
-                disabled={detailsDisabled || pending || saving || !draft.title.trim()}
+                disabled={
+                  (detailsDisabled && assigneeDisabled) ||
+                  pending ||
+                  saving ||
+                  !draft.title.trim()
+                }
               >
                 <CheckCircle2 className="size-4" aria-hidden="true" />
                 {saving ? "Saving…" : "Save changes"}
@@ -574,6 +625,7 @@ export function TaskDetailSheet({
               <AppButton
                 type="button"
                 variant="danger"
+                className="col-span-full sm:col-span-1"
                 disabled={offline || pending || !activeTask.permissions.canArchive}
                 onClick={() => setConfirmArchive(true)}
               >
@@ -593,7 +645,7 @@ export function TaskDetailSheet({
           </div>
         ) : null}
         <TaskAttachments task={activeTask} open={open} offline={offline} />
-      </AppSheet>
+      </AppDialog>
       <AppConfirmDialog
         open={confirmArchive}
         onOpenChange={setConfirmArchive}

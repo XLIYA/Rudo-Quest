@@ -42,7 +42,11 @@ describe("TaskCreateSheet", () => {
 
     expect(screen.getByLabelText("Project")).toBeDisabled();
     expect(screen.getByText("Leave unassigned")).toBeVisible();
+    await user.clear(screen.getByLabelText("Scheduled date"));
+    expect(screen.getByLabelText("Scheduled date")).toBeInvalid();
+    await user.type(screen.getByLabelText("Scheduled date"), "2026-08-08");
     await user.type(screen.getByLabelText("Title"), "Ship onboarding");
+    await user.click(screen.getByRole("radio", { name: "5 — Very hard" }));
     await user.click(screen.getByRole("button", { name: "Create task" }));
 
     expect(mutateAsync).toHaveBeenCalledWith(
@@ -52,6 +56,7 @@ describe("TaskCreateSheet", () => {
         assigneeId: null,
         taskType: "TASK",
         priority: "NONE",
+        difficulty: 5,
       }),
     );
     expect(onOpenChange).toHaveBeenCalledWith(false);

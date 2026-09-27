@@ -10,8 +10,8 @@ vi.mock("@tanstack/react-query", () => ({
       : { data: [], isLoading: false, isError: false },
   ),
 }));
-vi.mock("./app-sheet", () => ({
-  AppSheet: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
+vi.mock("./app-dialog", () => ({
+  AppDialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
     open ? <div>{children}</div> : null,
 }));
 vi.mock("./task-attachments", () => ({ TaskAttachments: () => null }));
@@ -27,6 +27,8 @@ const task: TaskDto = {
   iconKey: null,
   taskType: "TASK",
   priority: "NONE",
+  difficulty: 1,
+  rewardId: null,
   parentTaskId: null,
   subtaskTotal: 0,
   subtaskCompleted: 0,
@@ -46,6 +48,7 @@ const task: TaskDto = {
     canCreateSubtasks: true,
     canTransition: true,
     canArchive: true,
+    canAssign: true,
   },
   project: null,
 };

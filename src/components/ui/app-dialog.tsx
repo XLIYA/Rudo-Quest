@@ -14,9 +14,9 @@ export type AppDialogProps = {
 };
 
 /**
- * Purpose: Render a modal dialog with focus trap and Escape handling.
+ * Purpose: Render a spacious centered modal dialog.
  * Inputs: Controlled open state, title, optional description, and content.
- * Output: Accessible Radix dialog.
+ * Output: Accessible Radix dialog with a responsive work area.
  * Side effects: Locks focus while open.
  */
 export function AppDialog({
@@ -30,15 +30,17 @@ export function AppDialog({
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay fixed inset-0 z-40 bg-black/45 backdrop-blur-[2px]" />
-        <Dialog.Content className="dialog-surface fixed left-1/2 top-1/2 z-50 max-h-[88vh] w-[min(92vw,36rem)] overflow-auto rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow-overlay)]">
-          <div className="mb-4 flex items-center justify-between gap-4">
+        <Dialog.Content className="dialog-surface fixed left-1/2 top-1/2 z-50 max-h-[92vh] w-[min(96vw,62rem)] -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-xl border border-border bg-surface p-4 shadow-[var(--shadow-overlay)] sm:p-6">
+          <div className="mb-5 flex items-center justify-between gap-4 border-b border-border pb-4">
             <div>
-              <Dialog.Title className="text-lg font-semibold">{title}</Dialog.Title>
-              {description && (
+              <Dialog.Title className="text-2xl font-semibold tracking-[-0.02em]">
+                {title}
+              </Dialog.Title>
+              {description ? (
                 <Dialog.Description className="mt-1 text-sm text-text-secondary">
                   {description}
                 </Dialog.Description>
-              )}
+              ) : null}
             </div>
             <Dialog.Close asChild>
               <AppIconButton label="Close dialog">

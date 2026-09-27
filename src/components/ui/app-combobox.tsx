@@ -32,6 +32,9 @@ export function AppCombobox({
   const generatedId = useId().replaceAll(":", "");
   const listboxId = `${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${generatedId}-options`;
   const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const [dismissed, setDismissed] = useState(false);
+  const expanded = !disabled && !dismissed && options.length > 0;
+  const activeIndex = Math.min(highlightedIndex, options.length - 1);
   /**
    * Purpose: Commit the highlighted or clicked suggestion.
    * Inputs: Option index in the current result set.
@@ -41,6 +44,7 @@ export function AppCombobox({
   const selectOption = (index: number) => {
     const option = options[index];
     if (option) onOptionSelect?.(option);
+    setDismissed(true);
   };
   return (
     <div className="relative">
@@ -48,34 +52,46 @@ export function AppCombobox({
       <AppInput
         label={label}
         value={value}
-        onChange={(event) => onChange(event.currentTarget.value)}
+        onChange={(event) => {
+          setDismissed(false);
+          setHighlightedIndex(0);
+          onChange(event.currentTarget.value);
+        }}
+        onFocus={() => setDismissed(false)}
+        onBlur={() => setDismissed(true)}
         placeholder={placeholder}
         className="pl-9"
         disabled={disabled}
         role="combobox"
-        aria-controls={options.length ? listboxId : undefined}
-        aria-expanded={options.length > 0}
-        aria-activedescendant={
-          options.length ? `${listboxId}-${highlightedIndex}` : undefined
-        }
+        aria-controls={expanded ? listboxId : undefined}
+        aria-expanded={expanded}
+        aria-activedescendant={expanded ? `${listboxId}-${activeIndex}` : undefined}
         onKeyDown={(event) => {
           if (!options.length) return;
           if (event.key === "ArrowDown") {
             event.preventDefault();
-            setHighlightedIndex((index) => (index + 1) % options.length);
+            setDismissed(false);
+            setHighlightedIndex(expanded ? (activeIndex + 1) % options.length : 0);
           } else if (event.key === "ArrowUp") {
             event.preventDefault();
-            setHighlightedIndex((index) => (index - 1 + options.length) % options.length);
-          } else if (event.key === "Enter") {
+            setDismissed(false);
+            setHighlightedIndex(
+              expanded
+                ? (activeIndex - 1 + options.length) % options.length
+                : options.length - 1,
+            );
+          } else if (event.key === "Enter" && expanded) {
             event.preventDefault();
             selectOption(Math.min(highlightedIndex, options.length - 1));
-          } else if (event.key === "Escape") {
+          } else if (event.key === "Escape" && expanded) {
             event.preventDefault();
-            onChange("");
+            event.stopPropagation();
+            setHighlightedIndex(0);
+            setDismissed(true);
           }
         }}
       />
-      {options.length ? (
+      {expanded ? (
         <ul
           id={listboxId}
           role="listbox"
@@ -87,16 +103,13 @@ export function AppCombobox({
               id={`${listboxId}-${index}`}
               key={option.value}
               role="option"
-              aria-selected={index === highlightedIndex}
+              aria-selected={index === activeIndex}
+              className="flex min-h-11 cursor-pointer items-center rounded-sm px-3 text-left text-sm hover:bg-surface-muted aria-selected:bg-surface-muted"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => selectOption(index)}
+              onMouseEnter={() => setHighlightedIndex(index)}
             >
-              <button
-                type="button"
-                className="flex min-h-11 w-full items-center rounded-sm px-3 text-left text-sm hover:bg-surface-muted focus-visible:bg-surface-muted focus-visible:outline-none"
-                onClick={() => selectOption(index)}
-                onMouseEnter={() => setHighlightedIndex(index)}
-              >
-                {option.label}
-              </button>
+              {option.label}
             </li>
           ))}
         </ul>

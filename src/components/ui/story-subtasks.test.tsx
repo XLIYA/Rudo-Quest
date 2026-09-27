@@ -30,6 +30,8 @@ const story = {
   iconKey: null,
   taskType: "STORY",
   priority: "HIGH",
+  difficulty: 1,
+  rewardId: null,
   parentTaskId: null,
   subtaskTotal: 3,
   subtaskCompleted: 2,
@@ -49,6 +51,7 @@ const story = {
     canCreateSubtasks: true,
     canTransition: true,
     canArchive: true,
+    canAssign: true,
   },
   project: null,
 } satisfies TaskDto;

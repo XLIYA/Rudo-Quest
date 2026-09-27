@@ -15,6 +15,7 @@ import { AppSelect } from "./app-select";
 import { AppSkeleton } from "./app-skeleton";
 import { TaskAssigneeCombobox } from "./task-assignee-combobox";
 import { taskPriorityOptions, taskTypeOptions } from "./task-classification";
+import { TaskDifficultyPicker } from "./task-difficulty";
 import { TaskRow } from "./task-row";
 
 const subtaskTypeOptions = taskTypeOptions.filter((option) => option.value !== "STORY");
@@ -37,6 +38,7 @@ export function StorySubtasks({ story, offline, onOpenTask }: StorySubtasksProps
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");
   const [taskType, setTaskType] = useState<Exclude<TaskType, "STORY">>("TASK");
+  const [difficulty, setDifficulty] = useState(1);
   const [priority, setPriority] = useState<TaskPriority>("NONE");
   const [scheduledDate, setScheduledDate] = useState(story.scheduledDate);
   const [assigneeId, setAssigneeId] = useState<string | null>(null);
@@ -54,12 +56,14 @@ export function StorySubtasks({ story, offline, onOpenTask }: StorySubtasksProps
         title: title.trim(),
         taskType,
         priority,
+        difficulty,
         scheduledDate,
         assigneeId,
       });
       setTitle("");
       setTaskType("TASK");
       setPriority("NONE");
+      setDifficulty(1);
       setScheduledDate(story.scheduledDate);
       setAssigneeId(null);
       setCreating(false);
@@ -142,10 +146,15 @@ export function StorySubtasks({ story, offline, onOpenTask }: StorySubtasksProps
             options={taskPriorityOptions}
             disabled={offline || createSubtask.isPending}
           />
+          <TaskDifficultyPicker
+            value={difficulty}
+            onChange={setDifficulty}
+            disabled={offline || createSubtask.isPending}
+          />
           <AppDatePicker
             label="Scheduled date"
             value={scheduledDate}
-            onChange={(event) => setScheduledDate(event.currentTarget.value)}
+            onValueChange={(value) => setScheduledDate(value)}
             required
             disabled={offline || createSubtask.isPending}
           />

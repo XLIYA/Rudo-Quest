@@ -12,6 +12,7 @@ export type AppSelectProps = {
   options: AppSelectOption[];
   disabled?: boolean;
   placeholder?: string;
+  hideLabel?: boolean;
 };
 
 /**
@@ -27,17 +28,26 @@ export function AppSelect({
   options,
   disabled,
   placeholder,
+  hideLabel,
 }: AppSelectProps) {
   const labelId = useId();
+  const emptyOptionValue = `empty-${labelId}`;
+  const hasEmptyOption = options.some((option) => option.value === "");
   return (
     <div className="grid gap-1.5 text-sm font-medium">
-      <span id={labelId}>{label}</span>
-      <Select.Root value={value} onValueChange={onValueChange} disabled={disabled}>
+      <span id={labelId} className={hideLabel ? "sr-only" : undefined}>
+        {label}
+      </span>
+      <Select.Root
+        value={value || (hasEmptyOption ? emptyOptionValue : "")}
+        onValueChange={(next) => onValueChange(next === emptyOptionValue ? "" : next)}
+        disabled={disabled}
+      >
         <Select.Trigger
           aria-labelledby={labelId}
           className="inline-flex min-h-11 w-full items-center justify-between gap-3 rounded-md border border-border bg-surface px-3 text-sm outline-none transition-[border-color,box-shadow] duration-150 hover:border-border-strong focus:border-quest focus:shadow-[0_0_0_3px_var(--quest-soft)]"
         >
-          {value ? (
+          {value || hasEmptyOption ? (
             <Select.Value />
           ) : (
             <span className="text-text-tertiary">{placeholder ?? "Select..."}</span>
@@ -56,7 +66,7 @@ export function AppSelect({
               {options.map((option) => (
                 <Select.Item
                   key={option.value}
-                  value={option.value}
+                  value={option.value || emptyOptionValue}
                   className="flex min-h-10 cursor-pointer items-center gap-2 rounded-md px-2 text-sm outline-none data-[highlighted]:bg-quest-soft data-[highlighted]:text-quest"
                 >
                   <Select.ItemIndicator>

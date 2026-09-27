@@ -10,11 +10,13 @@ import { AppButton } from "./app-button";
 import { AppDatePicker } from "./app-date-picker";
 import { AppInput } from "./app-input";
 import { AppSelect } from "./app-select";
-import { AppSheet } from "./app-sheet";
+import { AppDialog } from "./app-dialog";
 import { AppTextarea } from "./app-textarea";
 import { AppTimePicker } from "./app-time-picker";
 import { TaskAssigneeCombobox } from "./task-assignee-combobox";
 import { taskPriorityOptions, taskTypeOptions } from "./task-classification";
+
+import { TaskDifficultyPicker } from "./task-difficulty";
 
 export type TaskCreateSheetProps = {
   open: boolean;
@@ -22,7 +24,7 @@ export type TaskCreateSheetProps = {
   scheduledDate: string;
   offline?: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: (task: TaskDto) => void;
+  onCreated?: (task: TaskDto) => void;
 };
 
 /**
@@ -45,8 +47,9 @@ export function TaskCreateSheet({
   const [scheduledTime, setScheduledTime] = useState<string | null>(null);
   const [assigneeId, setAssigneeId] = useState<string | null>(null);
   const [taskType, setTaskType] = useState<TaskType>("TASK");
+  const [difficulty, setDifficulty] = useState(1);
   const [priority, setPriority] = useState<TaskPriority>("NONE");
-  const weekStart = getMondayWeekStart(parseISO(scheduledDate));
+  const weekStart = getMondayWeekStart(parseISO(scheduledDate || initialScheduledDate));
   const createTask = useCreateTask(weekStart);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -63,8 +66,9 @@ export function TaskCreateSheet({
         assigneeId,
         taskType,
         priority,
+        difficulty,
       });
-      onCreated(created);
+      onCreated?.(created);
       onOpenChange(false);
     } catch {
       // The mutation hook reports a safe error and the sheet preserves the draft.
@@ -72,7 +76,7 @@ export function TaskCreateSheet({
   };
 
   return (
-    <AppSheet open={open} onOpenChange={onOpenChange} title="Create project task">
+    <AppDialog open={open} onOpenChange={onOpenChange} title="Create project task">
       <form className="grid gap-5" onSubmit={submit}>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid content-start gap-4 sm:col-span-2">
@@ -116,10 +120,15 @@ export function TaskCreateSheet({
             options={taskPriorityOptions}
             disabled={offline || createTask.isPending}
           />
+          <TaskDifficultyPicker
+            value={difficulty}
+            onChange={setDifficulty}
+            disabled={offline || createTask.isPending}
+          />
           <AppDatePicker
             label="Scheduled date"
             value={scheduledDate}
-            onChange={(event) => setScheduledDate(event.currentTarget.value)}
+            onValueChange={(value) => setScheduledDate(value)}
             disabled={offline || createTask.isPending}
             required
           />
@@ -142,6 +151,6 @@ export function TaskCreateSheet({
           </AppButton>
         </div>
       </form>
-    </AppSheet>
+    </AppDialog>
   );
 }

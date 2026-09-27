@@ -27,6 +27,8 @@ const task: TaskDto = {
   iconKey: null,
   taskType: "TASK",
   priority: "NONE",
+  difficulty: 1,
+  rewardId: null,
   parentTaskId: null,
   subtaskTotal: 0,
   subtaskCompleted: 0,
@@ -46,6 +48,7 @@ const task: TaskDto = {
     canCreateSubtasks: true,
     canTransition: true,
     canArchive: true,
+    canAssign: true,
   },
   project: null,
 };

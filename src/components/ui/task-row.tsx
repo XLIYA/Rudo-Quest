@@ -1,5 +1,7 @@
 "use client";
 
+import { TaskDifficulty } from "@/components/ui/task-difficulty";
+
 import { Clock, Play } from "lucide-react";
 import type { TaskDto } from "@/types/domain";
 import { getProjectColor } from "@/lib/theme/project-colors";
@@ -33,7 +35,10 @@ export function TaskRow({
   const color = task.project ? getProjectColor(task.project.colorKey) : null;
   const actionsDisabled = disabled || !task.permissions.canTransition;
   return (
-    <article className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] gap-3 rounded-md border border-border bg-surface p-3 shadow-[var(--shadow-surface)]">
+    <article
+      data-reward={task.rewardId ? "true" : undefined}
+      className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] gap-2 rounded-xl border border-border bg-surface p-3 shadow-[var(--shadow-surface)] transition-[border-color,box-shadow,transform] duration-150 hover:border-border-strong hover:shadow-[var(--shadow-raised)] motion-safe:hover:-translate-y-0.5"
+    >
       <TaskCheckbox
         checked={task.status === "DONE"}
         disabled={actionsDisabled}
@@ -56,6 +61,8 @@ export function TaskRow({
         </h3>
         <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-xs text-text-secondary">
           <TaskClassification taskType={task.taskType} priority={task.priority} />
+          <TaskDifficulty value={task.difficulty} />
+          {task.rewardId ? <span className="text-brand">Reward</span> : null}
           {task.project ? (
             <span className="inline-flex min-w-0 max-w-full items-center gap-1">
               <span
@@ -76,7 +83,7 @@ export function TaskRow({
           <span>{task.status.replace("_", " ")}</span>
         </div>
       </button>
-      <div className="flex shrink-0 items-center gap-1">
+      <div className="flex shrink-0 flex-col items-center gap-1 sm:flex-row">
         {task.status === "TODO" ? (
           <AppIconButton
             label={`Start ${task.title}`}
