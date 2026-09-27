@@ -35,6 +35,7 @@ export function useCreateSubtask(story: TaskDto) {
       assigneeId?: string | null;
       taskType?: Exclude<TaskType, "STORY">;
       priority?: TaskPriority;
+      difficulty?: number;
       scheduledDate?: string;
       scheduledTime?: string | null;
     }) => apiMutation<TaskDto>("post", `/api/tasks/${story.id}/subtasks`, body),

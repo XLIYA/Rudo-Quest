@@ -33,6 +33,8 @@ const archivedTask = {
   iconKey: null,
   taskType: "TASK",
   priority: "NONE",
+  difficulty: 1,
+  rewardId: null,
   parentTaskId: null,
   subtaskTotal: 0,
   subtaskCompleted: 0,
@@ -52,11 +54,33 @@ const archivedTask = {
     canCreateSubtasks: true,
     canTransition: true,
     canArchive: true,
+    canAssign: true,
   },
   project: null,
 } satisfies TaskDto;
 
 describe("useRestoreTask", () => {
+  it("invalidates the actual dashboard, project, archived list and reward caches", async () => {
+    const task = { ...archivedTask, projectId: "project-one" };
+    apiMutation.mockResolvedValueOnce({ ...task, archivedAt: null, version: 3 });
+    const client = new QueryClient();
+    const keys = [
+      queryKeys.dashboard("2026-08-03", "2026-08-09"),
+      queryKeys.project("project-one"),
+      ["project-archived-tasks", "project-one", "", "{}"],
+      ["project-rewards", "project-one"],
+      ["activity", "project", "project-one"],
+    ];
+    for (const key of keys) client.setQueryData(key, { existing: true });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useRestoreTask({ weekStart: "2026-08-03" }), {
+      wrapper,
+    });
+    await act(() => result.current.mutateAsync(task));
+    for (const key of keys) expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+  });
   it("optimistically removes an archived row and restores it after failure", async () => {
     let rejectRestore: ((reason?: unknown) => void) | undefined;
     apiMutation.mockImplementationOnce(

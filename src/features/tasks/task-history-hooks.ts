@@ -41,6 +41,7 @@ export function useProjectArchivedTasks(
   projectId: string,
   search: string,
   filters: ArchivedTaskFilters,
+  enabled = true,
 ) {
   return useInfiniteQuery({
     queryKey: queryKeys.projectArchivedTasks(projectId, search, JSON.stringify(filters)),
@@ -63,7 +64,7 @@ export function useProjectArchivedTasks(
     },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page) => page.cursor,
-    enabled: Boolean(projectId),
+    enabled: Boolean(projectId) && enabled,
   });
 }
 
@@ -110,13 +111,21 @@ export function useRestoreTask({ weekStart }: { weekStart: string }) {
     onSettled: (_data, _error, task) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.taskHistory("archived") });
       void queryClient.invalidateQueries({ queryKey: queryKeys.tasksWeek(weekStart) });
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.dashboard("today", "today"),
-      });
+      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.project(task.id) });
+      if (task.projectId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.project(task.projectId),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: ["project-archived-tasks", task.projectId],
+        });
+        void queryClient.invalidateQueries({
+          queryKey: ["project-rewards", task.projectId],
+        });
+      }
       void queryClient.invalidateQueries({ queryKey: queryKeys.task(task.id) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.activity() });
+      void queryClient.invalidateQueries({ queryKey: ["activity"] });
       void queryClient.invalidateQueries({ queryKey: queryKeys.taskActivity(task.id) });
     },
   });

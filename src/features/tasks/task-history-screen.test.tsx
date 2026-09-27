@@ -38,6 +38,8 @@ function task(title: string, archived: boolean): TaskDto {
     iconKey: null,
     taskType: "TASK",
     priority: "NONE",
+    difficulty: 1,
+    rewardId: null,
     parentTaskId: null,
     subtaskTotal: 0,
     subtaskCompleted: 0,
@@ -57,6 +59,7 @@ function task(title: string, archived: boolean): TaskDto {
       canCreateSubtasks: true,
       canTransition: true,
       canArchive: true,
+      canAssign: true,
     },
     project: null,
   };

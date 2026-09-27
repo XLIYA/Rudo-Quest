@@ -47,8 +47,8 @@ describe("user-scoped query persistence", () => {
 
   it("rejects expired cache entries", async () => {
     const { restoreUserQueryCache } = await import("./query-persistence");
-    storage.set("rudo-query-cache-v3:user-one", {
-      version: 3,
+    storage.set("rudo-query-cache-v4:user-one", {
+      version: 4,
       userId: "user-one",
       savedAt: Date.now() - 8 * 24 * 60 * 60 * 1000,
       state: { queries: [], mutations: [] },
@@ -57,6 +57,6 @@ describe("user-scoped query persistence", () => {
     await expect(
       restoreUserQueryCache(new QueryClient(), "user-one"),
     ).resolves.toBeNull();
-    expect(storage.has("rudo-query-cache-v3:user-one")).toBe(false);
+    expect(storage.has("rudo-query-cache-v4:user-one")).toBe(false);
   });
 });

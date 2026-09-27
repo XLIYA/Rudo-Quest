@@ -8,10 +8,10 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 
-const cacheVersion = 3;
+const cacheVersion = 4;
 const cacheTtlMs = 7 * 24 * 60 * 60 * 1000;
 const activeUserKey = "rudo-active-user-v1";
-const cachePrefix = "rudo-query-cache-v3";
+const cachePrefix = "rudo-query-cache-v4";
 const persistableQueryPrefixes = new Set([
   "me",
   "projects",

@@ -45,6 +45,7 @@ export function useCreateTask(weekStart: string) {
       iconKey?: ProjectIconKey | null;
       taskType?: TaskType;
       priority?: TaskPriority;
+      difficulty?: number;
       parentTaskId?: string | null;
       scheduledTime?: string | null;
     }) => apiMutation<TaskDto>("post", "/api/tasks", body),
@@ -76,6 +77,8 @@ export function useCreateTask(weekStart: string) {
         iconKey: body.iconKey ?? null,
         taskType: body.taskType ?? "TASK",
         priority: body.priority ?? "NONE",
+        difficulty: body.difficulty ?? 1,
+        rewardId: null,
         parentTaskId: body.parentTaskId ?? null,
         subtaskTotal: 0,
         subtaskCompleted: 0,
@@ -95,6 +98,7 @@ export function useCreateTask(weekStart: string) {
           canCreateSubtasks: true,
           canTransition: true,
           canArchive: true,
+          canAssign: true,
         },
         project: null,
       };
@@ -144,7 +148,7 @@ export function useTaskMutation(weekStart: string) {
       if (input.action === "update") {
         return apiMutation<TaskDto>("patch", `/api/tasks/${input.task.id}`, {
           ...input.body,
-          version: input.task.version,
+          version: input.body?.version ?? input.task.version,
         });
       }
       if (input.action === "archive") {
@@ -246,6 +250,7 @@ export function useTaskMutation(weekStart: string) {
       }
     },
     onSettled: (_data, _error, input) => {
+      void queryClient.invalidateQueries({ queryKey: ["project-rewards"] });
       void queryClient.invalidateQueries({ queryKey: queryKeys.tasksWeek(weekStart) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.task(input.task.id) });
       void queryClient.invalidateQueries({
