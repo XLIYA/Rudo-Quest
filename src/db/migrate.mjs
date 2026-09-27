@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+import { migrationChecksum, matchesMigrationChecksum } from "./migration-checksum.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -100,7 +100,7 @@ function createPool(databaseUrl) {
  * Side effects: None.
  */
 function checksum(sql) {
-  return crypto.createHash("sha256").update(sql).digest("hex");
+  return migrationChecksum(sql);
 }
 
 /**
@@ -153,7 +153,7 @@ async function applyMigrations(client, migrations) {
 
   for (const migration of migrations) {
     const previousChecksum = applied.get(migration.id);
-    if (previousChecksum === migration.checksum) {
+    if (previousChecksum && matchesMigrationChecksum(migration.sql, previousChecksum)) {
       skippedCount += 1;
       process.stdout.write(`Skipped ${migration.id}\n`);
       continue;
