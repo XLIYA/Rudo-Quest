@@ -257,6 +257,11 @@ export function ProfileScreen() {
     <main className="app-enter mx-auto grid w-full max-w-[100rem] gap-5 p-5 md:p-8">
       <PageHeader
         title="Profile"
+        action={
+          <AppButton asChild variant="secondary">
+            <Link href="/task-history">Task history</Link>
+          </AppButton>
+        }
         description="Tune your public identity, working rhythm, and account signals."
       />
       <fieldset

@@ -11,7 +11,12 @@ import { AppEmptyState } from "@/components/ui/app-empty-state";
 import { AppIconButton } from "@/components/ui/app-icon-button";
 import { AppInput } from "@/components/ui/app-input";
 import { AppSkeleton } from "@/components/ui/app-skeleton";
-import { TaskDetailSheet } from "@/components/ui/task-detail-sheet";
+import dynamic from "next/dynamic";
+
+const TaskDetailSheet = dynamic(() =>
+  import("@/components/ui/task-detail-sheet").then((module) => module.TaskDetailSheet),
+);
+import { TaskDifficultyPicker } from "@/components/ui/task-difficulty";
 import { TaskRow } from "@/components/ui/task-row";
 import { PageHeader } from "@/components/shared/page-header";
 import { useOnline } from "@/hooks/use-online";
@@ -65,6 +70,7 @@ export function WeeklyScreen() {
         : dates.includes(today)
           ? today
           : weekStart;
+  const [quickDifficulty, setQuickDifficulty] = useState(1);
   const [quickTitle, setQuickTitle] = useState("");
   const [manualQuickDate, setManualQuickDate] = useState<string | null>(null);
   // The quick-add FAB links to /weekly?quickAdd=1. Derive that open state from
@@ -79,7 +85,17 @@ export function WeeklyScreen() {
   const mutateTask = useTaskMutation(weekStart);
   const expandedDate = dates.includes(selectedDate) ? selectedDate : "";
   const linkedTaskId = searchParams.get("task");
-  const linkedTask = query.data?.find((task) => task.id === linkedTaskId) ?? null;
+  const weekTask = query.data?.find((task) => task.id === linkedTaskId) ?? null;
+  // Task links (notifications, push taps, project activity) point here for all
+  // tasks, but the week query only lists personal tasks plus the selected
+  // week's rows. Fetch a linked task that is not in the week list directly by
+  // id so every /weekly?date=…&task=… entry point opens the task detail sheet.
+  const linkedTaskQuery = useQuery({
+    queryKey: queryKeys.task(linkedTaskId ?? ""),
+    queryFn: ({ signal }) => apiGet<TaskDto>(`/api/tasks/${linkedTaskId}`, signal),
+    enabled: Boolean(linkedTaskId) && !weekTask,
+  });
+  const linkedTask = weekTask ?? linkedTaskQuery.data ?? null;
 
   /**
    * Purpose: Open a task detail deep link without losing week/day URL state.
@@ -119,6 +135,7 @@ export function WeeklyScreen() {
    */
   const closeQuickAdd = () => {
     setQuickTitle("");
+    setQuickDifficulty(1);
     setManualQuickDate(null);
     const next = new URLSearchParams(searchParams.toString());
     if (!next.has("quickAdd")) return;
@@ -155,6 +172,7 @@ export function WeeklyScreen() {
     try {
       await createTask.mutateAsync({
         title: quickTitle.trim(),
+        difficulty: quickDifficulty,
         scheduledDate: date,
         scheduledTimeZone: timeZone,
       });
@@ -168,6 +186,7 @@ export function WeeklyScreen() {
     <main className="app-enter mx-auto grid max-w-5xl gap-5 p-5 md:p-8">
       <PageHeader
         title="Weekly"
+        inlineAction
         description={`${format(parseISO(weekStart), "MMM d")} - ${format(addDays(parseISO(weekStart), 6), "MMM d, yyyy")}`}
         action={
           <div className="flex items-center gap-2">
@@ -224,7 +243,11 @@ export function WeeklyScreen() {
                   aria-expanded={open}
                   onClick={() => {
                     const nextDate = open ? "closed" : date;
-                    router.push(`/weekly?weekStart=${weekStart}&date=${nextDate}`);
+                    // Replace instead of push so expanding and collapsing a
+                    // day does not flood browser history.
+                    router.replace(`/weekly?weekStart=${weekStart}&date=${nextDate}`, {
+                      scroll: false,
+                    });
                   }}
                   className="grid min-h-20 w-full grid-cols-[1fr_auto] items-center gap-3 rounded-xl p-4 text-left transition-colors duration-150 hover:bg-surface-muted/55"
                 >
@@ -271,22 +294,37 @@ export function WeeklyScreen() {
                         />
                       ))}
                       {quickDate === date ? (
-                        <AppInput
-                          autoFocus
-                          label="Add a task"
-                          value={quickTitle}
-                          disabled={createTask.isPending}
-                          onChange={(event) => setQuickTitle(event.currentTarget.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" && !createTask.isPending) {
-                              event.preventDefault();
-                              void submitQuick(date);
+                        <div className="grid gap-3 rounded-lg border border-border p-3">
+                          <AppInput
+                            autoFocus
+                            label="Add a task"
+                            value={quickTitle}
+                            disabled={createTask.isPending}
+                            onChange={(event) => setQuickTitle(event.currentTarget.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" && !createTask.isPending) {
+                                event.preventDefault();
+                                void submitQuick(date);
+                              }
+                              if (event.key === "Escape") {
+                                closeQuickAdd();
+                              }
+                            }}
+                          />
+                          <TaskDifficultyPicker
+                            value={quickDifficulty}
+                            onChange={setQuickDifficulty}
+                            disabled={!online || createTask.isPending}
+                          />
+                          <AppButton
+                            disabled={
+                              !online || createTask.isPending || !quickTitle.trim()
                             }
-                            if (event.key === "Escape") {
-                              closeQuickAdd();
-                            }
-                          }}
-                        />
+                            onClick={() => void submitQuick(date)}
+                          >
+                            Create task
+                          </AppButton>
+                        </div>
                       ) : (
                         <AppButton
                           variant="ghost"
@@ -311,29 +349,31 @@ export function WeeklyScreen() {
           })}
         </section>
       ) : null}
-      <TaskDetailSheet
-        task={linkedTask}
-        open={Boolean(linkedTask)}
-        offline={!online}
-        pending={mutateTask.isPending}
-        conflict={
-          mutateTask.isError &&
-          typeof mutateTask.error === "object" &&
-          mutateTask.error !== null &&
-          "status" in mutateTask.error &&
-          mutateTask.error.status === 409
-        }
-        onOpenChange={(open) => !open && closeTask()}
-        onOpenRelatedTask={openTask}
-        onAction={(task, action) => mutateTask.mutate({ task, action })}
-        onArchive={(task) => {
-          mutateTask.mutate({ task, action: "archive" });
-          closeTask();
-        }}
-        onSave={async (task, values) => {
-          await mutateTask.mutateAsync({ task, action: "update", body: values });
-        }}
-      />
+      {linkedTask ? (
+        <TaskDetailSheet
+          task={linkedTask}
+          open={Boolean(linkedTask)}
+          offline={!online}
+          pending={mutateTask.isPending}
+          conflict={
+            mutateTask.isError &&
+            typeof mutateTask.error === "object" &&
+            mutateTask.error !== null &&
+            "status" in mutateTask.error &&
+            mutateTask.error.status === 409
+          }
+          onOpenChange={(open) => !open && closeTask()}
+          onOpenRelatedTask={openTask}
+          onAction={(task, action) => mutateTask.mutate({ task, action })}
+          onArchive={(task) => {
+            mutateTask.mutate({ task, action: "archive" });
+            closeTask();
+          }}
+          onSave={async (task, values) => {
+            await mutateTask.mutateAsync({ task, action: "update", body: values });
+          }}
+        />
+      ) : null}
     </main>
   );
 }

@@ -492,6 +492,10 @@ select:focus-visible,
 }
 
 .dialog-surface {
+  /* The explicit translate pair keeps the dialog centered even if the entry
+     animation is skipped (prefers-reduced-motion) or the keyframe fill is
+     lost, instead of relying on animation fill-mode. */
+  translate: -50% -50%;
   animation: dialog-surface-in var(--motion-base) cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -530,6 +534,19 @@ select:focus-visible,
   }
 }
 
+.app-enter-flat {
+  animation-name: app-fade;
+}
+
+@keyframes app-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @keyframes dialog-overlay-in {
   from {
     opacity: 0;
@@ -551,22 +568,22 @@ select:focus-visible,
 @keyframes dialog-surface-in {
   from {
     opacity: 0;
-    transform: translate(-50%, -48%) scale(0.98);
+    scale: 0.98;
   }
   to {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
+    scale: 1;
   }
 }
 
 @keyframes dialog-surface-out {
   from {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
+    scale: 1;
   }
   to {
     opacity: 0;
-    transform: translate(-50%, -48%) scale(0.98);
+    scale: 0.98;
   }
 }
 
@@ -584,5 +601,19 @@ select:focus-visible,
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Reward emphasis stays static after a short entrance; no perpetual paint loop. */
+[data-reward="true"] {
+  border-color: var(--brand);
+  box-shadow: inset 3px 0 0 var(--brand);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .app-card {
+    animation: app-reveal var(--motion-base) ease-out both;
+  }
+  button:active:not(:disabled) {
+    scale: 0.98;
   }
 }

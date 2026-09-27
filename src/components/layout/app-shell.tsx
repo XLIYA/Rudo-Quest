@@ -90,7 +90,7 @@ function readHydratedServer(): boolean {
 /**
  * Purpose: Render responsive protected navigation, account actions, theme controls, and the global offline state.
  * Inputs: Protected route children and the server-verified initial profile.
- * Output: Collapsible desktop shell and six-item mobile navigation.
+ * Output: Collapsible desktop shell and five-item mobile navigation.
  * Side effects: Reads profile/notifications and can sign out or persist a theme preference.
  * Failure behavior: Keeps navigation usable when profile or notification data is unavailable.
  */
@@ -195,6 +195,28 @@ export function AppShell({
       }
     };
     /**
+     * Purpose: Cycle menuitem focus with arrow keys per menu keyboard convention.
+     * Inputs: Keyboard event.
+     * Output: Void.
+     * Side effects: Moves focus between focusable menu items.
+     */
+    const moveMenuFocus = (event: KeyboardEvent) => {
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+      const menu = accountMenuRef.current;
+      if (!menu) return;
+      const items = Array.from(
+        menu.querySelectorAll<HTMLElement>("[role='menuitem'], [role='menuitemradio']"),
+      ).filter((item) => !item.hasAttribute("disabled"));
+      if (!items.length) return;
+      event.preventDefault();
+      const currentIndex = items.findIndex((item) => item === document.activeElement);
+      const nextIndex =
+        event.key === "ArrowDown"
+          ? (currentIndex + 1 + items.length) % items.length
+          : (currentIndex - 1 + items.length) % items.length;
+      items[nextIndex]?.focus();
+    };
+    /**
      * Purpose: Close the account menu when pointer input occurs outside it.
      * Inputs: Pointer event.
      * Output: Void.
@@ -205,10 +227,12 @@ export function AppShell({
         setAccountOpen(false);
     };
     document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener("keydown", moveMenuFocus);
     document.addEventListener("pointerdown", closeOnOutsidePointer);
     return () => {
       window.cancelAnimationFrame(focusFrame);
       document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("keydown", moveMenuFocus);
       document.removeEventListener("pointerdown", closeOnOutsidePointer);
     };
   }, [accountOpen]);
@@ -216,7 +240,7 @@ export function AppShell({
   return (
     <div
       className={cn(
-        "min-h-dvh bg-background text-text-primary md:h-dvh md:grid md:overflow-hidden md:transition-[grid-template-columns] md:duration-300 md:ease-out",
+        "h-dvh overflow-hidden bg-background text-text-primary md:grid md:grid-rows-[minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-300 md:ease-out",
         collapsed ? "md:grid-cols-[4.5rem_1fr]" : "md:grid-cols-[15rem_1fr]",
       )}
     >
@@ -399,7 +423,10 @@ export function AppShell({
           </div>
         </div>
       </aside>
-      <div className="min-w-0 pb-[calc(4.75rem+env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] md:min-h-0 md:pb-0 md:pl-0 md:pr-0 md:pt-0 md:overflow-y-auto">
+      <div
+        data-app-content
+        className="h-full min-h-0 min-w-0 overflow-y-auto pb-[calc(4.75rem+env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] [scrollbar-gutter:stable] md:pb-0 md:pl-0 md:pr-0 md:pt-0"
+      >
         {children}
         {showQuickAdd ? (
           <Link
@@ -411,34 +438,48 @@ export function AppShell({
           </Link>
         ) : null}
         <nav
-          className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-6 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] pl-[calc(0.25rem+env(safe-area-inset-left))] pr-[calc(0.25rem+env(safe-area-inset-right))] backdrop-blur md:hidden"
+          className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] pl-[calc(0.25rem+env(safe-area-inset-left))] pr-[calc(0.25rem+env(safe-area-inset-right))] backdrop-blur md:hidden"
           aria-label="Mobile primary"
         >
-          {navItems.map((item) => {
-            const active = pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href as Route}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "relative flex min-h-16 flex-col items-center justify-center gap-1 rounded-md text-[10px] font-semibold text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-2 focus-visible:outline-brand",
-                  active ? "text-brand" : null,
-                )}
-              >
-                <item.icon className="size-5" aria-hidden="true" />
-                <span>{item.mobileLabel}</span>
-                {hydrated && item.href === "/notifications" && unreadCount > 0 ? (
+          {navItems
+            .filter((item) => item.href !== "/task-history")
+            .map((item) => {
+              const active = pathname.startsWith(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href as Route}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "relative flex min-h-16 flex-col items-center justify-center gap-1 rounded-md text-[10px] font-semibold text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-2 focus-visible:outline-brand",
+                    active ? "text-brand" : null,
+                  )}
+                >
                   <span
-                    className="absolute right-1/4 top-2 inline-flex size-4 items-center justify-center rounded-full bg-brand font-mono text-[9px] text-white"
-                    aria-label={`${unreadCount} unread notifications`}
+                    data-nav-icon
+                    className={cn(
+                      "flex h-8 w-12 items-center justify-center rounded-full transition-colors duration-200",
+                      active ? "bg-brand-soft text-brand" : "text-text-secondary",
+                    )}
                   >
-                    {unreadCount > 9 ? "9+" : unreadCount}
+                    <item.icon
+                      className="size-[19px]"
+                      strokeWidth={active ? 2.2 : 1.7}
+                      aria-hidden="true"
+                    />
                   </span>
-                ) : null}
-              </Link>
-            );
-          })}
+                  <span>{item.mobileLabel}</span>
+                  {hydrated && item.href === "/notifications" && unreadCount > 0 ? (
+                    <span
+                      className="absolute right-1/4 top-2 inline-flex size-4 items-center justify-center rounded-full bg-brand font-mono text-[9px] text-white"
+                      aria-label={`${unreadCount} unread notifications`}
+                    >
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  ) : null}
+                </Link>
+              );
+            })}
         </nav>
       </div>
     </div>
