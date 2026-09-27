@@ -49,6 +49,8 @@ function task(canEditDetails = true): TaskDto {
     iconKey: null,
     taskType: "TASK",
     priority: "NONE",
+    difficulty: 1,
+    rewardId: null,
     parentTaskId: null,
     subtaskTotal: 0,
     subtaskCompleted: 0,
@@ -68,6 +70,7 @@ function task(canEditDetails = true): TaskDto {
       canCreateSubtasks: canEditDetails,
       canTransition: canEditDetails,
       canArchive: canEditDetails,
+      canAssign: canEditDetails,
     },
     project: null,
   };

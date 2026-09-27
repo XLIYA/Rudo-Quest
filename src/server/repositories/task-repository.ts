@@ -55,6 +55,8 @@ export type TaskDtoRow = {
   iconKey: string | null;
   taskType: string;
   priority: string;
+  difficulty: number;
+  rewardId: string | null;
   parentTaskId: string | null;
   subtaskTotal: number;
   subtaskCompleted: number;
@@ -92,6 +94,13 @@ export function toTaskDto(
       row.viewerRole === "ADMIN" ||
       row.viewerRole === "MEMBER"
     : row.createdById === viewerUserId;
+  // The server allows assignment-only updates for project MEMBERs, so the
+  // DTO must expose that capability or the UI disables the assignee picker.
+  const canAssign = row.projectId
+    ? row.viewerRole === "OWNER" ||
+      row.viewerRole === "ADMIN" ||
+      row.viewerRole === "MEMBER"
+    : row.createdById === viewerUserId;
   return {
     id: row.id,
     projectId: row.projectId,
@@ -114,6 +123,8 @@ export function toTaskDto(
     iconKey: row.iconKey as ProjectIconKey | null,
     taskType: row.taskType as TaskType,
     priority: row.priority as TaskPriority,
+    difficulty: row.difficulty,
+    rewardId: row.rewardId,
     parentTaskId: row.parentTaskId,
     subtaskTotal: row.subtaskTotal,
     subtaskCompleted: row.subtaskCompleted,
@@ -135,6 +146,7 @@ export function toTaskDto(
       canCreateSubtasks,
       canTransition,
       canArchive: canTransition,
+      canAssign,
     },
     project: row.projectId
       ? {
@@ -183,6 +195,8 @@ export async function listWeekTasks(input: {
       iconKey: tasks.iconKey,
       taskType: tasks.taskType,
       priority: tasks.priority,
+      difficulty: tasks.difficulty,
+      rewardId: tasks.rewardId,
       parentTaskId: tasks.parentTaskId,
       subtaskTotal: sql<number>`coalesce(${subtaskSummary.total}, 0)`.mapWith(Number),
       subtaskCompleted: sql<number>`coalesce(${subtaskSummary.completed}, 0)`.mapWith(
@@ -280,6 +294,8 @@ export async function findTaskDto(
       iconKey: tasks.iconKey,
       taskType: tasks.taskType,
       priority: tasks.priority,
+      difficulty: tasks.difficulty,
+      rewardId: tasks.rewardId,
       parentTaskId: tasks.parentTaskId,
       subtaskTotal: sql<number>`coalesce(${subtaskSummary.total}, 0)`.mapWith(Number),
       subtaskCompleted: sql<number>`coalesce(${subtaskSummary.completed}, 0)`.mapWith(
@@ -341,6 +357,7 @@ export async function insertTask(
     iconKey?: ProjectIconKey | null;
     taskType?: TaskType;
     priority?: TaskPriority;
+    difficulty?: number;
     parentTaskId?: string | null;
     scheduledDate: string;
     scheduledTime?: string | null;
@@ -359,6 +376,7 @@ export async function insertTask(
       iconKey: input.iconKey ?? null,
       taskType: input.taskType ?? "TASK",
       priority: input.priority ?? "NONE",
+      difficulty: input.difficulty ?? 1,
       parentTaskId: input.parentTaskId ?? null,
       status: "TODO",
       scheduledDate: input.scheduledDate,
@@ -388,6 +406,7 @@ export async function updateTaskRow(
     iconKey: ProjectIconKey | null;
     taskType: TaskType;
     priority: TaskPriority;
+    difficulty: number;
     status: TaskStatus;
     previousStatus: Exclude<TaskStatus, "DONE"> | null;
     scheduledDate: string;
@@ -495,6 +514,27 @@ export async function hasAnySubtasks(
 export type StoryRollupTransition = "completed" | "reopened" | null;
 
 /**
+ * Purpose: Decide a Story's automatic transition from its own status and
+ * active-child completion progress.
+ * Inputs: Current story status and active (non-archived) subtask counts.
+ * Output: "completed" when every active subtask is DONE, "reopened" when a
+ * previously completed Story has incomplete subtasks, otherwise null.
+ * Side effects: None.
+ * Business rule: A Story completes only when ALL of its active subtasks are
+ * done; completing one subtask must never complete a Story with others open.
+ */
+export function storyRollupTransition(
+  storyStatus: TaskStatus,
+  progress: { total: number; completed: number },
+): StoryRollupTransition {
+  if (progress.total === 0) return null;
+  if (progress.completed === progress.total) {
+    return storyStatus === "DONE" ? null : "completed";
+  }
+  return storyStatus === "DONE" ? "reopened" : null;
+}
+
+/**
  * Purpose: Recalculate a Story's derived status while holding its row lock.
  * Inputs: Story ID, viewer identity for DTO permissions, and transaction executor.
  * Output: Updated/current Story plus the automatic transition kind.
@@ -514,17 +554,7 @@ export async function rollUpStoryStatus(
   if (!story || story.taskType !== "STORY") return { story: null, transition: null };
 
   const progress = await getSubtaskProgress(storyId, db);
-  if (progress.total === 0) {
-    return { story: await findTaskDto(storyId, viewerUserId, db), transition: null };
-  }
-  const shouldComplete = progress.completed === progress.total;
-  const transition: StoryRollupTransition = shouldComplete
-    ? story.status === "DONE"
-      ? null
-      : "completed"
-    : story.status === "DONE"
-      ? "reopened"
-      : null;
+  const transition = storyRollupTransition(story.status as TaskStatus, progress);
   if (!transition) {
     return { story: await findTaskDto(storyId, viewerUserId, db), transition: null };
   }
@@ -585,6 +615,8 @@ export async function listSubtasks(
       iconKey: tasks.iconKey,
       taskType: tasks.taskType,
       priority: tasks.priority,
+      difficulty: tasks.difficulty,
+      rewardId: tasks.rewardId,
       parentTaskId: tasks.parentTaskId,
       subtaskTotal: sql<number>`0`.mapWith(Number),
       subtaskCompleted: sql<number>`0`.mapWith(Number),

@@ -30,6 +30,7 @@ const taskFieldsSchema = z.object({
   scheduledTimeZone: timeZoneSchema,
   taskType: z.enum(taskTypes),
   priority: z.enum(taskPriorities),
+  difficulty: z.number().int().min(1).max(5),
   parentTaskId: uuidSchema.nullable().optional(),
 });
 
@@ -37,6 +38,7 @@ export const createTaskSchema = taskFieldsSchema
   .extend({
     taskType: z.enum(taskTypes).default("TASK"),
     priority: z.enum(taskPriorities).default("NONE"),
+    difficulty: z.number().int().min(1).max(5).default(1),
   })
   .refine((value) => !value.parentTaskId || value.taskType !== "STORY", {
     message: "A Story cannot be nested under another Story.",
@@ -70,6 +72,7 @@ export const createSubtaskSchema = z.object({
   assigneeId: uuidSchema.nullable().optional(),
   taskType: z.enum(subtaskTypes).default("TASK"),
   priority: z.enum(taskPriorities).default("NONE"),
+  difficulty: z.number().int().min(1).max(5).default(1),
   scheduledDate: dateSchema.optional(),
   scheduledTime: timeSchema.nullable().optional(),
 });

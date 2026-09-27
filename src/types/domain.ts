@@ -180,6 +180,8 @@ export type TaskDto = {
   iconKey: ProjectIconKey | null;
   taskType: TaskType;
   priority: TaskPriority;
+  difficulty: number;
+  rewardId: string | null;
   parentTaskId: string | null;
   subtaskTotal: number;
   subtaskCompleted: number;
@@ -199,6 +201,7 @@ export type TaskDto = {
     canCreateSubtasks: boolean;
     canTransition: boolean;
     canArchive: boolean;
+    canAssign: boolean;
   };
   project: {
     id: string;
@@ -292,4 +295,18 @@ export type GitHubRepository = {
   repositoryFullName: string;
   repositoryUrl: string;
   defaultBranch: string | null;
+};
+
+export type TaskRewardDto = {
+  id: string;
+  projectId: string;
+  title: string;
+  amountToman: number;
+  deadline: string;
+  status: "ACTIVE" | "APPROVED" | "CANCELLED";
+  version: number;
+  taskIds: string[];
+  includedTasks: { id: string; title: string }[];
+  completedCount: number;
+  approvedAt: string | null;
 };

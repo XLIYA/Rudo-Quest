@@ -120,6 +120,8 @@ export async function listTaskHistory(input: {
       iconKey: tasks.iconKey,
       taskType: tasks.taskType,
       priority: tasks.priority,
+      difficulty: tasks.difficulty,
+      rewardId: tasks.rewardId,
       parentTaskId: tasks.parentTaskId,
       subtaskTotal: sql<number>`coalesce(${subtaskSummary.total}, 0)`.mapWith(Number),
       subtaskCompleted: sql<number>`coalesce(${subtaskSummary.completed}, 0)`.mapWith(
@@ -297,6 +299,8 @@ export async function listProjectArchivedTasks(input: {
       iconKey: tasks.iconKey,
       taskType: tasks.taskType,
       priority: tasks.priority,
+      difficulty: tasks.difficulty,
+      rewardId: tasks.rewardId,
       parentTaskId: tasks.parentTaskId,
       subtaskTotal: sql<number>`coalesce(${subtaskSummary.total}, 0)`.mapWith(Number),
       subtaskCompleted: sql<number>`coalesce(${subtaskSummary.completed}, 0)`.mapWith(

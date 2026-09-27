@@ -200,6 +200,9 @@ export async function updateTask(
   }
   const targetProjectId =
     changes.projectId === undefined ? task.projectId : changes.projectId;
+  if (task.rewardId && targetProjectId !== task.projectId) {
+    throw new AppError("CONFLICT", 409, "Reward tasks must stay in their project.");
+  }
   const targetAssignee =
     changes.assigneeId === undefined ? (task.assignee?.id ?? null) : changes.assigneeId;
   if (targetProjectId && targetProjectId !== task.projectId) {
@@ -532,6 +535,7 @@ export async function createSubtask(
     assigneeId?: string | null;
     taskType?: Exclude<TaskDto["taskType"], "STORY">;
     priority?: TaskDto["priority"];
+    difficulty?: number;
     scheduledDate?: string;
     scheduledTime?: string | null;
   },
@@ -549,6 +553,7 @@ export async function createSubtask(
     iconKey: payload.iconKey,
     taskType: payload.taskType ?? "TASK",
     priority: payload.priority ?? "NONE",
+    difficulty: payload.difficulty ?? 1,
     scheduledDate: payload.scheduledDate ?? story.scheduledDate,
     scheduledTime: payload.scheduledTime,
     scheduledTimeZone: story.scheduledTimeZone,

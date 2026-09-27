@@ -197,6 +197,8 @@ export const tasks = pgTable(
     iconKey: text("icon_key"),
     taskType: text("task_type").notNull().default("TASK"),
     priority: text("priority").notNull().default("NONE"),
+    difficulty: integer("difficulty").notNull().default(1),
+    rewardId: uuid("reward_id").references((): AnyPgColumn => taskRewards.id),
     parentTaskId: uuid("parent_task_id").references((): AnyPgColumn => tasks.id, {
       onDelete: "cascade",
     }),
@@ -247,6 +249,8 @@ export const tasks = pgTable(
       "tasks_task_type",
       sql`${table.taskType} in ('TASK','STORY','FEATURE','BUG','TEST')`,
     ),
+    check("tasks_difficulty", sql`${table.difficulty} between 1 and 5`),
+    index("tasks_reward_idx").on(table.rewardId),
     check(
       "tasks_priority",
       sql`${table.priority} in ('NONE','LOW','MEDIUM','HIGH','URGENT')`,
@@ -537,5 +541,39 @@ export const projectRepositories = pgTable(
       table.repositoryId,
     ),
     uniqueIndex("project_repositories_repository_uidx").on(table.repositoryId),
+  ],
+);
+
+export const taskRewards = pgTable(
+  "task_rewards",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => profiles.id),
+    title: text("title").notNull(),
+    amountToman: bigint("amount_toman", { mode: "number" }).notNull(),
+    deadline: timestamp("deadline", { withTimezone: true }).notNull(),
+    taskIds: uuid("task_ids").array().notNull(),
+    status: text("status").notNull().default("ACTIVE"),
+    version: integer("version").notNull().default(1),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    approvedBy: uuid("approved_by").references(() => profiles.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("task_rewards_project_idx").on(table.projectId, table.createdAt),
+    check(
+      "task_rewards_amount",
+      sql`${table.amountToman} > 0 and ${table.amountToman} <= 1000000000000`,
+    ),
+    check(
+      "task_rewards_status",
+      sql`${table.status} in ('ACTIVE','APPROVED','CANCELLED')`,
+    ),
+    check("task_rewards_count", sql`cardinality(${table.taskIds}) between 2 and 100`),
   ],
 );
