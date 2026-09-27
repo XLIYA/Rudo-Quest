@@ -1,26 +1,12 @@
 @import "tailwindcss";
 
+/* Use outline glyphs: color-font rendering is not consistent across mobile engines. */
 @font-face {
-  font-family: "Bitcount Ink";
+  font-family: "Bitcount";
   font-style: normal;
   font-weight: 100 900;
   font-display: swap;
-  src: url("/fonts/bitcount-ink-latin-ext.woff2") format("woff2");
-  unicode-range:
-    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
-    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
-    U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-
-@font-face {
-  font-family: "Bitcount Ink";
-  font-style: normal;
-  font-weight: 100 900;
-  font-display: swap;
-  src: url("/fonts/bitcount-ink-latin.woff2") format("woff2");
-  unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
-    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  src: url("/fonts/bitcount-mono-v1.woff2") format("woff2");
 }
 
 :root {
@@ -190,8 +176,8 @@
   --motion-fast: 150ms;
   --motion-base: 250ms;
   --motion-slow: 400ms;
-  --font-bitcount-ink: "Bitcount Ink", system-ui, sans-serif;
-  --font-display: var(--font-bitcount-ink);
+  --font-bitcount: "Bitcount", system-ui, sans-serif;
+  --font-display: var(--font-bitcount);
   --font-sans: "Noto Serif", Georgia, serif;
   --font-mono: "Noto Serif", Georgia, serif;
   color-scheme: light;
@@ -385,7 +371,7 @@
   --color-project-gray: var(--project-gray-main);
   --font-sans: var(--font-noto-serif);
   --font-mono: var(--font-noto-serif);
-  --font-display: var(--font-bitcount-ink);
+  --font-display: var(--font-bitcount);
 }
 
 * {
@@ -465,11 +451,6 @@ select:focus-visible,
 
 .font-display {
   color: var(--text-primary);
-  filter: brightness(0);
-}
-
-.dark .font-display {
-  filter: brightness(0) invert(1);
 }
 
 .app-card {

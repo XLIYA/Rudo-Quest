@@ -47,7 +47,13 @@ const withSerwist = withSerwistInit({
   swSrc: "src/app/sw.ts",
   swDest: "public/sw.js",
   disable: process.env.NODE_ENV !== "production",
-  additionalPrecacheEntries: [{ url: "/offline", revision: "rudo-offline-v1" }],
+  additionalPrecacheEntries: [
+    // Refresh existing offline documents so they reference the new font CSS.
+    { url: "/offline", revision: "rudo-offline-v2" },
+    // Public fonts are not included in the generated precache manifest. Cache
+    // the display font during installation, even before the first controlled visit.
+    { url: "/fonts/bitcount-mono-v1.woff2", revision: "bitcount-mono-v1" },
+  ],
 });
 
 const appConfig = withSerwist(nextConfig);
