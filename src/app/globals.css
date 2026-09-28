@@ -598,3 +598,12 @@ select:focus-visible,
     scale: 0.98;
   }
 }
+
+/* Lock document scroll whenever the app shell is mounted.
+   The shell owns all scrolling internally. */
+html:has([data-app-content]),
+body:has([data-app-content]) {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}

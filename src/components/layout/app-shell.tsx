@@ -129,6 +129,11 @@ export function AppShell({
   const unreadCount = notifications.data?.pages[0]?.unreadCount ?? 0;
   const showQuickAdd =
     pathname.startsWith("/dashboard") || pathname.startsWith("/weekly");
+
+  // The dashboard manages its own internal scrolling on desktop (lg+),
+  // so the shell content area must never scroll there.
+  const lockContentScroll = pathname.startsWith("/dashboard");
+
   const signOut = useMutation({
     mutationFn: async () => {
       try {
@@ -240,12 +245,16 @@ export function AppShell({
   return (
     <div
       className={cn(
-        "h-dvh overflow-hidden bg-background text-text-primary md:grid md:grid-rows-[minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-300 md:ease-out",
+        // FIX 1: overflow-clip (not overflow-hidden) so this root can never be
+        // scrolled programmatically (scrollIntoView, focus, selection drag).
+        "h-dvh overflow-clip bg-background text-text-primary md:grid md:grid-rows-[minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-300 md:ease-out",
         collapsed ? "md:grid-cols-[4.5rem_1fr]" : "md:grid-cols-[15rem_1fr]",
       )}
     >
       <OfflineStatusToast />
-      <aside className="sticky top-0 hidden h-screen border-r border-border bg-surface p-3 md:flex md:flex-col">
+      {/* FIX 2: height comes from the grid row (h-full min-h-0) instead of
+          h-screen + sticky, so it always matches the shell exactly. */}
+      <aside className="hidden h-full min-h-0 border-r border-border bg-surface p-3 md:flex md:flex-col">
         <div
           className={cn(
             "flex items-center",
@@ -423,9 +432,16 @@ export function AppShell({
           </div>
         </div>
       </aside>
+      {/* FIX 3: on the dashboard, lg+ never scrolls at the shell level;
+          every other route (and mobile/tablet) keeps normal scrolling. */}
       <div
         data-app-content
-        className="h-full min-h-0 min-w-0 overflow-y-auto pb-[calc(4.75rem+env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] [scrollbar-gutter:stable] md:pb-0 md:pl-0 md:pr-0 md:pt-0"
+        className={cn(
+          "h-full min-h-0 min-w-0 pb-[calc(4.75rem+env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] md:pb-0 md:pl-0 md:pr-0 md:pt-0",
+          lockContentScroll
+            ? "overflow-y-auto lg:overflow-hidden"
+            : "overflow-y-auto [scrollbar-gutter:stable]",
+        )}
       >
         {children}
         {showQuickAdd ? (
