@@ -14,13 +14,13 @@ test("pixel headings paint full glyphs and follow both theme colors", async ({
 
     const result = await heading.evaluate(async (element) => {
       const style = getComputedStyle(element);
-      const fonts = await document.fonts.load(`600 32px ${style.fontFamily}`, "H");
+      const fonts = await document.fonts.load('600 32px "Bitcount"', "H");
       const canvas = document.createElement("canvas");
       canvas.width = 64;
       canvas.height = 64;
       const context = canvas.getContext("2d");
       if (!context) throw new Error("Canvas is unavailable");
-      context.font = `600 32px ${style.fontFamily}`;
+      context.font = '600 32px "Bitcount"';
       context.fillText("H", 8, 40);
       const { data } = context.getImageData(0, 0, 64, 64);
       const rows = new Set<number>();
