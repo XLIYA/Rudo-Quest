@@ -205,10 +205,10 @@ test.describe("local collaborative project lifecycle", () => {
 
       await collaboratorPage.goto(`/projects/${projectId}`);
       await expect(
-        collaboratorPage.getByRole("heading", { name: "This week’s board" }),
+        collaboratorPage.getByRole("heading", { name: "Project task board" }),
       ).toBeVisible();
       const weeklyBoard = collaboratorPage.locator("section").filter({
-        has: collaboratorPage.getByRole("heading", { name: "This week’s board" }),
+        has: collaboratorPage.getByRole("heading", { name: "Project task board" }),
       });
       await expect(weeklyBoard.getByText(taskTitle, { exact: true })).toBeVisible();
 

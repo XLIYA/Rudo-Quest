@@ -74,6 +74,26 @@ export async function getWeekTasks(
     projectId,
     personalOnly: !projectId,
     includeOpenOutsideWeek: Boolean(projectId),
+    includeDoneOutsideWeek: Boolean(projectId),
+  });
+}
+
+/**
+ * Purpose: List all active tasks assigned to the current user across visible projects.
+ * Inputs: Authenticated user ID.
+ * Output: Incomplete assigned task DTOs, including subtasks.
+ * Side effects: Reads tasks, profile assets, and project membership.
+ */
+export async function getAssignedTasks(userId: string): Promise<TaskDto[]> {
+  const today = new Date().toISOString().slice(0, 10);
+  return listWeekTasks({
+    userId,
+    from: today,
+    to: today,
+    incompleteOnly: true,
+    includeOpenOutsideWeek: true,
+    includeSubtasks: true,
+    assignedOnly: true,
   });
 }
 

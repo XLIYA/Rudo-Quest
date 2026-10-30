@@ -2,6 +2,7 @@
 
 import { ProjectRewards } from "./project-rewards";
 import { TaskDifficulty } from "@/components/ui/task-difficulty";
+import { BidiText } from "@/components/shared/bidi-text";
 
 import type { Route } from "next";
 import { useParams } from "next/navigation";
@@ -50,7 +51,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { AppButton } from "@/components/ui/app-button";
 import { AppDatePicker } from "@/components/ui/app-date-picker";
 import { useTaskMutation } from "@/features/tasks/task-hooks";
-import { getDateInTimeZone, getMondayWeekStart } from "@/lib/utils/dates";
+import { getDateInTimeZone, getMondayWeekStart, getWeekDates } from "@/lib/utils/dates";
 import dynamic from "next/dynamic";
 
 const TaskDetailSheet = dynamic(() =>
@@ -143,6 +144,8 @@ export function ProjectDetailScreen() {
   const [showArchivedFilters, setShowArchivedFilters] = useState(false);
   const [activityOpen, setActivityOpen] = useState(true);
   const [archivedOpen, setArchivedOpen] = useState(false);
+  const [missedOpen, setMissedOpen] = useState(false);
+  const [completedOpen, setCompletedOpen] = useState(true);
   const archivedTasks = useProjectArchivedTasks(
     projectId,
     archivedSearch,
@@ -158,6 +161,25 @@ export function ProjectDetailScreen() {
     () => activity.data?.pages.flatMap((page) => page.items) ?? [],
     [activity.data],
   );
+  const completedTasks = useMemo(
+    () => tasks.data?.filter((task) => task.status === "DONE") ?? [],
+    [tasks.data],
+  );
+  const missedTasks = useMemo(
+    () =>
+      tasks.data?.filter(
+        (task) => task.status !== "DONE" && task.scheduledDate < currentDate,
+      ) ?? [],
+    [currentDate, tasks.data],
+  );
+  const boardTasks = useMemo(() => {
+    const currentWeek = getWeekDates(weekStart);
+    return (
+      tasks.data?.filter(
+        (task) => task.status !== "DONE" || currentWeek.includes(task.scheduledDate),
+      ) ?? []
+    );
+  }, [tasks.data, weekStart]);
   if (project.isLoading)
     return (
       <main className="p-5 md:p-8">
@@ -277,13 +299,13 @@ export function ProjectDetailScreen() {
       <section className="app-card overflow-hidden">
         <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border p-4 md:p-5">
           <div>
-            <h2 className="text-lg font-semibold">This week’s board</h2>
+            <h2 className="text-lg font-semibold">Project task board</h2>
             <p className="mt-1 text-sm text-text-secondary">
-              Drag work between columns or use each card’s move controls.
+              Drag tasks between statuses or open a task for more actions.
             </p>
           </div>
           <span className="rounded-full bg-quest-soft px-3 py-1 font-mono text-xs text-quest">
-            {tasks.data?.length ?? 0} tasks
+            {boardTasks.length} tasks
           </span>
         </header>
         {tasks.isLoading ? <AppSkeleton className="h-36" /> : null}
@@ -307,9 +329,14 @@ export function ProjectDetailScreen() {
               </AppButton>
             }
           />
+        ) : boardTasks.length === 0 ? (
+          <AppEmptyState
+            title="No active project tasks"
+            description="Completed tasks are available in the completed section below."
+          />
         ) : (
           <ProjectKanban
-            tasks={tasks.data}
+            tasks={boardTasks}
             disabled={!online || Boolean(project.data.archivedAt)}
             pending={mutation.isPending}
             onOpen={setSelectedTask}
@@ -319,6 +346,28 @@ export function ProjectDetailScreen() {
           />
         )}
       </section>
+      <CollapsiblePanel
+        title={`Missed tasks · ${missedTasks.length}`}
+        open={missedOpen}
+        onToggle={() => setMissedOpen((open) => !open)}
+      >
+        <ProjectTaskCollection
+          tasks={missedTasks}
+          kind="missed"
+          onOpen={setSelectedTask}
+        />
+      </CollapsiblePanel>
+      <CollapsiblePanel
+        title={`Completed tasks · ${completedTasks.length}`}
+        open={completedOpen}
+        onToggle={() => setCompletedOpen((open) => !open)}
+      >
+        <ProjectTaskCollection
+          tasks={completedTasks}
+          kind="completed"
+          onOpen={setSelectedTask}
+        />
+      </CollapsiblePanel>
       <section className="rounded-lg border border-border bg-surface p-4">
         <button
           type="button"
@@ -495,6 +544,76 @@ function CollapsiblePanel({
         </div>
       </div>
     </section>
+  );
+}
+
+function ProjectTaskCollection({
+  tasks,
+  kind,
+  onOpen,
+}: {
+  tasks: TaskDto[];
+  kind: "missed" | "completed";
+  onOpen: (task: TaskDto) => void;
+}) {
+  if (!tasks.length) {
+    return (
+      <AppEmptyState
+        title={kind === "completed" ? "No completed tasks" : "No missed tasks"}
+        description={
+          kind === "completed"
+            ? "Completed project tasks will appear here."
+            : "Tasks past their scheduled date will appear here."
+        }
+      />
+    );
+  }
+  return (
+    <div className="grid gap-2">
+      {tasks.map((task) => {
+        const projectColor = task.project ? getProjectColor(task.project.colorKey) : null;
+        const dateLabel =
+          kind === "completed" && task.completedAt
+            ? task.completedAt.slice(0, 10)
+            : task.scheduledDate;
+        return (
+          <button
+            key={task.id}
+            type="button"
+            onClick={() => onOpen(task)}
+            aria-label={`Open ${kind} task ${task.title}`}
+            className="flex min-h-14 min-w-0 items-center gap-3 rounded-lg border-2 border-border bg-surface-muted p-3 text-start shadow-[0_2px_0_var(--ink)] transition-[background-color,transform,box-shadow] hover:bg-surface-elevated active:translate-y-[2px] active:shadow-none"
+          >
+            <span
+              aria-hidden="true"
+              className="size-3 shrink-0 rounded-sm border border-border"
+              style={{ backgroundColor: projectColor?.main ?? "var(--border-strong)" }}
+            />
+            <span className="min-w-0 flex-1">
+              <BidiText className="block truncate text-sm font-semibold">
+                {task.title}
+              </BidiText>
+              <span className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-xs text-text-secondary">
+                <BidiText className="truncate">
+                  {task.project?.title ?? "Personal"}
+                </BidiText>
+                <span className="font-mono">{dateLabel}</span>
+              </span>
+            </span>
+            <span
+              className={cn(
+                "shrink-0 rounded-md border-2 px-2 py-1 text-[10px] font-bold uppercase",
+                kind === "completed"
+                  ? "border-success bg-success-soft text-success"
+                  : "border-warning bg-warning-soft text-warning",
+              )}
+            >
+              {kind === "completed" ? "Done" : "Missed"}
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

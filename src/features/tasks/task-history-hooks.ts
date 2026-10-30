@@ -109,6 +109,7 @@ export function useRestoreTask({ weekStart }: { weekStart: string }) {
       AppToast(`${restored.title} restored.`, "success");
     },
     onSettled: (_data, _error, task) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.assignedTasks });
       void queryClient.invalidateQueries({ queryKey: queryKeys.taskHistory("archived") });
       void queryClient.invalidateQueries({ queryKey: queryKeys.tasksWeek(weekStart) });
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] });

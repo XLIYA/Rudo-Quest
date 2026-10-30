@@ -27,6 +27,19 @@ export function useWeekTasks(weekStart: string) {
 }
 
 /**
+ * Purpose: Fetch all incomplete tasks assigned to the current user.
+ * Inputs: None.
+ * Output: TanStack Query result for visible assigned task DTOs.
+ * Side effects: Performs browser HTTP GET.
+ */
+export function useAssignedTasks() {
+  return useQuery({
+    queryKey: queryKeys.assignedTasks,
+    queryFn: ({ signal }) => apiGet<TaskDto[]>("/api/tasks/assigned", signal),
+  });
+}
+
+/**
  * Purpose: Create a quick task with optimistic insertion.
  * Inputs: Week start whose cache should receive the optimistic row.
  * Output: TanStack mutation.
@@ -115,6 +128,7 @@ export function useCreateTask(weekStart: string) {
       AppToast(normalizeApiClientError(error).message, "error");
     },
     onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.assignedTasks });
       void queryClient.invalidateQueries({ queryKey: queryKeys.tasksWeek(weekStart) });
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       void queryClient.invalidateQueries({ queryKey: ["task-history"] });
@@ -250,6 +264,7 @@ export function useTaskMutation(weekStart: string) {
       }
     },
     onSettled: (_data, _error, input) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.assignedTasks });
       void queryClient.invalidateQueries({ queryKey: ["project-rewards"] });
       void queryClient.invalidateQueries({ queryKey: queryKeys.tasksWeek(weekStart) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.task(input.task.id) });

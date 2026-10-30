@@ -5,10 +5,12 @@ import {
   Bell,
   CalendarDays,
   ChevronDown,
+  Circle,
   FolderKanban,
   LayoutDashboard,
+  ListTodo,
   LogOut,
-  History,
+  Menu,
   Monitor,
   Moon,
   PanelLeftClose,
@@ -17,26 +19,38 @@ import {
   Settings2,
   Sun,
   User,
+  X,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
-import RudoMark from "@/assets/brand/rudo-mark.svg";
 import { OfflineStatusToast } from "@/components/shared/offline-status-toast";
+import { BidiText } from "@/components/shared/bidi-text";
 import { AppToast } from "@/components/ui/app-toast";
-import { useOnline } from "@/hooks/use-online";
 import { AppAvatar } from "@/components/ui/app-avatar";
 import { AppIconButton } from "@/components/ui/app-icon-button";
+import { useOnline } from "@/hooks/use-online";
 import { apiGet, apiMutation, normalizeApiClientError } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
 import { clearUserQueryCache } from "@/lib/pwa/query-persistence";
-import { cn } from "@/lib/utils/cn";
-import { useNotifications } from "@/features/notifications/notification-hooks";
 import { unsubscribeCurrentBrowserFromPush } from "@/lib/pwa/push";
-import type { NotificationPageDto, ProfileDto } from "@/types/domain";
+import { getProjectColor } from "@/lib/theme/project-colors";
+import { cn } from "@/lib/utils/cn";
+import {
+  useNotifications,
+  useReadNotifications,
+} from "@/features/notifications/notification-hooks";
+import { NotificationPreview } from "@/features/notifications/notification-preview";
+import { useAssignedTasks } from "@/features/tasks/task-hooks";
+import type {
+  NotificationPageDto,
+  ProjectColorKey,
+  ProfileDto,
+  TaskDto,
+} from "@/types/domain";
 
 const navItems = [
   {
@@ -47,8 +61,16 @@ const navItems = [
   },
   { href: "/weekly", label: "Weekly", mobileLabel: "Weekly", icon: CalendarDays },
   { href: "/projects", label: "Projects", mobileLabel: "Projects", icon: FolderKanban },
-  { href: "/task-history", label: "Task history", mobileLabel: "History", icon: History },
-  { href: "/notifications", label: "Notifications", mobileLabel: "Alerts", icon: Bell },
+] as const;
+
+const mobileNavItems = [
+  ...navItems,
+  {
+    href: "/notifications",
+    label: "Notifications",
+    mobileLabel: "Notifications",
+    icon: Bell,
+  },
   { href: "/profile", label: "Profile", mobileLabel: "Profile", icon: User },
 ] as const;
 
@@ -88,11 +110,11 @@ function readHydratedServer(): boolean {
 }
 
 /**
- * Purpose: Render responsive protected navigation, account actions, theme controls, and the global offline state.
- * Inputs: Protected route children and the server-verified initial profile.
- * Output: Collapsible desktop shell and five-item mobile navigation.
- * Side effects: Reads profile/notifications and can sign out or persist a theme preference.
- * Failure behavior: Keeps navigation usable when profile or notification data is unavailable.
+ * Purpose: Render the protected application shell with topbar and assigned-task navigation.
+ * Inputs: Protected route children and optional server-verified shell data.
+ * Output: Responsive topbar, collapsible task sidebar, and route content.
+ * Side effects: Reads profile, notifications, and assigned tasks; can sign out or persist theme preferences.
+ * Failure behavior: Keeps navigation usable when profile, notification, or task data is unavailable.
  */
 export function AppShell({
   children,
@@ -113,11 +135,14 @@ export function AppShell({
     readHydratedServer,
   );
   const online = useOnline();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [notificationOpen, setNotificationOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const accountTriggerRef = useRef<HTMLButtonElement>(null);
   const firstAccountItemRef = useRef<HTMLAnchorElement>(null);
+  const notificationPanelRef = useRef<HTMLDivElement>(null);
   const profile = useQuery({
     queryKey: queryKeys.me,
     queryFn: ({ signal }) => apiGet<NavProfile>("/api/me", signal),
@@ -126,13 +151,18 @@ export function AppShell({
   });
   const displayedProfile = hydrated ? profile.data : initialProfile;
   const notifications = useNotifications(initialNotifications);
+  const readNotifications = useReadNotifications();
+  const assignedTasks = useAssignedTasks();
   const unreadCount = notifications.data?.pages[0]?.unreadCount ?? 0;
+  const notificationItems = notifications.data?.pages[0]?.items.slice(0, 5) ?? [];
+  const assignedTaskGroups = useMemo(
+    () => groupAssignedTasks(assignedTasks.data ?? []),
+    [assignedTasks.data],
+  );
   const showQuickAdd =
     pathname.startsWith("/dashboard") || pathname.startsWith("/weekly");
-
-  // The dashboard manages its own internal scrolling on desktop (lg+),
-  // so the shell content area must never scroll there.
   const lockContentScroll = pathname.startsWith("/dashboard");
+  const sidebarExpanded = !collapsed || mobileSidebarOpen;
 
   const signOut = useMutation({
     mutationFn: async () => {
@@ -157,13 +187,13 @@ export function AppShell({
         themePreference: nextTheme,
       }),
     onMutate: (nextTheme) => {
-      const previousTheme = profile.data?.themePreference ?? "system";
+      const previousTheme = profile.data?.themePreference ?? "dark";
       setTheme(nextTheme);
       return { previousTheme };
     },
     onSuccess: (data) => queryClient.setQueryData(queryKeys.me, data),
     onError: (error, _nextTheme, context) => {
-      setTheme(context?.previousTheme ?? "system");
+      setTheme(context?.previousTheme ?? "dark");
       AppToast(normalizeApiClientError(error).message, "error");
     },
   });
@@ -178,9 +208,71 @@ export function AppShell({
     saveTheme.mutate(nextTheme);
   };
 
+  /**
+   * Purpose: Toggle the notification preview and refresh its first page on open.
+   * Inputs: None.
+   * Output: Void.
+   * Side effects: Opens the notification preview and starts a network refresh.
+   */
+  const toggleNotificationPreview = () => {
+    setNotificationOpen((open) => {
+      if (!open) void notifications.refetch();
+      return !open;
+    });
+  };
+
+  /**
+   * Purpose: Toggle desktop sidebar width or the mobile task drawer.
+   * Inputs: None.
+   * Output: Void.
+   * Side effects: Updates responsive navigation state.
+   */
+  const toggleMobileSidebar = () => {
+    setMobileSidebarOpen((value) => !value);
+  };
+
   useEffect(() => {
     if (profile.data?.themePreference) setTheme(profile.data.themePreference);
   }, [profile.data?.themePreference, setTheme]);
+
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 768px)");
+    const closeMobileSidebar = () => {
+      if (desktop.matches) setMobileSidebarOpen(false);
+    };
+    desktop.addEventListener("change", closeMobileSidebar);
+    return () => desktop.removeEventListener("change", closeMobileSidebar);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileSidebarOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileSidebarOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [mobileSidebarOpen]);
+
+  useEffect(() => {
+    if (!notificationOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setNotificationOpen(false);
+    };
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (
+        event.target instanceof Node &&
+        !notificationPanelRef.current?.contains(event.target)
+      ) {
+        setNotificationOpen(false);
+      }
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    return () => {
+      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+    };
+  }, [notificationOpen]);
 
   useEffect(() => {
     if (!accountOpen) return;
@@ -244,87 +336,82 @@ export function AppShell({
 
   return (
     <div
+      data-shell-hydrated={hydrated ? "true" : undefined}
       className={cn(
-        // FIX 1: overflow-clip (not overflow-hidden) so this root can never be
-        // scrolled programmatically (scrollIntoView, focus, selection drag).
-        "h-dvh overflow-clip bg-background text-text-primary md:grid md:grid-rows-[minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-300 md:ease-out",
-        collapsed ? "md:grid-cols-[4.5rem_1fr]" : "md:grid-cols-[15rem_1fr]",
+        "grid h-dvh min-h-0 min-w-0 grid-rows-[calc(4.25rem+env(safe-area-inset-top))_minmax(0,1fr)] overflow-clip bg-background text-text-primary md:transition-[grid-template-columns] md:duration-300 md:ease-out",
+        collapsed
+          ? "md:grid-cols-[4.5rem_minmax(0,1fr)]"
+          : "md:grid-cols-[21rem_minmax(0,1fr)]",
       )}
     >
       <OfflineStatusToast />
-      {/* FIX 2: height comes from the grid row (h-full min-h-0) instead of
-          h-screen + sticky, so it always matches the shell exactly. */}
-      <aside className="hidden h-full min-h-0 border-r border-border bg-surface p-3 md:flex md:flex-col">
-        <div
-          className={cn(
-            "flex items-center",
-            collapsed ? "justify-center" : "justify-between gap-2",
-          )}
-        >
+      <header className="relative z-50 col-span-full flex min-w-0 items-center justify-between gap-3 border-b-2 border-border bg-surface ps-[calc(0.75rem+env(safe-area-inset-left))] pe-[calc(0.75rem+env(safe-area-inset-right))] pt-[env(safe-area-inset-top)] pb-2 sm:ps-5 sm:pe-5">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <AppIconButton
+            label={mobileSidebarOpen ? "Close task sidebar" : "Open task sidebar"}
+            aria-expanded={mobileSidebarOpen}
+            aria-controls="assigned-task-sidebar"
+            className="md:hidden"
+            onClick={toggleMobileSidebar}
+          >
+            {mobileSidebarOpen ? (
+              <X className="size-5" aria-hidden="true" />
+            ) : (
+              <Menu className="size-5" aria-hidden="true" />
+            )}
+          </AppIconButton>
           <Link
             href="/dashboard"
             aria-label="Rudo Quest dashboard"
-            className="inline-flex min-h-11 shrink-0 items-center gap-3 rounded-lg"
+            className="inline-flex min-h-11 min-w-0 shrink-0 items-center gap-2 rounded-lg"
           >
-            <Image src={RudoMark} alt="" className="size-8 shrink-0" priority />
-            {!collapsed ? (
-              <span className="font-display text-xl font-medium">Rudo Quest</span>
-            ) : null}
+            <Image
+              src="/branding/rudo-logo.png"
+              alt=""
+              width={36}
+              height={36}
+              className="size-9 shrink-0 rounded-md"
+              priority
+            />
+            <span className="truncate font-display text-lg font-medium sm:text-xl">
+              Rudo Quest
+            </span>
           </Link>
-          {!collapsed ? (
-            <AppIconButton label="Collapse sidebar" onClick={() => setCollapsed(true)}>
-              <PanelLeftClose className="size-5" aria-hidden="true" />
-            </AppIconButton>
-          ) : null}
         </div>
-        {collapsed ? (
-          <AppIconButton
-            className="mt-4"
-            label="Expand sidebar"
-            onClick={() => setCollapsed(false)}
-          >
-            <PanelLeftOpen className="size-5" aria-hidden="true" />
-          </AppIconButton>
-        ) : null}
-        <nav className="mt-7 grid gap-1" aria-label="Primary">
-          {navItems.map((item) => {
-            const active = pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href as Route}
-                aria-current={active ? "page" : undefined}
-                title={collapsed ? item.label : undefined}
-                className={cn(
-                  "relative flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand",
-                  collapsed ? "justify-center px-0" : null,
-                  active
-                    ? "bg-surface-muted text-brand shadow-[inset_2px_0_0_var(--brand)]"
-                    : null,
-                )}
-              >
-                <item.icon className="size-4 shrink-0" aria-hidden="true" />
-                {!collapsed ? item.label : null}
-                {hydrated && item.href === "/notifications" && unreadCount > 0 ? (
-                  <span
-                    className={cn(
-                      "inline-flex min-w-5 items-center justify-center rounded-full bg-brand px-1 font-mono text-[10px] text-white",
-                      collapsed ? "absolute right-1 top-1" : "ml-auto",
-                    )}
-                    aria-label={`${unreadCount} unread notifications`}
-                  >
-                    {unreadCount > 99 ? "99+" : unreadCount}
-                  </span>
-                ) : null}
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="mt-auto grid gap-2">
-          <div
-            ref={accountMenuRef}
-            className={cn("relative", collapsed ? "flex justify-center" : null)}
-          >
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          <div ref={notificationPanelRef} className="relative">
+            <button
+              type="button"
+              aria-label={
+                unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"
+              }
+              aria-expanded={notificationOpen}
+              aria-controls="notification-preview"
+              onClick={toggleNotificationPreview}
+              className="relative inline-flex size-11 items-center justify-center rounded-md border-2 border-transparent text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            >
+              <Bell className="size-5" aria-hidden="true" />
+              {unreadCount > 0 ? (
+                <span className="absolute end-0 top-0 inline-flex min-w-4 translate-x-1/4 -translate-y-1/4 items-center justify-center rounded-full bg-brand px-1 font-mono text-[9px] text-white">
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              ) : null}
+            </button>
+            {notificationOpen ? (
+              <NotificationPreview
+                items={notificationItems}
+                unreadCount={unreadCount}
+                loading={notifications.isLoading || notifications.isFetching}
+                error={notifications.isError}
+                online={online}
+                reading={readNotifications.isPending}
+                onRetry={() => void notifications.refetch()}
+                onRead={(id) => readNotifications.mutate({ id })}
+                onClose={() => setNotificationOpen(false)}
+              />
+            ) : null}
+          </div>
+          <div ref={accountMenuRef} className="relative">
             <button
               ref={accountTriggerRef}
               type="button"
@@ -333,39 +420,34 @@ export function AppShell({
               aria-haspopup="menu"
               aria-controls="account-menu"
               aria-label="Open account menu"
-              className={cn(
-                "flex min-h-12 items-center gap-3 rounded-lg border border-border bg-surface p-2 text-left transition-[background-color,border-color] duration-150 hover:border-border-strong hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-brand",
-                collapsed ? "justify-center" : "w-full",
-              )}
+              className="flex min-h-11 items-center gap-2 rounded-md border-2 border-border bg-surface px-2 text-start transition-colors hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-brand sm:px-3"
             >
               <AppAvatar
                 name={displayedProfile?.displayName ?? "Rudo user"}
                 src={displayedProfile?.avatarPath}
                 className="size-8"
               />
-              {!collapsed ? (
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold">
-                    {displayedProfile?.displayName ?? "Account"}
-                  </span>
-                  {displayedProfile?.handle ? (
-                    <span className="block truncate font-mono text-[10px] text-text-tertiary">
-                      @{displayedProfile.handle}
-                    </span>
-                  ) : null}
-                </span>
-              ) : null}
-              {!collapsed ? <ChevronDown className="size-4" aria-hidden="true" /> : null}
+              <span className="hidden max-w-36 sm:block">
+                <BidiText className="block truncate text-sm font-semibold">
+                  {displayedProfile?.displayName ?? "Account"}
+                </BidiText>
+                {displayedProfile?.handle ? (
+                  <BidiText
+                    className="block truncate font-mono text-[10px] text-text-tertiary"
+                    direction="ltr"
+                  >
+                    @{displayedProfile.handle}
+                  </BidiText>
+                ) : null}
+              </span>
+              <ChevronDown className="hidden size-4 sm:block" aria-hidden="true" />
             </button>
             {accountOpen ? (
               <div
                 id="account-menu"
                 role="menu"
                 aria-label="Account"
-                className={cn(
-                  "app-enter absolute bottom-full z-40 mb-2 grid min-w-60 gap-1 rounded-xl border border-border bg-surface p-2 shadow-[var(--shadow-overlay)]",
-                  collapsed ? "left-0" : "inset-x-0",
-                )}
+                className="app-enter absolute end-0 top-full z-50 mt-2 grid min-w-60 gap-1 rounded-xl border-2 border-border bg-surface p-2 shadow-[var(--shadow-overlay)]"
               >
                 <Link
                   ref={firstAccountItemRef}
@@ -384,7 +466,7 @@ export function AppShell({
                 >
                   <Settings2 className="size-4" aria-hidden="true" /> Settings
                 </Link>
-                <div className="grid grid-cols-3 gap-1 border-t border-border pt-1">
+                <div className="grid grid-cols-3 gap-1 border-t-2 border-border pt-1">
                   <AppIconButton
                     role="menuitemradio"
                     aria-checked={theme === "system"}
@@ -421,7 +503,7 @@ export function AppShell({
                 <button
                   type="button"
                   role="menuitem"
-                  className="flex min-h-11 items-center gap-2 rounded-sm px-3 py-2 text-left text-sm text-error hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-error"
+                  className="flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-start text-sm text-error hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-error"
                   disabled={signOut.isPending}
                   onClick={() => signOut.mutate()}
                 >
@@ -431,13 +513,147 @@ export function AppShell({
             ) : null}
           </div>
         </div>
+      </header>
+      {mobileSidebarOpen ? (
+        <button
+          type="button"
+          aria-label="Close task sidebar"
+          className="fixed inset-x-0 top-[calc(4.25rem+env(safe-area-inset-top))] bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 bg-black/55 md:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      ) : null}
+      <aside
+        id="assigned-task-sidebar"
+        aria-label="Task and primary navigation"
+        className={cn(
+          "min-h-0 flex-col border-e-2 border-border bg-surface p-3 md:flex md:h-full md:overflow-hidden",
+          mobileSidebarOpen
+            ? "fixed start-0 top-[calc(4.25rem+env(safe-area-inset-top))] bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 flex w-[min(21rem,88vw)] overflow-y-auto shadow-[var(--shadow-overlay)] md:static md:inset-auto md:w-auto md:shadow-none"
+            : "hidden",
+          collapsed && !mobileSidebarOpen ? "md:w-[4.5rem]" : "md:w-[21rem]",
+        )}
+      >
+        <div
+          className={cn(
+            "mb-3 hidden min-h-11 items-center md:flex",
+            collapsed ? "justify-center" : "justify-between px-1",
+          )}
+        >
+          {!collapsed ? (
+            <span className="text-xs font-bold uppercase tracking-wide text-text-secondary">
+              Navigation
+            </span>
+          ) : null}
+          <AppIconButton
+            label={collapsed ? "Expand task sidebar" : "Collapse task sidebar"}
+            aria-expanded={!collapsed}
+            aria-controls="assigned-task-sidebar"
+            onClick={() => setCollapsed((value) => !value)}
+          >
+            {collapsed ? (
+              <PanelLeftOpen className="size-5" aria-hidden="true" />
+            ) : (
+              <PanelLeftClose className="size-5" aria-hidden="true" />
+            )}
+          </AppIconButton>
+        </div>
+        <nav className="grid shrink-0 gap-1" aria-label="Primary">
+          {navItems.map((item) => {
+            const active = pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href as Route}
+                aria-current={active ? "page" : undefined}
+                title={!sidebarExpanded ? item.label : undefined}
+                onClick={() => setMobileSidebarOpen(false)}
+                className={cn(
+                  "relative flex min-h-11 items-center gap-3 rounded-md border-2 border-transparent px-3 text-sm font-semibold text-text-secondary transition-colors hover:bg-surface-muted hover:text-text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand",
+                  !sidebarExpanded ? "justify-center px-0" : null,
+                  active ? "border-border bg-surface-muted text-brand" : null,
+                )}
+              >
+                <item.icon className="size-4 shrink-0" aria-hidden="true" />
+                {sidebarExpanded ? item.label : null}
+              </Link>
+            );
+          })}
+        </nav>
+        {sidebarExpanded ? (
+          <section
+            className="mt-5 flex min-h-0 flex-1 flex-col"
+            aria-label="Assigned tasks"
+          >
+            <header className="mb-2 flex items-center justify-between gap-2 px-2">
+              <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-text-secondary">
+                <ListTodo className="size-4" aria-hidden="true" />
+                Assigned to me
+              </h2>
+              <span className="rounded-full border-2 border-border bg-surface-muted px-2 py-0.5 font-mono text-[10px] text-text-secondary">
+                {assignedTasks.data?.length ?? 0}
+              </span>
+            </header>
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-1 pb-2 [scrollbar-gutter:stable]">
+              {assignedTasks.isLoading ? (
+                <p className="px-2 py-3 text-xs text-text-tertiary">
+                  Loading assigned tasks…
+                </p>
+              ) : null}
+              {assignedTasks.isError ? (
+                <div className="rounded-lg border-2 border-error bg-error-soft p-3">
+                  <p className="text-xs text-text-primary">
+                    Assigned tasks could not be loaded.
+                  </p>
+                  <button
+                    type="button"
+                    className="mt-2 min-h-11 text-xs font-semibold text-error underline"
+                    onClick={() => void assignedTasks.refetch()}
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : null}
+              {!assignedTasks.isLoading &&
+              !assignedTasks.isError &&
+              assignedTaskGroups.length === 0 ? (
+                <p className="rounded-lg border-2 border-border bg-surface-muted p-3 text-xs text-text-secondary">
+                  No incomplete tasks assigned to you.
+                </p>
+              ) : null}
+              {assignedTaskGroups.map((group) => (
+                <section key={group.key} aria-label={`${group.title} tasks`}>
+                  <h3 className="mb-1 flex items-center gap-1.5 px-2 pt-2 text-[10px] font-bold uppercase tracking-wide text-text-tertiary">
+                    <Circle
+                      className="size-2.5 fill-current"
+                      style={
+                        group.colorKey
+                          ? { color: getProjectColor(group.colorKey).main }
+                          : undefined
+                      }
+                      aria-hidden="true"
+                    />
+                    <BidiText className="truncate">{group.title}</BidiText>
+                    <span className="ms-auto font-mono">{group.tasks.length}</span>
+                  </h3>
+                  <div className="grid gap-1.5">
+                    {group.tasks.map((task) => (
+                      <SidebarAssignedTask
+                        key={task.id}
+                        task={task}
+                        onNavigate={() => setMobileSidebarOpen(false)}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </section>
+        ) : null}
       </aside>
-      {/* FIX 3: on the dashboard, lg+ never scrolls at the shell level;
-          every other route (and mobile/tablet) keeps normal scrolling. */}
       <div
         data-app-content
         className={cn(
-          "h-full min-h-0 min-w-0 pb-[calc(4.75rem+env(safe-area-inset-bottom))] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] md:pb-0 md:pl-0 md:pr-0 md:pt-0",
+          "h-full min-h-0 min-w-0 pb-[calc(4.75rem+env(safe-area-inset-bottom))] ps-[env(safe-area-inset-left)] pe-[env(safe-area-inset-right)] md:pb-0 md:ps-0 md:pe-0",
           lockContentScroll
             ? "overflow-y-auto lg:overflow-hidden"
             : "overflow-y-auto [scrollbar-gutter:stable]",
@@ -447,57 +663,164 @@ export function AppShell({
         {showQuickAdd ? (
           <Link
             href="/weekly?quickAdd=1"
-            className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-[calc(1.25rem+env(safe-area-inset-right))] z-30 inline-flex size-14 items-center justify-center rounded-lg bg-brand text-white shadow-[var(--shadow-raised)] md:hidden"
+            className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] end-[calc(1.25rem+env(safe-area-inset-right))] z-30 inline-flex size-14 items-center justify-center rounded-lg border-2 border-brand-hover bg-brand text-white shadow-[var(--shadow-raised)] md:hidden"
             aria-label="Add task"
           >
             <Plus className="size-6" aria-hidden="true" />
           </Link>
         ) : null}
         <nav
-          className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] pl-[calc(0.25rem+env(safe-area-inset-left))] pr-[calc(0.25rem+env(safe-area-inset-right))] backdrop-blur md:hidden"
+          className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t-2 border-border bg-surface pb-[env(safe-area-inset-bottom)] ps-[calc(0.25rem+env(safe-area-inset-left))] pe-[calc(0.25rem+env(safe-area-inset-right))] md:hidden"
           aria-label="Mobile primary"
         >
-          {navItems
-            .filter((item) => item.href !== "/task-history")
-            .map((item) => {
-              const active = pathname.startsWith(item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href as Route}
-                  aria-current={active ? "page" : undefined}
+          {mobileNavItems.map((item) => {
+            const active = pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href as Route}
+                aria-current={
+                  item.href === "/notifications" && notificationOpen
+                    ? "page"
+                    : active
+                      ? "page"
+                      : undefined
+                }
+                aria-label={
+                  item.href === "/notifications" && unreadCount > 0
+                    ? `Notifications, ${unreadCount} unread`
+                    : undefined
+                }
+                onClick={(event) => {
+                  setMobileSidebarOpen(false);
+                  if (item.href === "/notifications") {
+                    event.preventDefault();
+                    toggleNotificationPreview();
+                  } else if (item.href === "/profile") {
+                    event.preventDefault();
+                    setAccountOpen(true);
+                  }
+                }}
+                className={cn(
+                  "relative flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-0 text-[10px] font-semibold text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-2 focus-visible:outline-brand",
+                  active || (item.href === "/notifications" && notificationOpen)
+                    ? "text-brand"
+                    : null,
+                )}
+              >
+                <span
+                  data-nav-icon
                   className={cn(
-                    "relative flex min-h-16 flex-col items-center justify-center gap-1 rounded-md text-[10px] font-semibold text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-2 focus-visible:outline-brand",
-                    active ? "text-brand" : null,
+                    "relative flex h-8 w-12 items-center justify-center rounded-full transition-colors duration-200",
+                    active || (item.href === "/notifications" && notificationOpen)
+                      ? "bg-brand-soft text-brand"
+                      : "text-text-secondary",
                   )}
                 >
-                  <span
-                    data-nav-icon
-                    className={cn(
-                      "flex h-8 w-12 items-center justify-center rounded-full transition-colors duration-200",
-                      active ? "bg-brand-soft text-brand" : "text-text-secondary",
-                    )}
-                  >
-                    <item.icon
-                      className="size-[19px]"
-                      strokeWidth={active ? 2.2 : 1.7}
-                      aria-hidden="true"
-                    />
-                  </span>
-                  <span>{item.mobileLabel}</span>
-                  {hydrated && item.href === "/notifications" && unreadCount > 0 ? (
-                    <span
-                      className="absolute right-1/4 top-2 inline-flex size-4 items-center justify-center rounded-full bg-brand font-mono text-[9px] text-white"
-                      aria-label={`${unreadCount} unread notifications`}
-                    >
-                      {unreadCount > 9 ? "9+" : unreadCount}
+                  <item.icon
+                    className="size-[19px]"
+                    strokeWidth={active ? 2.2 : 1.7}
+                    aria-hidden="true"
+                  />
+                  {item.href === "/notifications" && unreadCount > 0 ? (
+                    <span className="absolute end-1 top-0 inline-flex min-w-3.5 translate-x-1/4 -translate-y-1/4 items-center justify-center rounded-full bg-brand px-1 font-mono text-[8px] text-white">
+                      {unreadCount > 99 ? "99+" : unreadCount}
                     </span>
                   ) : null}
-                </Link>
-              );
-            })}
+                </span>
+                <span className="block max-w-full break-all text-center text-[8px] leading-3 tracking-[-0.04em] min-[360px]:text-[9px] min-[430px]:text-[10px]">
+                  {item.mobileLabel}
+                </span>
+              </Link>
+            );
+          })}
         </nav>
       </div>
     </div>
   );
+}
+
+/**
+ * Purpose: Render an assigned task with its project context in the global sidebar.
+ * Inputs: Task DTO and navigation callback.
+ * Output: Link to the task detail sheet with status, due date, and project.
+ * Side effects: Closes the mobile drawer when followed.
+ */
+function SidebarAssignedTask({
+  task,
+  onNavigate,
+}: {
+  task: TaskDto;
+  onNavigate: () => void;
+}) {
+  const href =
+    `/weekly?date=${encodeURIComponent(task.scheduledDate)}&task=${encodeURIComponent(task.id)}` as Route;
+  const statusLabel =
+    task.status === "IN_PROGRESS"
+      ? "Doing"
+      : task.status === "PENDING_REVIEW"
+        ? "Review"
+        : "To do";
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      aria-label={`Open ${task.title}, ${task.project?.title ?? "Personal task"}, ${statusLabel}`}
+      className="flex min-h-12 items-center gap-2 rounded-md border border-border bg-surface-muted px-2.5 py-2 transition-colors hover:bg-surface-elevated focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+    >
+      <span className="min-w-0 flex-1">
+        <BidiText className="block truncate text-sm font-semibold text-text-primary">
+          {task.title}
+        </BidiText>
+        <span className="mt-0.5 block truncate font-mono text-[10px] text-text-tertiary">
+          {task.scheduledDate}
+        </span>
+      </span>
+      <span
+        className={cn(
+          "shrink-0 rounded px-1.5 py-1 text-[9px] font-bold uppercase",
+          task.status === "TODO"
+            ? "bg-surface text-text-secondary"
+            : task.status === "IN_PROGRESS"
+              ? "bg-brand-soft text-brand"
+              : "bg-warning-soft text-warning",
+        )}
+      >
+        {statusLabel}
+      </span>
+    </Link>
+  );
+}
+
+type AssignedTaskGroup = {
+  key: string;
+  title: string;
+  colorKey: ProjectColorKey | null;
+  tasks: TaskDto[];
+};
+
+/**
+ * Purpose: Organize assigned tasks into project-specific sidebar sections.
+ * Inputs: Incomplete assigned task DTOs.
+ * Output: Alphabetized project groups followed by personal tasks.
+ * Side effects: None.
+ */
+function groupAssignedTasks(tasks: TaskDto[]): AssignedTaskGroup[] {
+  const groups = new Map<string, AssignedTaskGroup>();
+  for (const task of tasks) {
+    const key = task.project?.id ?? "personal";
+    const group = groups.get(key) ?? {
+      key,
+      title: task.project?.title ?? "Personal",
+      colorKey: task.project?.colorKey ?? null,
+      tasks: [],
+    };
+    group.tasks.push(task);
+    groups.set(key, group);
+  }
+  return [...groups.values()].sort((left, right) => {
+    if (left.key === "personal") return 1;
+    if (right.key === "personal") return -1;
+    return left.title.localeCompare(right.title);
+  });
 }

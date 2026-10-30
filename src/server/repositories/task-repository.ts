@@ -173,6 +173,9 @@ export async function listWeekTasks(input: {
   personalOnly?: boolean;
   incompleteOnly?: boolean;
   includeOpenOutsideWeek?: boolean;
+  includeDoneOutsideWeek?: boolean;
+  includeSubtasks?: boolean;
+  assignedOnly?: boolean;
 }): Promise<TaskDto[]> {
   const db = getDb();
   const creator = alias(profiles, "creator_profiles");
@@ -237,11 +240,13 @@ export async function listWeekTasks(input: {
             lte(tasks.scheduledDate, input.to),
           ),
           input.includeOpenOutsideWeek ? ne(tasks.status, "DONE") : undefined,
+          input.includeDoneOutsideWeek ? eq(tasks.status, "DONE") : undefined,
         ),
         input.incompleteOnly ? ne(tasks.status, "DONE") : undefined,
+        input.assignedOnly ? eq(tasks.assigneeId, input.userId) : undefined,
         input.projectId ? eq(tasks.projectId, input.projectId) : undefined,
         input.personalOnly ? isNull(tasks.projectId) : undefined,
-        isNull(tasks.parentTaskId),
+        input.includeSubtasks ? undefined : isNull(tasks.parentTaskId),
         isNull(tasks.archivedAt),
         or(
           and(

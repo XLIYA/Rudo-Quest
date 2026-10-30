@@ -181,4 +181,40 @@ describe("ProjectDetailScreen board state", () => {
     expect((await screen.findAllByText("Draft launch notes")).length).toBeGreaterThan(0);
     expect(screen.queryByText("No tasks in this project yet")).toBeNull();
   });
+
+  it("shows all completed project tasks in the completed section", async () => {
+    api.responses["/api/tasks/week"] = [
+      task({
+        status: "DONE",
+        previousStatus: "TODO",
+        completedAt: "2026-09-14T12:00:00.000Z",
+      }),
+    ];
+
+    renderScreen();
+
+    expect(await screen.findByText("Completed tasks · 1")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Open completed task Draft launch notes" }),
+    ).toBeVisible();
+  });
+
+  it("organizes overdue project tasks in the missed section", async () => {
+    const user = userEvent.setup();
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    api.responses["/api/tasks/week"] = [task({ scheduledDate: yesterday })];
+
+    renderScreen();
+
+    const missedSection = await screen.findByRole("button", {
+      name: /Missed tasks · 1/,
+    });
+    expect(missedSection).toBeVisible();
+    await user.click(missedSection);
+    expect(
+      screen.getByRole("button", { name: "Open missed task Draft launch notes" }),
+    ).toBeVisible();
+  });
 });

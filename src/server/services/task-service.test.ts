@@ -3,6 +3,8 @@ import type { TaskDto } from "@/types/domain";
 import {
   completeTask,
   createTask,
+  getAssignedTasks,
+  getWeekTasks,
   moveTask,
   reopenTask,
   updateTask,
@@ -99,6 +101,38 @@ beforeEach(() => {
   taskRepository.rollUpStoryStatus.mockResolvedValue({
     story: null,
     transition: null,
+  });
+});
+
+describe("getAssignedTasks", () => {
+  it("requests every active task assigned to the user, including project subtasks", async () => {
+    taskRepository.listWeekTasks.mockResolvedValue([]);
+
+    await expect(getAssignedTasks(userId)).resolves.toEqual([]);
+
+    expect(taskRepository.listWeekTasks).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId,
+        incompleteOnly: true,
+        includeOpenOutsideWeek: true,
+        includeSubtasks: true,
+        assignedOnly: true,
+      }),
+    );
+  });
+
+  it("includes completed history when listing a project task board", async () => {
+    taskRepository.listWeekTasks.mockResolvedValue([]);
+
+    await getWeekTasks(userId, "2026-10-26", targetProjectId);
+
+    expect(taskRepository.listWeekTasks).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: targetProjectId,
+        includeOpenOutsideWeek: true,
+        includeDoneOutsideWeek: true,
+      }),
+    );
   });
 });
 

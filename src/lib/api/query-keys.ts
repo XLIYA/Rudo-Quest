@@ -6,6 +6,7 @@ export const queryKeys = {
   projectInvitations: (projectId: string) => ["project-invitations", projectId] as const,
   projectGithubRepo: (projectId: string) => ["project-github-repo", projectId] as const,
   tasksWeek: (weekStart: string) => ["tasks-week", weekStart] as const,
+  assignedTasks: ["assigned-tasks"] as const,
   task: (taskId: string) => ["task", taskId] as const,
   taskHistory: (view: "missed" | "archived") => ["task-history", view] as const,
   subtasks: (storyId: string) => ["subtasks", storyId] as const,

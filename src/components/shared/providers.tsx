@@ -155,7 +155,7 @@ export function Providers({ children, nonce }: { children: ReactNode; nonce?: st
   return (
     <ThemeProvider
       attribute="class"
-      defaultTheme="system"
+      defaultTheme="dark"
       enableSystem
       disableTransitionOnChange
       nonce={nonce}
@@ -163,7 +163,10 @@ export function Providers({ children, nonce }: { children: ReactNode; nonce?: st
       <QueryClientProvider client={queryClient}>
         {children}
         <Toaster richColors position="top-center" />
-        {process.env.NODE_ENV === "development" ? <Agentation /> : null}
+        {process.env.NODE_ENV === "development" &&
+        process.env.NEXT_PUBLIC_DISABLE_AGENTATION !== "true" ? (
+          <Agentation />
+        ) : null}
       </QueryClientProvider>
     </ThemeProvider>
   );

@@ -21,8 +21,48 @@ test("responsive navigation, task difficulty, and atomic reward lifecycle", asyn
     await page.goto("/login");
     await page.getByLabel("Email").fill(email!);
     await page.getByLabel("Password", { exact: true }).fill(password!);
+    const signInResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === "/api/auth/signin",
+    );
     await page.getByRole("button", { name: "Sign in" }).click();
-    await expect(page).toHaveURL(/\/dashboard$/);
+    const signInResponse = await signInResponsePromise;
+    expect(signInResponse.status()).toBe(200);
+    await expect(page).toHaveURL(/\/dashboard$/, { timeout: 20_000 });
+    await expect(page.locator("[data-shell-hydrated='true']")).toBeVisible();
+    const accountTrigger = page.getByRole("button", { name: "Open account menu" });
+    await accountTrigger.click();
+    await expect(page.getByRole("menu", { name: "Account" })).toBeVisible();
+    await accountTrigger.click();
+    const sidebar = page.getByRole("complementary", {
+      name: "Task and primary navigation",
+    });
+    await expect(
+      sidebar.getByRole("button", { name: "Expand task sidebar" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open task sidebar" })).toBeHidden();
+    await sidebar.getByRole("button", { name: "Expand task sidebar" }).click();
+    await expect(
+      sidebar.getByRole("button", { name: "Collapse task sidebar" }),
+    ).toBeVisible();
+    await expect(sidebar.getByRole("heading", { name: "Assigned to me" })).toBeVisible();
+    await sidebar.getByRole("button", { name: "Collapse task sidebar" }).click();
+
+    await page
+      .locator("header")
+      .getByRole("button", { name: /Notifications/ })
+      .click();
+    const notificationPreview = page.getByRole("region", {
+      name: "Notification preview",
+    });
+    await expect(notificationPreview).toBeVisible();
+    await expect(
+      notificationPreview.getByRole("link", { name: "View All" }),
+    ).toHaveAttribute("href", "/notifications");
+    await notificationPreview.getByRole("link", { name: "View All" }).click();
+    await expect(page).toHaveURL(/\/notifications$/);
+    await page.goto("/dashboard");
     await page.setViewportSize({ width: 1920, height: 1111 });
     await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
     await expect
@@ -124,6 +164,60 @@ test("responsive navigation, task difficulty, and atomic reward lifecycle", asyn
     await expect(
       mobileNav.getByRole("link", { name: "Projects" }).locator("[data-nav-icon]"),
     ).toHaveClass(/bg-brand-soft/);
+    await mobileNav.getByRole("link", { name: /Notifications/ }).click();
+    await expect(notificationPreview).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/projects/${projectId}$`));
+    await notificationPreview.getByRole("link", { name: "View All" }).click();
+    await expect(page).toHaveURL(/\/notifications$/);
+    await page.goto(`/projects/${projectId}`);
+    await expect(page.getByRole("button", { name: "Open task sidebar" })).toBeVisible();
+    await expect(sidebar).toBeHidden();
+    await page.getByRole("button", { name: "Open task sidebar" }).click();
+    await expect(sidebar).toBeVisible();
+    await expect(sidebar.getByRole("heading", { name: "Assigned to me" })).toBeVisible();
+    await page
+      .locator("header")
+      .getByRole("button", { name: "Close task sidebar" })
+      .click();
+    await expect(sidebar).toBeHidden();
+    await page.addStyleTag({
+      content: "nextjs-portal { pointer-events: none !important; }",
+    });
+    await mobileNav.getByRole("link", { name: "Profile" }).click();
+    const mobileAccountMenu = page.getByRole("menu", { name: "Account" });
+    await expect(mobileAccountMenu).toBeVisible();
+    await expect(
+      mobileAccountMenu.getByRole("menuitem", { name: /Settings/ }),
+    ).toBeVisible();
+    await expect(
+      mobileAccountMenu.getByRole("menuitem", { name: /Sign out/ }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    for (const width of [320, 360, 375, 414]) {
+      await page.setViewportSize({ width, height: 760 });
+      const navMetrics = await mobileNav.locator("a").evaluateAll((links) =>
+        links.map((link) => {
+          const rect = link.getBoundingClientRect();
+          return {
+            left: rect.left,
+            right: rect.right,
+            width: rect.width,
+            height: rect.height,
+          };
+        }),
+      );
+      expect(navMetrics).toHaveLength(5);
+      expect(
+        navMetrics.every(
+          (item, index) =>
+            item.width >= 44 &&
+            item.height >= 44 &&
+            item.left >= (navMetrics[index - 1]?.right ?? 0) &&
+            item.right <= width,
+        ),
+      ).toBe(true);
+    }
+    await page.setViewportSize({ width: 375, height: 667 });
     await expect(
       page.getByLabel("Difficulty 5 of 5: Very hard", { exact: true }),
     ).toBeVisible();

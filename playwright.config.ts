@@ -35,6 +35,7 @@ export default defineConfig({
       // can reach Next's 80% heap restart threshold during a mutation. Keep
       // headroom for garbage collection without changing test assertions.
       NODE_OPTIONS: process.env.NODE_OPTIONS ?? "--max-old-space-size=6144",
+      NEXT_PUBLIC_DISABLE_AGENTATION: "true",
     },
   },
   projects: [
