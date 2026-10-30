@@ -26,7 +26,9 @@ A focused, mobile-first project and task management PWA. Rudo Quest is intention
 
 - **Projects & membership** — projects with fixed color/icon keys, four roles (Owner, Admin, Member, Viewer), invitations with expiry, and an enforced one-owner-per-project invariant.
 - **Tasks** — statuses `TODO`, `IN_PROGRESS`, `PENDING_REVIEW`, and `DONE`; task types (`TASK`, `STORY`, `FEATURE`, `BUG`, `TEST`); priorities; subtasks under Stories; file and link attachments; optimistic concurrency via a `version` column.
-- **Weekly work surface** — the weekly route is the central planning view; desktop uses a persistent sidebar, mobile uses bottom navigation with a route-scoped add-task action.
+- **Navigation & task access** — a global topbar holds profile and notifications; the collapsible task sidebar lists all incomplete tasks assigned to the current user with project context. Mobile keeps touch-friendly bottom navigation and a task drawer.
+- **Project task history** — project boards keep active work in context and expose completed, missed, and archived tasks in dedicated sections without duplicating task records.
+- **Typography & direction** — JetBrains Mono is the Latin default, Vazirmatn supplies Persian glyphs automatically, and shared BiDi styling isolates mixed-script text and user input.
 - **Dashboard** — a viewport-contained overview with today's schedule, projects, and a 91-day activity heatmap.
 - **Notifications & push** — in-app notifications, Web Push (VAPID) with per-device subscriptions, per-user timezone awareness, quiet hours, dedupe keys, and delivery retries with backoff. Scheduled work runs every 15 minutes via Supabase Cron.
 - **GitHub integration** — connect one repository per project through a GitHub App with a two-leg, server-validated OAuth + installation flow. V1 stores verified installation metadata only; no issue import or two-way sync.
@@ -349,7 +351,7 @@ Deliberate product and engineering choices (full rationale in [docs/DECISIONS.md
 - **Project colors use fixed keys**, never arbitrary hex.
 - **TanStack Query is the only client state** — no global task/project/profile stores.
 - **Route Handlers are the single server boundary** for browser mutations, keeping validation, authorization, and envelopes in one place.
-- **The 91-day heatmap layout is intentional**, as is self-hosted Noto Serif for all body text (no layout shift, no third-party font requests); Bitcount Ink is limited to the product name and prominent headings.
+- **The 91-day heatmap layout is intentional.** JetBrains Mono and Vazirmatn are optimized and self-hosted by `next/font`; Bitcount Ink remains reserved for pixel-style product headings.
 
 ## Documentation
 

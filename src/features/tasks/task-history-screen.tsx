@@ -7,6 +7,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import { PageHeader } from "@/components/shared/page-header";
+import { BidiText } from "@/components/shared/bidi-text";
 import { AppButton } from "@/components/ui/app-button";
 import { AppEmptyState } from "@/components/ui/app-empty-state";
 import { AppPagination } from "@/components/ui/app-pagination";
@@ -190,7 +191,7 @@ function HistoryTaskRow({
         onClick={() => onOpen(task)}
         className="min-h-11 min-w-0 rounded-md text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       >
-        <span className="block break-words font-semibold">{task.title}</span>
+        <BidiText className="block break-words font-semibold">{task.title}</BidiText>
         <TaskClassification
           taskType={task.taskType}
           priority={task.priority}

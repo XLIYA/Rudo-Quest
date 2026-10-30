@@ -31,16 +31,25 @@ export const AppInput = forwardRef<HTMLInputElement, AppInputProps>(
             aria-invalid={Boolean(error)}
             aria-describedby={error ? `${inputId}-error` : undefined}
             className={cn(
-              "min-h-11 w-full rounded-md border border-border bg-surface px-3 text-sm text-text-primary outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-text-tertiary focus:border-quest focus:shadow-[0_0_0_3px_var(--quest-soft)]",
-              endAdornment ? "pr-12" : null,
+              "neo-input min-h-11 w-full bg-surface px-3 text-sm text-text-primary outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-text-tertiary focus:border-quest focus:shadow-[0_3px_0_var(--ink)]",
+              endAdornment ? "pe-12" : null,
               error ? "border-error" : null,
               className,
             )}
             {...props}
+            dir={
+              props.dir ??
+              (props.type === "email" ||
+              props.type === "url" ||
+              props.type === "tel" ||
+              props.type === "number"
+                ? "ltr"
+                : "auto")
+            }
             suppressHydrationWarning
           />
           {endAdornment ? (
-            <div className="absolute inset-y-0 right-0 flex items-center">
+            <div className="absolute inset-y-0 end-0 flex items-center">
               {endAdornment}
             </div>
           ) : null}

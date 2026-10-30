@@ -27,7 +27,7 @@ export const profiles = pgTable(
     avatarPath: text("avatar_path"),
     bannerPath: text("banner_path"),
     bannerPresetKey: text("banner_preset_key"),
-    themePreference: text("theme_preference").notNull().default("system"),
+    themePreference: text("theme_preference").notNull().default("dark"),
     timeZone: text("time_zone").notNull(),
     notificationsEnabled: boolean("notifications_enabled").notNull().default(true),
     dailyReminderEnabled: boolean("daily_reminder_enabled").notNull().default(true),

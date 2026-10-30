@@ -4,15 +4,16 @@ import { forwardRef, type ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/utils/cn";
 
 const buttonVariants = cva(
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition-[background-color,border-color,color,box-shadow,transform] duration-150 disabled:pointer-events-none disabled:opacity-55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-quest",
+  "neo-button inline-flex min-h-11 items-center justify-center gap-2 rounded-md border-2 border-transparent px-4 text-sm font-semibold shadow-[0_3px_0_var(--ink)] transition-[background-color,border-color,color,box-shadow,transform] duration-150 active:translate-y-[3px] active:shadow-none disabled:pointer-events-none disabled:opacity-55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-quest",
   {
     variants: {
       variant: {
-        primary: "bg-brand text-white hover:bg-brand-hover",
+        primary: "border-brand-hover bg-brand text-white hover:bg-brand-hover",
         secondary:
-          "border border-border bg-surface text-text-primary hover:border-quest-muted hover:bg-quest-soft",
-        ghost: "text-text-secondary hover:bg-surface-muted hover:text-text-primary",
-        danger: "bg-error text-error-contrast hover:opacity-90",
+          "border-border-strong bg-surface text-text-primary hover:border-quest-muted hover:bg-quest-soft",
+        ghost:
+          "border-transparent text-text-secondary shadow-none hover:bg-surface-muted hover:text-text-primary active:translate-y-0",
+        danger: "border-error-contrast bg-error text-error-contrast hover:opacity-90",
       },
       size: {
         sm: "min-h-11 px-3 text-xs",

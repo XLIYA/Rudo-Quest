@@ -29,11 +29,12 @@ export const AppTextarea = forwardRef<HTMLTextAreaElement, AppTextareaProps>(
           aria-invalid={Boolean(error)}
           aria-describedby={error ? errorId : props["aria-describedby"]}
           className={cn(
-            "min-h-28 rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none transition-colors placeholder:text-text-tertiary focus:border-brand",
+            "neo-input min-h-28 bg-surface px-3 py-2 text-sm text-text-primary outline-none transition-colors placeholder:text-text-tertiary focus:border-brand focus:shadow-[0_3px_0_var(--ink)]",
             error ? "border-error" : null,
             className,
           )}
           {...props}
+          dir={props.dir ?? "auto"}
         />
         {error ? (
           <span id={errorId} role="alert" className="text-xs font-medium text-error">

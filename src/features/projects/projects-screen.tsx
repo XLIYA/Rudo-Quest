@@ -19,6 +19,7 @@ import { AppProgress } from "@/components/ui/app-progress";
 import { AppSelect } from "@/components/ui/app-select";
 import { AppSkeleton } from "@/components/ui/app-skeleton";
 import { PageHeader } from "@/components/shared/page-header";
+import { BidiText } from "@/components/shared/bidi-text";
 import { apiGet } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
 import {
@@ -169,7 +170,9 @@ function ProjectCard({ project }: { project: ProjectSummary }) {
           {project.archivedAt ? "ARCHIVED" : project.role}
         </span>
       </div>
-      <h2 className="mt-4 text-lg font-semibold">{project.title}</h2>
+      <h2 className="mt-4 text-lg font-semibold">
+        <BidiText>{project.title}</BidiText>
+      </h2>
       <p className="mt-1 line-clamp-2 min-h-10 text-sm leading-5 text-text-secondary">
         {project.description ?? "No description."}
       </p>

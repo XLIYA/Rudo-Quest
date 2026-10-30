@@ -18,7 +18,7 @@ export const AppIconButton = forwardRef<HTMLButtonElement, AppIconButtonProps>(
       type="button"
       aria-label={label}
       className={cn(
-        "inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-transparent text-text-secondary transition-colors duration-150 hover:bg-quest-soft hover:text-quest focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-quest",
+        "inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border-2 border-border bg-surface text-text-secondary shadow-[0_2px_0_var(--ink)] transition-[background-color,border-color,color,transform,box-shadow] duration-150 hover:bg-quest-soft hover:text-quest active:translate-y-[2px] active:shadow-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-quest",
         className,
       )}
       {...props}

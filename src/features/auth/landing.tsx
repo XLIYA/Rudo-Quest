@@ -1,6 +1,5 @@
 import Image from "next/image";
 import Link from "next/link";
-import RudoMark from "@/assets/brand/rudo-mark.svg";
 
 /**
  * Purpose: Render the compact public entry page for unauthenticated users.
@@ -13,7 +12,14 @@ export function Landing() {
     <main className="min-h-screen bg-background text-text-primary">
       <section className="mx-auto flex min-h-screen w-full max-w-5xl flex-col justify-center px-5 py-10">
         <div className="flex items-center gap-3">
-          <Image src={RudoMark} alt="" width={48} height={48} priority />
+          <Image
+            src="/branding/rudo-logo.png"
+            alt=""
+            width={48}
+            height={48}
+            className="rounded-md"
+            priority
+          />
           <span className="font-display text-3xl">Rudo Quest</span>
         </div>
         <div className="mt-14 max-w-2xl">

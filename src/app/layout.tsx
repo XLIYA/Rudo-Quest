@@ -1,7 +1,7 @@
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata, Viewport } from "next";
-import { Noto_Serif } from "next/font/google";
+import { JetBrains_Mono, Vazirmatn } from "next/font/google";
 import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import { Providers } from "@/components/shared/providers";
@@ -9,11 +9,18 @@ import "./globals.css";
 
 export const preferredRegion = "syd1";
 
-const notoSerif = Noto_Serif({
+const jetBrainsMono = JetBrains_Mono({
   subsets: ["latin"],
-  variable: "--font-noto-serif",
+  variable: "--font-jetbrains-mono",
   display: "swap",
-  fallback: ["Georgia", "serif"],
+  fallback: ["monospace"],
+});
+
+const vazirmatn = Vazirmatn({
+  subsets: ["arabic"],
+  variable: "--font-vazirmatn",
+  display: "swap",
+  fallback: ["sans-serif"],
 });
 
 export const metadata: Metadata = {
@@ -25,7 +32,10 @@ export const metadata: Metadata = {
   description: "A compact collaborative weekly task-management PWA.",
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/icons/rudo-mark.svg",
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
     apple: [
       {
         url: "/icons/apple-touch-icon-120.png",
@@ -75,7 +85,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${notoSerif.variable} h-full antialiased`}
+      dir="ltr"
+      className={`${jetBrainsMono.variable} ${vazirmatn.variable} h-full antialiased`}
     >
       <body>
         <Providers nonce={nonce}>{children}</Providers>

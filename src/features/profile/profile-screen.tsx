@@ -125,7 +125,7 @@ export function ProfileScreen() {
     mutationFn: (values: Partial<Profile>) =>
       apiMutation<Profile>("patch", "/api/me/preferences", values),
     onMutate: (values) => {
-      const previousTheme = profile.data?.themePreference ?? "system";
+      const previousTheme = profile.data?.themePreference ?? "dark";
       if (values.themePreference) setTheme(values.themePreference);
       return { previousTheme };
     },
@@ -134,7 +134,7 @@ export function ProfileScreen() {
       setTheme(data.themePreference);
     },
     onError: (error, _values, context) => {
-      setTheme(context?.previousTheme ?? "system");
+      setTheme(context?.previousTheme ?? "dark");
       AppToast(errorMessage(error), "error");
     },
   });

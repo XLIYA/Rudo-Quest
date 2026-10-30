@@ -59,7 +59,7 @@ export function SettingsScreen() {
     mutationFn: (values: Partial<ProfileDto>) =>
       apiMutation<ProfileDto>("patch", "/api/me/preferences", values),
     onMutate: (values) => {
-      const previousTheme = profile.data?.themePreference ?? "system";
+      const previousTheme = profile.data?.themePreference ?? "dark";
       if (values.themePreference) setTheme(values.themePreference);
       return { previousTheme };
     },
@@ -68,7 +68,7 @@ export function SettingsScreen() {
       setTheme(data.themePreference);
     },
     onError: (error, _values, context) => {
-      setTheme(context?.previousTheme ?? "system");
+      setTheme(context?.previousTheme ?? "dark");
       AppToast(normalizeApiClientError(error).message, "error");
     },
   });

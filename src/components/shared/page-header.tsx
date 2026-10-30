@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { BidiText } from "@/components/shared/bidi-text";
 
 export type PageHeaderProps = {
   title: string;
@@ -34,14 +35,14 @@ export function PageHeader({
           title={title}
           className={`min-w-0 font-display font-semibold tracking-[-0.03em] text-text-primary ${compact ? "truncate text-xl sm:text-2xl" : "text-3xl sm:text-4xl"}`}
         >
-          {title}
+          <BidiText className="block">{title}</BidiText>
         </h1>
         {description ? (
           <p
             className={`${inlineAction ? "col-span-2 row-start-2" : "mt-1"} ${compact ? "truncate" : "max-w-2xl"} text-sm leading-6 text-text-secondary`}
             title={description}
           >
-            {description}
+            <BidiText className="block">{description}</BidiText>
           </p>
         ) : null}
       </div>

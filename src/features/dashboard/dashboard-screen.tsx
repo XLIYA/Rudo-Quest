@@ -13,6 +13,7 @@ import { AppAvatarStack } from "@/components/ui/app-avatar-stack";
 import { ActivityHeatmap } from "@/components/shared/activity-heatmap";
 import { BoundedCardList } from "@/components/shared/bounded-card-list";
 import { PageHeader } from "@/components/shared/page-header";
+import { BidiText } from "@/components/shared/bidi-text";
 import { TaskRow } from "@/components/ui/task-row";
 import { useTaskMutation } from "@/features/tasks/task-hooks";
 import { getDateInTimeZone, getMondayWeekStart } from "@/lib/utils/dates";
@@ -161,7 +162,7 @@ export function DashboardScreen() {
                 <section key={key} className="grid min-w-0 gap-2">
                   <div className="flex min-w-0 items-center justify-between gap-3">
                     <h3 className="min-w-0 truncate text-sm font-semibold">
-                      {group.title}
+                      <BidiText>{group.title}</BidiText>
                     </h3>
 
                     <Link
@@ -374,7 +375,9 @@ export function DashboardScreen() {
                         <ProjectIconGlyph iconKey={project.iconKey} className="size-4" />
                       </span>
 
-                      <h3 className="min-w-0 truncate font-semibold">{project.title}</h3>
+                      <h3 className="min-w-0 truncate font-semibold">
+                        <BidiText>{project.title}</BidiText>
+                      </h3>
                     </div>
 
                     <span className="shrink-0 font-mono text-sm text-text-secondary">

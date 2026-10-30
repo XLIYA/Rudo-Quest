@@ -10,6 +10,7 @@ import { AppIconButton } from "./app-icon-button";
 import { TaskCheckbox } from "./task-checkbox";
 import { ProjectIconGlyph } from "@/features/projects/project-pickers";
 import { TaskClassification } from "./task-classification";
+import { BidiText } from "@/components/shared/bidi-text";
 
 export type TaskRowProps = {
   task: TaskDto;
@@ -48,7 +49,7 @@ export function TaskRow({
       <button
         type="button"
         onClick={() => onOpen(task)}
-        className="min-h-11 min-w-0 rounded-sm text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        className="min-h-11 min-w-0 rounded-sm text-start focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       >
         <h3 className="flex items-start gap-2 text-sm font-semibold">
           {task.iconKey ? (
@@ -57,7 +58,7 @@ export function TaskRow({
               className="mt-0.5 size-4 shrink-0 text-text-secondary"
             />
           ) : null}
-          <span className="line-clamp-2">{task.title}</span>
+          <BidiText className="line-clamp-2">{task.title}</BidiText>
         </h3>
         <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-xs text-text-secondary">
           <TaskClassification taskType={task.taskType} priority={task.priority} />
@@ -69,7 +70,7 @@ export function TaskRow({
                 className="size-2 shrink-0 rounded-sm"
                 style={{ background: color?.main }}
               />
-              <span className="truncate">{task.project.title}</span>
+              <BidiText className="truncate">{task.project.title}</BidiText>
             </span>
           ) : (
             <span>Personal</span>

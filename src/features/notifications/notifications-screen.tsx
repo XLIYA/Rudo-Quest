@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PageHeader } from "@/components/shared/page-header";
+import { BidiText } from "@/components/shared/bidi-text";
 import { AppButton } from "@/components/ui/app-button";
 import { AppEmptyState } from "@/components/ui/app-empty-state";
 import { AppIconButton } from "@/components/ui/app-icon-button";
@@ -159,7 +160,7 @@ export function NotificationsPanel({ compact = false }: { compact?: boolean }) {
                       <h2
                         className={cn("text-sm", unread ? "font-bold" : "font-semibold")}
                       >
-                        {notification.title}
+                        <BidiText>{notification.title}</BidiText>
                       </h2>
                       <span className="font-mono text-[11px] text-text-tertiary">
                         {new Date(notification.createdAt).toLocaleString()}

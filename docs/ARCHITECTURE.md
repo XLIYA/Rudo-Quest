@@ -8,6 +8,8 @@ Business logic lives in `src/server/services`. Database reads and writes live in
 
 The Drizzle runtime schema is in `src/db/schema/index.ts`. Hand-authored migrations in `src/db/migrations` are the deployment source of truth; Drizzle-generated snapshots are isolated in `src/db/drizzle`. The migration runner serializes deployments with a PostgreSQL advisory lock and rejects checksum drift.
 
-UI is mobile-first. Desktop uses a persistent left sidebar; mobile uses bottom navigation and a route-scoped add-task action on the dashboard and weekly work surfaces. The weekly route is the central work surface.
+UI is mobile-first. A global topbar contains account and notification actions. The desktop sidebar collapses to a rail and expands into a user-scoped list of incomplete assigned tasks; on mobile it becomes a drawer alongside bottom navigation. Project pages organize active, completed, missed, and archived task views around the existing task records.
+
+JetBrains Mono is the default Latin font and Vazirmatn is the Persian glyph fallback. Shared bidirectional text isolation and auto-directed form controls keep mixed Persian/English content readable without changing the document's default direction.
 
 Supabase is the identity and storage boundary. The server uses SSR cookies and a server-only admin client for private Storage signed URLs and profile bootstrap. Signed uploads are tracked until commit and abandoned objects are removed by the scheduled job. Selected browser reads are persisted under a user-scoped IndexedDB key and restored only after the server verifies the active session.

@@ -25,52 +25,63 @@ function createIcoFromPngs(images) {
   return Buffer.concat([header, ...directories, ...images.map(({ png }) => png)]);
 }
 
-const svg = await fs.readFile("src/assets/brand/rudo-mark.svg", "utf8");
-const roundedBackground =
-  '<rect x="4" y="4" width="88" height="88" rx="28" fill="#C8613F"/>';
-const fullBleedSvg = svg.replace(
-  roundedBackground,
-  '<rect width="96" height="96" fill="#C8613F"/>',
-);
-if (fullBleedSvg === svg) {
-  throw new Error("Rudo mark background could not be prepared for install icons.");
+const logo = await fs.readFile("public/branding/rudo-logo.png");
+const brandOrange = { r: 200, g: 97, b: 63, alpha: 1 };
+
+async function createLogo(size) {
+  return sharp(logo).resize(size, size, { fit: "fill" }).ensureAlpha().png().toBuffer();
+}
+
+async function createMaskableLogo(size) {
+  const insetSize = Math.round(size * 0.68);
+  const inset = await sharp(logo)
+    .resize(insetSize, insetSize, { fit: "fill" })
+    .png()
+    .toBuffer();
+  return sharp({
+    create: {
+      width: size,
+      height: size,
+      channels: 4,
+      background: brandOrange,
+    },
+  })
+    .composite([
+      {
+        input: inset,
+        left: Math.floor((size - insetSize) / 2),
+        top: Math.floor((size - insetSize) / 2),
+      },
+    ])
+    .png()
+    .toBuffer();
 }
 
 await fs.mkdir("public/icons", { recursive: true });
-await sharp(Buffer.from(svg)).resize(192, 192).png().toFile("public/icons/icon-192.png");
-await sharp(Buffer.from(svg)).resize(512, 512).png().toFile("public/icons/icon-512.png");
-await sharp(Buffer.from(fullBleedSvg))
-  .resize(192, 192)
-  .png()
-  .toFile("public/icons/icon-maskable-192.png");
-await sharp(Buffer.from(fullBleedSvg))
-  .resize(512, 512)
-  .png()
-  .toFile("public/icons/icon-maskable-512.png");
+await fs.writeFile("public/icons/icon-192.png", await createLogo(192));
+await fs.writeFile("public/icons/icon-512.png", await createLogo(512));
+await fs.writeFile("public/icons/icon-maskable-192.png", await createMaskableLogo(192));
+await fs.writeFile("public/icons/icon-maskable-512.png", await createMaskableLogo(512));
 
 const appleIconSizes = [120, 152, 167, 180];
 await Promise.all(
   appleIconSizes.map((size) =>
-    sharp(Buffer.from(fullBleedSvg))
-      .resize(size, size)
-      .png()
-      .toFile(`public/icons/apple-touch-icon-${size}.png`),
+    createLogo(size).then((icon) =>
+      fs.writeFile(`public/icons/apple-touch-icon-${size}.png`, icon),
+    ),
   ),
 );
-const appleTouchIcon = await sharp(Buffer.from(fullBleedSvg))
-  .resize(180, 180)
-  .png()
-  .toBuffer();
+const appleTouchIcon = await createLogo(180);
 await fs.writeFile("public/apple-touch-icon.png", appleTouchIcon);
 await fs.writeFile("public/icons/apple-touch-icon.png", appleTouchIcon);
 
 const faviconImages = await Promise.all(
   [16, 32, 48].map(async (size) => ({
     size,
-    png: await sharp(Buffer.from(svg)).resize(size, size).png().toBuffer(),
+    png: await createLogo(size),
   })),
 );
 const favicon = createIcoFromPngs(faviconImages);
 await fs.writeFile("public/favicon.ico", favicon);
 await fs.writeFile("src/app/favicon.ico", favicon);
-console.log("Generated Rudo Quest icons.");
+console.log("Generated Rudo Quest icons from the supplied orange logo.");

@@ -9,6 +9,7 @@ import { AppDatePicker } from "@/components/ui/app-date-picker";
 import { AppTimePicker } from "@/components/ui/app-time-picker";
 import { AppInput } from "@/components/ui/app-input";
 import { AppToast } from "@/components/ui/app-toast";
+import { BidiText } from "@/components/shared/bidi-text";
 import { apiGet, apiMutation, normalizeApiClientError } from "@/lib/api/client";
 import type { CreateTaskRewardInput } from "@/lib/validation/task-rewards";
 import type { TaskDto, TaskRewardDto } from "@/types/domain";
@@ -124,7 +125,7 @@ export function ProjectRewards({
             >
               <div className="min-w-0">
                 <h3 className="truncate text-sm font-semibold" title={reward.title}>
-                  {reward.title}
+                  <BidiText>{reward.title}</BidiText>
                 </h3>
                 <p className="mt-1 text-lg font-semibold tabular-nums">
                   {reward.amountToman.toLocaleString()}{" "}
@@ -316,7 +317,7 @@ function RewardForm({
                     })
                   }
                 />
-                <span className="min-w-0 break-words">{task.title}</span>
+                <BidiText className="min-w-0 break-words">{task.title}</BidiText>
               </label>
             ))}
           </div>
