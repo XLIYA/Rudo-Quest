@@ -181,11 +181,6 @@ test("responsive navigation, task difficulty, and atomic reward lifecycle", asyn
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto(`/projects/${projectId}`);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(/deliberately long/);
-    await expect(
-      page.locator(
-        'link[rel="apple-touch-icon"][sizes="180x180"][media="(prefers-color-scheme: dark)"]',
-      ),
-    ).toHaveAttribute("href", "/icons/apple-touch-icon-dark-180.png");
     const mobileNav = page.getByRole("navigation", { name: "Mobile primary" });
     await expect(mobileNav.getByRole("link")).toHaveCount(3);
     await expect(

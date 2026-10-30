@@ -180,10 +180,9 @@
   --motion-base: 250ms;
   --motion-slow: 400ms;
   --font-bitcount: "Bitcount";
-  --font-display:
-    var(--font-bitcount), var(--font-vazirmatn), var(--font-jetbrains-mono), sans-serif;
-  --font-sans: var(--font-jetbrains-mono), var(--font-vazirmatn), sans-serif;
-  --font-mono: var(--font-jetbrains-mono), var(--font-vazirmatn), monospace;
+  --font-display: "Bitcount", "Vazirmatn", "JetBrains Mono", sans-serif;
+  --font-sans: "JetBrains Mono", "Vazirmatn", sans-serif;
+  --font-mono: "JetBrains Mono", "Vazirmatn", monospace;
   color-scheme: light;
 }
 
@@ -374,10 +373,9 @@
   --color-project-sand: var(--project-sand-main);
   --color-project-slate: var(--project-slate-main);
   --color-project-gray: var(--project-gray-main);
-  --font-sans: var(--font-jetbrains-mono), var(--font-vazirmatn), sans-serif;
-  --font-mono: var(--font-jetbrains-mono), var(--font-vazirmatn), monospace;
-  --font-display:
-    var(--font-bitcount), var(--font-vazirmatn), var(--font-jetbrains-mono), sans-serif;
+  --font-sans: "JetBrains Mono", "Vazirmatn", sans-serif;
+  --font-mono: "JetBrains Mono", "Vazirmatn", monospace;
+  --font-display: "Bitcount", "Vazirmatn", "JetBrains Mono", sans-serif;
 }
 
 * {

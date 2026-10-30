@@ -38,30 +38,6 @@ export const metadata: Metadata = {
     ],
     apple: [
       {
-        url: "/icons/apple-touch-icon-dark-120.png",
-        sizes: "120x120",
-        type: "image/png",
-        media: "(prefers-color-scheme: dark)",
-      },
-      {
-        url: "/icons/apple-touch-icon-dark-152.png",
-        sizes: "152x152",
-        type: "image/png",
-        media: "(prefers-color-scheme: dark)",
-      },
-      {
-        url: "/icons/apple-touch-icon-dark-167.png",
-        sizes: "167x167",
-        type: "image/png",
-        media: "(prefers-color-scheme: dark)",
-      },
-      {
-        url: "/icons/apple-touch-icon-dark-180.png",
-        sizes: "180x180",
-        type: "image/png",
-        media: "(prefers-color-scheme: dark)",
-      },
-      {
         url: "/icons/apple-touch-icon-120.png",
         sizes: "120x120",
         type: "image/png",

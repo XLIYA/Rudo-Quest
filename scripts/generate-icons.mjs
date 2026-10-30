@@ -27,7 +27,6 @@ function createIcoFromPngs(images) {
 
 const logo = await fs.readFile("public/branding/rudo-logo.png");
 const brandOrange = { r: 200, g: 97, b: 63, alpha: 1 };
-const darkBrandOrange = { r: 224, g: 122, b: 87 };
 
 async function createLogo(size) {
   return sharp(logo).resize(size, size, { fit: "fill" }).ensureAlpha().png().toBuffer();
@@ -79,38 +78,6 @@ async function createTransparentLogo() {
   return sharp(data, { raw: info }).png().toBuffer();
 }
 
-async function createDarkAppleLogo(size) {
-  const { data, info } = await sharp(logo)
-    .resize(size, size, { fit: "fill" })
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const brandChannels = [brandOrange.r, brandOrange.g, brandOrange.b];
-  const colorDelta = brandChannels.map((channel) => 255 - channel);
-  const colorDeltaLength = colorDelta.reduce((sum, channel) => sum + channel ** 2, 0);
-
-  // Recover the source mark's edge coverage to retain its exact silhouette.
-  for (let offset = 0; offset < data.length; offset += info.channels) {
-    const coverage = Math.min(
-      1,
-      Math.max(
-        0,
-        colorDelta.reduce(
-          (sum, channel, index) =>
-            sum + (data[offset + index] - brandChannels[index]) * channel,
-          0,
-        ) / colorDeltaLength,
-      ),
-    );
-    data[offset] = Math.round(darkBrandOrange.r * coverage);
-    data[offset + 1] = Math.round(darkBrandOrange.g * coverage);
-    data[offset + 2] = Math.round(darkBrandOrange.b * coverage);
-    data[offset + 3] = 255;
-  }
-
-  return sharp(data, { raw: info }).png().toBuffer();
-}
-
 async function createMaskableLogo(size) {
   const insetSize = Math.round(size * 0.68);
   const inset = await sharp(logo)
@@ -151,13 +118,6 @@ await Promise.all(
   appleIconSizes.map((size) =>
     createLogo(size).then((icon) =>
       fs.writeFile(`public/icons/apple-touch-icon-${size}.png`, icon),
-    ),
-  ),
-);
-await Promise.all(
-  appleIconSizes.map((size) =>
-    createDarkAppleLogo(size).then((icon) =>
-      fs.writeFile(`public/icons/apple-touch-icon-dark-${size}.png`, icon),
     ),
   ),
 );
