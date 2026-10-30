@@ -28,6 +28,7 @@ import { AppDatePicker } from "./app-date-picker";
 import { AppInput } from "./app-input";
 import { AppSelect } from "./app-select";
 import { AppDialog } from "./app-dialog";
+import { AppStateLogo } from "./app-empty-state";
 import { AppTextarea } from "./app-textarea";
 import { AppTimePicker } from "./app-time-picker";
 import { TaskAssigneeCombobox } from "./task-assignee-combobox";
@@ -495,7 +496,8 @@ export function TaskDetailSheet({
                   <p className="text-sm text-text-tertiary">Loading activity…</p>
                 ) : null}
                 {activity.isError ? (
-                  <p role="alert" className="text-sm text-error">
+                  <p role="alert" className="flex items-center gap-2 text-sm text-error">
+                    <AppStateLogo size={32} />
                     Activity history could not be loaded.
                   </p>
                 ) : null}
@@ -516,7 +518,10 @@ export function TaskDetailSheet({
                     ))
                   : null}
                 {!activity.isLoading && !activity.isError && !activity.data?.length ? (
-                  <p className="text-sm text-text-tertiary">No activity yet.</p>
+                  <p className="flex items-center gap-2 text-sm text-text-tertiary">
+                    <AppStateLogo size={32} />
+                    No activity yet.
+                  </p>
                 ) : null}
               </section>
             </aside>

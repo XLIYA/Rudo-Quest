@@ -31,6 +31,7 @@ import { OfflineStatusToast } from "@/components/shared/offline-status-toast";
 import { BidiText } from "@/components/shared/bidi-text";
 import { AppToast } from "@/components/ui/app-toast";
 import { AppAvatar } from "@/components/ui/app-avatar";
+import { AppStateLogo } from "@/components/ui/app-empty-state";
 import { AppIconButton } from "@/components/ui/app-icon-button";
 import { useOnline } from "@/hooks/use-online";
 import { apiGet, apiMutation, normalizeApiClientError } from "@/lib/api/client";
@@ -61,17 +62,6 @@ const navItems = [
   },
   { href: "/weekly", label: "Weekly", mobileLabel: "Weekly", icon: CalendarDays },
   { href: "/projects", label: "Projects", mobileLabel: "Projects", icon: FolderKanban },
-] as const;
-
-const mobileNavItems = [
-  ...navItems,
-  {
-    href: "/notifications",
-    label: "Notifications",
-    mobileLabel: "Notifications",
-    icon: Bell,
-  },
-  { href: "/profile", label: "Profile", mobileLabel: "Profile", icon: User },
 ] as const;
 
 type NavProfile = Pick<
@@ -338,14 +328,14 @@ export function AppShell({
     <div
       data-shell-hydrated={hydrated ? "true" : undefined}
       className={cn(
-        "grid h-dvh min-h-0 min-w-0 grid-rows-[calc(4.25rem+env(safe-area-inset-top))_minmax(0,1fr)] overflow-clip bg-background text-text-primary md:transition-[grid-template-columns] md:duration-300 md:ease-out",
+        "grid h-dvh min-h-0 min-w-0 grid-rows-[calc(3.25rem+env(safe-area-inset-top))_minmax(0,1fr)] overflow-clip bg-background text-text-primary md:grid-rows-[4.25rem_minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-300 md:ease-out",
         collapsed
           ? "md:grid-cols-[4.5rem_minmax(0,1fr)]"
           : "md:grid-cols-[21rem_minmax(0,1fr)]",
       )}
     >
       <OfflineStatusToast />
-      <header className="relative z-50 col-span-full flex min-w-0 items-center justify-between gap-3 border-b-2 border-border bg-surface ps-[calc(0.75rem+env(safe-area-inset-left))] pe-[calc(0.75rem+env(safe-area-inset-right))] pt-[env(safe-area-inset-top)] pb-2 sm:ps-5 sm:pe-5">
+      <header className="relative z-50 col-span-full flex min-w-0 items-center justify-between gap-3 border-b-2 border-border bg-surface ps-[calc(0.75rem+env(safe-area-inset-left))] pe-[calc(0.75rem+env(safe-area-inset-right))] pt-[env(safe-area-inset-top)] sm:ps-5 sm:pe-5 md:pb-2">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <AppIconButton
             label={mobileSidebarOpen ? "Close task sidebar" : "Open task sidebar"}
@@ -370,10 +360,10 @@ export function AppShell({
               alt=""
               width={36}
               height={36}
-              className="size-9 shrink-0 rounded-md"
+              className="size-8 shrink-0 rounded-md sm:size-9"
               priority
             />
-            <span className="truncate font-display text-lg font-medium sm:text-xl">
+            <span className="hidden truncate font-display text-lg font-medium min-[360px]:inline sm:text-xl">
               Rudo Quest
             </span>
           </Link>
@@ -407,7 +397,10 @@ export function AppShell({
                 reading={readNotifications.isPending}
                 onRetry={() => void notifications.refetch()}
                 onRead={(id) => readNotifications.mutate({ id })}
-                onClose={() => setNotificationOpen(false)}
+                onNavigate={(href) => {
+                  setNotificationOpen(false);
+                  router.push(href);
+                }}
               />
             ) : null}
           </div>
@@ -518,7 +511,7 @@ export function AppShell({
         <button
           type="button"
           aria-label="Close task sidebar"
-          className="fixed inset-x-0 top-[calc(4.25rem+env(safe-area-inset-top))] bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 bg-black/55 md:hidden"
+          className="fixed inset-0 z-30 bg-black/55 md:hidden"
           onClick={() => setMobileSidebarOpen(false)}
         />
       ) : null}
@@ -528,7 +521,7 @@ export function AppShell({
         className={cn(
           "min-h-0 flex-col border-e-2 border-border bg-surface p-3 md:flex md:h-full md:overflow-hidden",
           mobileSidebarOpen
-            ? "fixed start-0 top-[calc(4.25rem+env(safe-area-inset-top))] bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 flex w-[min(21rem,88vw)] overflow-y-auto shadow-[var(--shadow-overlay)] md:static md:inset-auto md:w-auto md:shadow-none"
+            ? "fixed inset-y-0 start-0 z-40 flex w-[min(21rem,88vw)] overflow-y-auto ps-[calc(0.75rem+env(safe-area-inset-left))] pe-[calc(0.75rem+env(safe-area-inset-right))] pt-[calc(3.25rem+env(safe-area-inset-top)+0.75rem)] pb-[calc(4.75rem+env(safe-area-inset-bottom)+0.75rem)] shadow-[var(--shadow-overlay)] md:static md:inset-auto md:w-auto md:ps-3 md:pe-3 md:pt-3 md:pb-3 md:shadow-none"
             : "hidden",
           collapsed && !mobileSidebarOpen ? "md:w-[4.5rem]" : "md:w-[21rem]",
         )}
@@ -600,25 +593,29 @@ export function AppShell({
                 </p>
               ) : null}
               {assignedTasks.isError ? (
-                <div className="rounded-lg border-2 border-error bg-error-soft p-3">
-                  <p className="text-xs text-text-primary">
+                <div className="flex items-start gap-2 rounded-lg border-2 border-error bg-error-soft p-3">
+                  <AppStateLogo size={28} />
+                  <p className="min-w-0 text-xs text-text-primary">
                     Assigned tasks could not be loaded.
                   </p>
-                  <button
-                    type="button"
-                    className="mt-2 min-h-11 text-xs font-semibold text-error underline"
-                    onClick={() => void assignedTasks.refetch()}
-                  >
-                    Try again
-                  </button>
+                  <div className="ms-auto">
+                    <button
+                      type="button"
+                      className="min-h-11 text-xs font-semibold text-error underline"
+                      onClick={() => void assignedTasks.refetch()}
+                    >
+                      Try again
+                    </button>
+                  </div>
                 </div>
               ) : null}
               {!assignedTasks.isLoading &&
               !assignedTasks.isError &&
               assignedTaskGroups.length === 0 ? (
-                <p className="rounded-lg border-2 border-border bg-surface-muted p-3 text-xs text-text-secondary">
-                  No incomplete tasks assigned to you.
-                </p>
+                <div className="flex items-center gap-2 rounded-lg border-2 border-border bg-surface-muted p-3 text-xs text-text-secondary">
+                  <AppStateLogo size={28} />
+                  <p>No incomplete tasks assigned to you.</p>
+                </div>
               ) : null}
               {assignedTaskGroups.map((group) => (
                 <section key={group.key} aria-label={`${group.title} tasks`}>
@@ -670,51 +667,27 @@ export function AppShell({
           </Link>
         ) : null}
         <nav
-          className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t-2 border-border bg-surface pb-[env(safe-area-inset-bottom)] ps-[calc(0.25rem+env(safe-area-inset-left))] pe-[calc(0.25rem+env(safe-area-inset-right))] md:hidden"
+          className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-3 border-t-2 border-border bg-surface pb-[env(safe-area-inset-bottom)] ps-[calc(0.25rem+env(safe-area-inset-left))] pe-[calc(0.25rem+env(safe-area-inset-right))] md:hidden"
           aria-label="Mobile primary"
         >
-          {mobileNavItems.map((item) => {
+          {navItems.map((item) => {
             const active = pathname.startsWith(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href as Route}
-                aria-current={
-                  item.href === "/notifications" && notificationOpen
-                    ? "page"
-                    : active
-                      ? "page"
-                      : undefined
-                }
-                aria-label={
-                  item.href === "/notifications" && unreadCount > 0
-                    ? `Notifications, ${unreadCount} unread`
-                    : undefined
-                }
-                onClick={(event) => {
-                  setMobileSidebarOpen(false);
-                  if (item.href === "/notifications") {
-                    event.preventDefault();
-                    toggleNotificationPreview();
-                  } else if (item.href === "/profile") {
-                    event.preventDefault();
-                    setAccountOpen(true);
-                  }
-                }}
+                onClick={() => setMobileSidebarOpen(false)}
+                aria-current={active ? "page" : undefined}
                 className={cn(
                   "relative flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-0 text-[10px] font-semibold text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-2 focus-visible:outline-brand",
-                  active || (item.href === "/notifications" && notificationOpen)
-                    ? "text-brand"
-                    : null,
+                  active ? "text-brand" : null,
                 )}
               >
                 <span
                   data-nav-icon
                   className={cn(
                     "relative flex h-8 w-12 items-center justify-center rounded-full transition-colors duration-200",
-                    active || (item.href === "/notifications" && notificationOpen)
-                      ? "bg-brand-soft text-brand"
-                      : "text-text-secondary",
+                    active ? "bg-brand-soft text-brand" : "text-text-secondary",
                   )}
                 >
                   <item.icon
@@ -722,13 +695,8 @@ export function AppShell({
                     strokeWidth={active ? 2.2 : 1.7}
                     aria-hidden="true"
                   />
-                  {item.href === "/notifications" && unreadCount > 0 ? (
-                    <span className="absolute end-1 top-0 inline-flex min-w-3.5 translate-x-1/4 -translate-y-1/4 items-center justify-center rounded-full bg-brand px-1 font-mono text-[8px] text-white">
-                      {unreadCount > 99 ? "99+" : unreadCount}
-                    </span>
-                  ) : null}
                 </span>
-                <span className="block max-w-full break-all text-center text-[8px] leading-3 tracking-[-0.04em] min-[360px]:text-[9px] min-[430px]:text-[10px]">
+                <span className="block max-w-full truncate text-center text-[10px] leading-3">
                   {item.mobileLabel}
                 </span>
               </Link>
@@ -743,7 +711,7 @@ export function AppShell({
 /**
  * Purpose: Render an assigned task with its project context in the global sidebar.
  * Inputs: Task DTO and navigation callback.
- * Output: Link to the task detail sheet with status, due date, and project.
+ * Output: Compact link to the associated project or personal task details.
  * Side effects: Closes the mobile drawer when followed.
  */
 function SidebarAssignedTask({
@@ -753,40 +721,20 @@ function SidebarAssignedTask({
   task: TaskDto;
   onNavigate: () => void;
 }) {
-  const href =
-    `/weekly?date=${encodeURIComponent(task.scheduledDate)}&task=${encodeURIComponent(task.id)}` as Route;
-  const statusLabel =
-    task.status === "IN_PROGRESS"
-      ? "Doing"
-      : task.status === "PENDING_REVIEW"
-        ? "Review"
-        : "To do";
+  const href = task.projectId
+    ? (`/projects/${task.projectId}` as Route)
+    : (`/weekly?date=${encodeURIComponent(task.scheduledDate)}&task=${encodeURIComponent(task.id)}` as Route);
   return (
     <Link
       href={href}
       onClick={onNavigate}
-      aria-label={`Open ${task.title}, ${task.project?.title ?? "Personal task"}, ${statusLabel}`}
-      className="flex min-h-12 items-center gap-2 rounded-md border border-border bg-surface-muted px-2.5 py-2 transition-colors hover:bg-surface-elevated focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+      aria-label={`Open ${task.title}, ${task.project?.title ?? "Personal task"}`}
+      className="flex min-h-11 min-w-0 items-center rounded-md border border-border bg-surface-muted px-2 py-1.5 transition-colors hover:bg-surface-elevated focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
     >
       <span className="min-w-0 flex-1">
-        <BidiText className="block truncate text-sm font-semibold text-text-primary">
+        <BidiText className="block truncate text-xs font-semibold text-text-primary">
           {task.title}
         </BidiText>
-        <span className="mt-0.5 block truncate font-mono text-[10px] text-text-tertiary">
-          {task.scheduledDate}
-        </span>
-      </span>
-      <span
-        className={cn(
-          "shrink-0 rounded px-1.5 py-1 text-[9px] font-bold uppercase",
-          task.status === "TODO"
-            ? "bg-surface text-text-secondary"
-            : task.status === "IN_PROGRESS"
-              ? "bg-brand-soft text-brand"
-              : "bg-warning-soft text-warning",
-        )}
-      >
-        {statusLabel}
       </span>
     </Link>
   );

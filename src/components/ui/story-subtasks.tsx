@@ -13,6 +13,7 @@ import { AppInput } from "./app-input";
 import { AppProgress } from "./app-progress";
 import { AppSelect } from "./app-select";
 import { AppSkeleton } from "./app-skeleton";
+import { AppStateLogo } from "./app-empty-state";
 import { TaskAssigneeCombobox } from "./task-assignee-combobox";
 import { taskPriorityOptions, taskTypeOptions } from "./task-classification";
 import { TaskDifficultyPicker } from "./task-difficulty";
@@ -111,7 +112,8 @@ export function StorySubtasks({ story, offline, onOpenTask }: StorySubtasksProps
           />
         </div>
       ) : (
-        <p className="rounded-md border border-dashed border-border p-3 text-sm text-text-tertiary">
+        <p className="flex items-center gap-2 rounded-md border border-dashed border-border p-3 text-sm text-text-tertiary">
+          <AppStateLogo size={32} />
           No active Subtasks yet. This Story can still be completed manually.
         </p>
       )}
@@ -178,7 +180,8 @@ export function StorySubtasks({ story, offline, onOpenTask }: StorySubtasksProps
 
       {subtasks.isLoading ? <AppSkeleton className="h-24" /> : null}
       {subtasks.isError ? (
-        <p role="alert" className="text-sm text-error">
+        <p role="alert" className="flex items-center gap-2 text-sm text-error">
+          <AppStateLogo size={32} />
           Subtasks could not be loaded.
         </p>
       ) : null}

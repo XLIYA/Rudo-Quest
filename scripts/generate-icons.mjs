@@ -27,9 +27,88 @@ function createIcoFromPngs(images) {
 
 const logo = await fs.readFile("public/branding/rudo-logo.png");
 const brandOrange = { r: 200, g: 97, b: 63, alpha: 1 };
+const darkBrandOrange = { r: 224, g: 122, b: 87 };
 
 async function createLogo(size) {
   return sharp(logo).resize(size, size, { fit: "fill" }).ensureAlpha().png().toBuffer();
+}
+
+async function createTransparentLogo() {
+  const { data, info } = await sharp(logo)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const background = [brandOrange.r, brandOrange.g, brandOrange.b];
+  const backgroundDifferences = [
+    background[0] - background[1],
+    background[1] - background[2],
+  ];
+  const backgroundDifferenceLength = backgroundDifferences.reduce(
+    (sum, channel) => sum + channel ** 2,
+    0,
+  );
+
+  // Recover antialias coverage from the orange-to-neutral blend in the source.
+  for (let offset = 0; offset < data.length; offset += info.channels) {
+    const remainingBackground =
+      ((data[offset] - data[offset + 1]) * backgroundDifferences[0] +
+        (data[offset + 1] - data[offset + 2]) * backgroundDifferences[1]) /
+      backgroundDifferenceLength;
+    const opacity = Math.min(1, Math.max(0, 1 - remainingBackground));
+
+    data[offset + 3] = Math.round(opacity * 255);
+    if (opacity > 0) {
+      for (let channel = 0; channel < 3; channel += 1) {
+        data[offset + channel] = Math.min(
+          255,
+          Math.max(
+            0,
+            Math.round(
+              (data[offset + channel] - background[channel] * (1 - opacity)) / opacity,
+            ),
+          ),
+        );
+      }
+    } else {
+      data[offset] = 255;
+      data[offset + 1] = 255;
+      data[offset + 2] = 255;
+    }
+  }
+
+  return sharp(data, { raw: info }).png().toBuffer();
+}
+
+async function createDarkAppleLogo(size) {
+  const { data, info } = await sharp(logo)
+    .resize(size, size, { fit: "fill" })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const brandChannels = [brandOrange.r, brandOrange.g, brandOrange.b];
+  const colorDelta = brandChannels.map((channel) => 255 - channel);
+  const colorDeltaLength = colorDelta.reduce((sum, channel) => sum + channel ** 2, 0);
+
+  // Recover the source mark's edge coverage to retain its exact silhouette.
+  for (let offset = 0; offset < data.length; offset += info.channels) {
+    const coverage = Math.min(
+      1,
+      Math.max(
+        0,
+        colorDelta.reduce(
+          (sum, channel, index) =>
+            sum + (data[offset + index] - brandChannels[index]) * channel,
+          0,
+        ) / colorDeltaLength,
+      ),
+    );
+    data[offset] = Math.round(darkBrandOrange.r * coverage);
+    data[offset + 1] = Math.round(darkBrandOrange.g * coverage);
+    data[offset + 2] = Math.round(darkBrandOrange.b * coverage);
+    data[offset + 3] = 255;
+  }
+
+  return sharp(data, { raw: info }).png().toBuffer();
 }
 
 async function createMaskableLogo(size) {
@@ -58,6 +137,10 @@ async function createMaskableLogo(size) {
 }
 
 await fs.mkdir("public/icons", { recursive: true });
+await fs.writeFile(
+  "public/branding/rudo-logo-transparent.png",
+  await createTransparentLogo(),
+);
 await fs.writeFile("public/icons/icon-192.png", await createLogo(192));
 await fs.writeFile("public/icons/icon-512.png", await createLogo(512));
 await fs.writeFile("public/icons/icon-maskable-192.png", await createMaskableLogo(192));
@@ -68,6 +151,13 @@ await Promise.all(
   appleIconSizes.map((size) =>
     createLogo(size).then((icon) =>
       fs.writeFile(`public/icons/apple-touch-icon-${size}.png`, icon),
+    ),
+  ),
+);
+await Promise.all(
+  appleIconSizes.map((size) =>
+    createDarkAppleLogo(size).then((icon) =>
+      fs.writeFile(`public/icons/apple-touch-icon-dark-${size}.png`, icon),
     ),
   ),
 );
@@ -84,4 +174,4 @@ const faviconImages = await Promise.all(
 const favicon = createIcoFromPngs(faviconImages);
 await fs.writeFile("public/favicon.ico", favicon);
 await fs.writeFile("src/app/favicon.ico", favicon);
-console.log("Generated Rudo Quest icons from the supplied orange logo.");
+console.log("Generated Rudo Quest PWA and light/dark iOS icons.");

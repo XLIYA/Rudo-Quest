@@ -17,7 +17,7 @@ import { apiGet, apiMutation, normalizeApiClientError } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
 import { AppButton } from "@/components/ui/app-button";
 import { AppDialog } from "@/components/ui/app-dialog";
-import { AppEmptyState } from "@/components/ui/app-empty-state";
+import { AppEmptyState, AppStateLogo } from "@/components/ui/app-empty-state";
 import { AppSkeleton } from "@/components/ui/app-skeleton";
 import { AppAvatar } from "@/components/ui/app-avatar";
 import { PageHeader } from "@/components/shared/page-header";
@@ -596,8 +596,9 @@ export function ProjectSettingsScreen({
             {!githubConfigured && isAdmin ? (
               <p
                 role="status"
-                className="mb-3 rounded-md border border-warning bg-warning-soft p-3 text-sm"
+                className="mb-3 flex items-center gap-2 rounded-md border border-warning bg-warning-soft p-3 text-sm"
               >
+                <AppStateLogo size={32} />
                 GitHub App is not configured for this deployment. Add the documented
                 GitHub environment variables before connecting a repository.
               </p>
@@ -605,8 +606,9 @@ export function ProjectSettingsScreen({
             {githubInstallations.isError && isAdmin ? (
               <p
                 role="alert"
-                className="mb-3 rounded-md border border-warning bg-warning-soft p-3 text-sm"
+                className="mb-3 flex items-center gap-2 rounded-md border border-warning bg-warning-soft p-3 text-sm"
               >
+                <AppStateLogo size={32} />
                 {normalizeApiClientError(githubInstallations.error).code ===
                 "INTEGRATION_NOT_CONFIGURED"
                   ? "GitHub App is not configured for this deployment. Add the documented GitHub environment variables before connecting a repository."
@@ -674,7 +676,7 @@ export function ProjectSettingsScreen({
             ) : (
               <div className="flex min-w-0 flex-col gap-3 rounded-md border border-border bg-surface-muted p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-3">
-                  <GitBranch className="size-5 text-text-tertiary" />
+                  <AppStateLogo size={36} />
                   <div>
                     <span className="font-medium">No repository connected</span>
                     <span className="block text-sm text-text-secondary">
@@ -853,7 +855,11 @@ export function ProjectSettingsScreen({
                   disabled={!online || invite.isPending}
                 />
                 {inviteSuggestions.isError ? (
-                  <p role="alert" className="text-sm text-error sm:col-span-3">
+                  <p
+                    role="alert"
+                    className="flex items-center gap-2 text-sm text-error sm:col-span-3"
+                  >
+                    <AppStateLogo size={32} />
                     Collaborator suggestions could not be loaded.
                   </p>
                 ) : null}

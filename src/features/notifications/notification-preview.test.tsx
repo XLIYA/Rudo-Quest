@@ -10,14 +10,7 @@ vi.mock("next/link", () => ({
     onClick,
     ...props
   }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
-    <a
-      href={href}
-      {...props}
-      onClick={(event) => {
-        event.preventDefault();
-        onClick?.(event);
-      }}
-    >
+    <a href={href} {...props} onClick={onClick}>
       {children}
     </a>
   ),
@@ -35,7 +28,7 @@ const notification: NotificationDto = {
 
 function renderPreview() {
   const onRead = vi.fn();
-  const onClose = vi.fn();
+  const onNavigate = vi.fn();
   render(
     <NotificationPreview
       items={[notification]}
@@ -46,15 +39,15 @@ function renderPreview() {
       reading={false}
       onRetry={vi.fn()}
       onRead={onRead}
-      onClose={onClose}
+      onNavigate={onNavigate}
     />,
   );
-  return { onRead, onClose };
+  return { onRead, onNavigate };
 }
 
 describe("NotificationPreview", () => {
   it("previews notifications, marks one read, and links to the full inbox", () => {
-    const { onRead, onClose } = renderPreview();
+    const { onRead, onNavigate } = renderPreview();
 
     expect(screen.getByText("Review project brief")).toBeVisible();
     expect(screen.getByText("1 unread")).toBeVisible();
@@ -66,7 +59,7 @@ describe("NotificationPreview", () => {
     const viewAll = screen.getByRole("link", { name: "View All" });
     expect(viewAll).toHaveAttribute("href", "/notifications");
     fireEvent.click(viewAll);
-    expect(onClose).toHaveBeenCalled();
+    expect(onNavigate).toHaveBeenCalledWith("/notifications");
   });
 
   it("provides a retry action when notifications fail to load", () => {
@@ -81,7 +74,7 @@ describe("NotificationPreview", () => {
         reading={false}
         onRetry={onRetry}
         onRead={vi.fn()}
-        onClose={vi.fn()}
+        onNavigate={vi.fn()}
       />,
     );
 

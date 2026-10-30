@@ -17,7 +17,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { AppAvatar } from "@/components/ui/app-avatar";
 import { AppButton } from "@/components/ui/app-button";
 import { AppCheckbox } from "@/components/ui/app-checkbox";
-import { AppEmptyState } from "@/components/ui/app-empty-state";
+import { AppEmptyState, AppStateLogo } from "@/components/ui/app-empty-state";
 import { AppInput } from "@/components/ui/app-input";
 import { AppPagination } from "@/components/ui/app-pagination";
 import { AppSelect } from "@/components/ui/app-select";
@@ -468,7 +468,8 @@ export function ProfileScreen() {
             <ActivityHeatmap days={heatmap.data.heatmap.days} endDate={currentDate} />
           ) : null}
           {heatmap.isError ? (
-            <p className="text-sm text-text-secondary">
+            <p className="flex items-center gap-2 text-sm text-text-secondary">
+              <AppStateLogo size={32} />
               Completion history could not be loaded right now.
             </p>
           ) : null}

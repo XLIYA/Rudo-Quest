@@ -217,7 +217,7 @@ Full per-variable sourcing instructions, Vercel environment mapping, and safe se
 | `npm run db:seed`           | Seed development data                                 |
 | `npm run dev:setup`         | `db:migrate` + `db:seed`                              |
 | `npm run db:configure-cron` | Store the cron URL + `CRON_SECRET` in Supabase Vault  |
-| `npm run icons`             | Regenerate PWA icons                                  |
+| `npm run icons`             | Regenerate PWA, light/dark iOS, and transparent logos |
 | `npm run prepare`           | Install Husky git hooks (lint-staged on pre-commit)   |
 
 ## Database & Migrations

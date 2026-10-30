@@ -13,6 +13,7 @@ import { AppButton } from "./app-button";
 import { AppConfirmDialog } from "./app-confirm-dialog";
 import { AppInput } from "./app-input";
 import { AppSkeleton } from "./app-skeleton";
+import { AppStateLogo } from "./app-empty-state";
 
 const accept =
   ".jpg,.jpeg,.png,.webp,.gif,.avif,.pdf,.txt,.csv,.md,.json,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.7z,.gz,.tar";
@@ -146,12 +147,14 @@ export function TaskAttachments({
 
       {attachments.isLoading ? <AppSkeleton className="h-20" /> : null}
       {attachments.isError ? (
-        <p role="alert" className="text-sm text-error">
+        <p role="alert" className="flex items-center gap-2 text-sm text-error">
+          <AppStateLogo size={32} />
           Attachments could not be loaded.
         </p>
       ) : null}
       {!attachments.isLoading && !attachments.isError && !attachments.data?.length ? (
-        <p className="rounded-md border border-dashed border-border p-3 text-sm text-text-tertiary">
+        <p className="flex items-center gap-2 rounded-md border border-dashed border-border p-3 text-sm text-text-tertiary">
+          <AppStateLogo size={32} />
           No attachments yet.
         </p>
       ) : null}

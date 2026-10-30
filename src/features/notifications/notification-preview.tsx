@@ -3,7 +3,9 @@
 import { Bell, Check, CheckCheck, GitPullRequest, UserPlus } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
+import type { MouseEvent } from "react";
 import { BidiText } from "@/components/shared/bidi-text";
+import { AppStateLogo } from "@/components/ui/app-empty-state";
 import { AppIconButton } from "@/components/ui/app-icon-button";
 import { cn } from "@/lib/utils/cn";
 import type { NotificationDto, NotificationType } from "@/types/domain";
@@ -31,7 +33,7 @@ export function NotificationPreview({
   reading,
   onRetry,
   onRead,
-  onClose,
+  onNavigate,
 }: {
   items: NotificationDto[];
   unreadCount: number;
@@ -41,15 +43,30 @@ export function NotificationPreview({
   reading: boolean;
   onRetry: () => void;
   onRead: (id: string) => void;
-  onClose: () => void;
+  onNavigate: (href: Route) => void;
 }) {
+  const navigateFromPreview = (event: MouseEvent<HTMLAnchorElement>, href: Route) => {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return;
+    }
+    event.preventDefault();
+    onNavigate(href);
+  };
+
   return (
     <section
       id="notification-preview"
       aria-label="Notification preview"
-      className="app-enter absolute end-0 top-full z-[60] mt-2 flex max-h-[min(34rem,calc(100dvh-7rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] w-[min(26rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-xl border-2 border-border bg-surface shadow-[var(--shadow-overlay)]"
+      className="app-enter fixed start-[calc(0.5rem+env(safe-area-inset-left))] end-[calc(0.5rem+env(safe-area-inset-right))] top-[calc(3.75rem+env(safe-area-inset-top))] z-[60] mx-auto flex max-h-[min(34rem,calc(100dvh-4.25rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] w-auto max-w-[26rem] flex-col overflow-x-hidden overflow-y-hidden rounded-xl border-2 border-border bg-surface shadow-[var(--shadow-overlay)] md:absolute md:start-auto md:end-0 md:top-full md:mx-0 md:mt-2 md:max-h-[min(34rem,calc(100dvh-7rem-env(safe-area-inset-top)-env(safe-area-inset-bottom)))] md:w-[26rem]"
     >
-      <header className="flex items-center justify-between gap-3 border-b-2 border-border px-4 py-3">
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b-2 border-border px-3 py-2.5 sm:px-4 sm:py-3">
         <div>
           <h2 className="text-sm font-bold">Notifications</h2>
           <p className="text-xs text-text-secondary" aria-live="polite">
@@ -58,8 +75,8 @@ export function NotificationPreview({
         </div>
         <Link
           href="/notifications"
-          onClick={onClose}
-          className="inline-flex min-h-10 items-center rounded-md border-2 border-border bg-surface-muted px-3 text-xs font-bold text-text-primary hover:bg-surface-elevated focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+          onClick={(event) => navigateFromPreview(event, "/notifications")}
+          className="inline-flex min-h-11 items-center rounded-md border-2 border-border bg-surface-muted px-3 text-xs font-bold text-text-primary hover:bg-surface-elevated focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
         >
           View All
         </Link>
@@ -69,21 +86,24 @@ export function NotificationPreview({
           Loading notifications…
         </p>
       ) : error ? (
-        <div className="p-4">
+        <div className="flex items-start gap-3 p-4">
+          <AppStateLogo size={32} />
           <p className="text-sm text-text-secondary">
             Notifications could not be loaded.
           </p>
-          <button
-            type="button"
-            onClick={onRetry}
-            className="mt-2 min-h-10 text-xs font-bold text-brand underline"
-          >
-            Try again
-          </button>
+          <div className="ms-auto">
+            <button
+              type="button"
+              onClick={onRetry}
+              className="min-h-11 text-xs font-bold text-brand underline"
+            >
+              Try again
+            </button>
+          </div>
         </div>
       ) : items.length ? (
         <div
-          className="min-h-0 divide-y divide-border overflow-y-auto overscroll-contain"
+          className="min-h-0 flex-1 divide-y divide-border overflow-x-hidden overflow-y-auto overscroll-contain"
           role="region"
           aria-label="Recent notifications"
         >
@@ -132,8 +152,10 @@ export function NotificationPreview({
                     {notification.href ? (
                       <Link
                         href={notification.href as Route}
-                        onClick={onClose}
-                        className="text-[10px] font-bold text-brand underline"
+                        onClick={(event) =>
+                          navigateFromPreview(event, notification.href as Route)
+                        }
+                        className="inline-flex min-h-11 items-center text-xs font-bold text-brand underline"
                       >
                         Open
                       </Link>
@@ -143,7 +165,7 @@ export function NotificationPreview({
                 {unread ? (
                   <AppIconButton
                     label={`Mark ${notification.title} as read`}
-                    className="size-9 min-h-9 min-w-9"
+                    className="size-11 min-h-11 min-w-11"
                     disabled={!online || reading}
                     onClick={() => onRead(notification.id)}
                   >
@@ -155,9 +177,12 @@ export function NotificationPreview({
           })}
         </div>
       ) : (
-        <p className="p-4 text-sm text-text-secondary">
-          No notifications yet. Assignments and project invitations will appear here.
-        </p>
+        <div className="flex items-center gap-3 p-4 text-sm text-text-secondary">
+          <AppStateLogo size={32} />
+          <p>
+            No notifications yet. Assignments and project invitations will appear here.
+          </p>
+        </div>
       )}
     </section>
   );

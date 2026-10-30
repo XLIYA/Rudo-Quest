@@ -10,7 +10,7 @@ import { AppAvatar } from "@/components/ui/app-avatar";
 import { AppAvatarStack } from "@/components/ui/app-avatar-stack";
 import { AppButton } from "@/components/ui/app-button";
 import { AppDialog } from "@/components/ui/app-dialog";
-import { AppEmptyState } from "@/components/ui/app-empty-state";
+import { AppEmptyState, AppStateLogo } from "@/components/ui/app-empty-state";
 import { AppIconButton } from "@/components/ui/app-icon-button";
 import { AppInput } from "@/components/ui/app-input";
 import { AppTextarea } from "@/components/ui/app-textarea";
@@ -428,7 +428,11 @@ function CreateProjectDialog({
                 <div className="grid gap-2" aria-live="polite">
                   {suggestions.isLoading ? <AppSkeleton className="h-14" /> : null}
                   {suggestions.isError ? (
-                    <p role="alert" className="text-sm text-error">
+                    <p
+                      role="alert"
+                      className="flex items-center gap-2 text-sm text-error"
+                    >
+                      <AppStateLogo size={32} />
                       Collaborators could not be loaded. Check the connection and try
                       again.
                     </p>
@@ -454,7 +458,8 @@ function CreateProjectDialog({
                   {!suggestions.isLoading &&
                   !suggestions.isError &&
                   !visibleSuggestions.length ? (
-                    <p className="rounded-md border border-border bg-surface p-3 text-sm text-text-secondary">
+                    <p className="flex items-center gap-2 rounded-md border border-border bg-surface p-3 text-sm text-text-secondary">
+                      <AppStateLogo size={32} />
                       No matching users found.
                     </p>
                   ) : null}

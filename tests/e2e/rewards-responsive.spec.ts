@@ -38,19 +38,42 @@ test("responsive navigation, task difficulty, and atomic reward lifecycle", asyn
     const sidebar = page.getByRole("complementary", {
       name: "Task and primary navigation",
     });
-    await expect(
-      sidebar.getByRole("button", { name: "Expand task sidebar" }),
-    ).toBeVisible();
-    await expect(page.getByRole("button", { name: "Open task sidebar" })).toBeHidden();
-    await sidebar.getByRole("button", { name: "Expand task sidebar" }).click();
-    await expect(
-      sidebar.getByRole("button", { name: "Collapse task sidebar" }),
-    ).toBeVisible();
-    await expect(sidebar.getByRole("heading", { name: "Assigned to me" })).toBeVisible();
-    await sidebar.getByRole("button", { name: "Collapse task sidebar" }).click();
+    if (testInfo.project.name === "mobile") {
+      const mobileSidebarTrigger = page.getByRole("button", {
+        name: "Open task sidebar",
+      });
+      await expect(mobileSidebarTrigger).toBeVisible();
+      await expect(
+        sidebar.getByRole("button", { name: "Expand task sidebar" }),
+      ).toBeHidden();
+      await mobileSidebarTrigger.click();
+      await expect(sidebar).toBeVisible();
+      await expect(
+        sidebar.getByRole("heading", { name: "Assigned to me" }),
+      ).toBeVisible();
+      await page
+        .locator("header")
+        .first()
+        .getByRole("button", { name: "Close task sidebar" })
+        .click();
+    } else {
+      await expect(
+        sidebar.getByRole("button", { name: "Expand task sidebar" }),
+      ).toBeVisible();
+      await expect(page.getByRole("button", { name: "Open task sidebar" })).toBeHidden();
+      await sidebar.getByRole("button", { name: "Expand task sidebar" }).click();
+      await expect(
+        sidebar.getByRole("button", { name: "Collapse task sidebar" }),
+      ).toBeVisible();
+      await expect(
+        sidebar.getByRole("heading", { name: "Assigned to me" }),
+      ).toBeVisible();
+      await sidebar.getByRole("button", { name: "Collapse task sidebar" }).click();
+    }
 
     await page
       .locator("header")
+      .first()
       .getByRole("button", { name: /Notifications/ })
       .click();
     const notificationPreview = page.getByRole("region", {
@@ -101,10 +124,11 @@ test("responsive navigation, task difficulty, and atomic reward lifecycle", asyn
     });
     const origin = new URL(page.url()).origin;
     const headers = { origin };
+    const projectTitle = `A deliberately long project title for mobile layout ${crypto.randomUUID().slice(0, 8)}`;
     const projectResponse = await page.request.post("/api/projects", {
       headers,
       data: {
-        title: `A deliberately long project title for mobile layout ${crypto.randomUUID().slice(0, 8)}`,
+        title: projectTitle,
         description: null,
         iconKey: "Rocket",
         colorKey: "orange",
@@ -113,6 +137,7 @@ test("responsive navigation, task difficulty, and atomic reward lifecycle", asyn
     });
     expect(projectResponse.status()).toBe(201);
     projectId = (await projectResponse.json()).data.id;
+    const currentUserId = (await (await page.request.get("/api/me")).json()).data.id;
     const createdTasks: { id: string; version: number }[] = [];
     for (const difficulty of [2, 5]) {
       const response = await page.request.post("/api/tasks", {
@@ -120,6 +145,7 @@ test("responsive navigation, task difficulty, and atomic reward lifecycle", asyn
         data: {
           title: `Reward task difficulty ${difficulty}`,
           projectId,
+          assigneeId: currentUserId,
           difficulty,
           scheduledDate: new Date().toISOString().slice(0, 10),
           scheduledTimeZone: "UTC",
@@ -155,8 +181,16 @@ test("responsive navigation, task difficulty, and atomic reward lifecycle", asyn
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto(`/projects/${projectId}`);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(/deliberately long/);
+    await expect(
+      page.locator(
+        'link[rel="apple-touch-icon"][sizes="180x180"][media="(prefers-color-scheme: dark)"]',
+      ),
+    ).toHaveAttribute("href", "/icons/apple-touch-icon-dark-180.png");
     const mobileNav = page.getByRole("navigation", { name: "Mobile primary" });
-    await expect(mobileNav.getByRole("link")).toHaveCount(5);
+    await expect(mobileNav.getByRole("link")).toHaveCount(3);
+    await expect(
+      mobileNav.getByRole("link", { name: /Profile|Notifications/ }),
+    ).toHaveCount(0);
     await expect(mobileNav.getByRole("link", { name: "Projects" })).toHaveAttribute(
       "aria-current",
       "page",
@@ -164,26 +198,61 @@ test("responsive navigation, task difficulty, and atomic reward lifecycle", asyn
     await expect(
       mobileNav.getByRole("link", { name: "Projects" }).locator("[data-nav-icon]"),
     ).toHaveClass(/bg-brand-soft/);
-    await mobileNav.getByRole("link", { name: /Notifications/ }).click();
+    const mobileNotificationButton = page
+      .locator("header")
+      .first()
+      .getByRole("button", { name: /Notifications/ });
+    await mobileNotificationButton.click();
     await expect(notificationPreview).toBeVisible();
+    const mobilePreviewBounds = await notificationPreview.evaluate((panel) => {
+      const rect = panel.getBoundingClientRect();
+      const header = document.querySelector("header")!.getBoundingClientRect();
+      return {
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom,
+        headerBottom: header.bottom,
+      };
+    });
+    expect(mobilePreviewBounds.left).toBeGreaterThanOrEqual(0);
+    expect(mobilePreviewBounds.right).toBeLessThanOrEqual(375);
+    expect(mobilePreviewBounds.top).toBeGreaterThanOrEqual(
+      mobilePreviewBounds.headerBottom,
+    );
     await expect(page).toHaveURL(new RegExp(`/projects/${projectId}$`));
     await notificationPreview.getByRole("link", { name: "View All" }).click();
     await expect(page).toHaveURL(/\/notifications$/);
-    await page.goto(`/projects/${projectId}`);
+    await page.goto("/weekly");
     await expect(page.getByRole("button", { name: "Open task sidebar" })).toBeVisible();
     await expect(sidebar).toBeHidden();
     await page.getByRole("button", { name: "Open task sidebar" }).click();
     await expect(sidebar).toBeVisible();
     await expect(sidebar.getByRole("heading", { name: "Assigned to me" })).toBeVisible();
-    await page
-      .locator("header")
-      .getByRole("button", { name: "Close task sidebar" })
-      .click();
+    const sidebarBounds = await sidebar.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom, viewportHeight: innerHeight };
+    });
+    expect(sidebarBounds.top).toBe(0);
+    expect(sidebarBounds.bottom).toBe(sidebarBounds.viewportHeight);
+    const projectTaskGroup = sidebar.getByRole("region", {
+      name: `${projectTitle} tasks`,
+    });
+    const assignedProjectTask = projectTaskGroup.getByRole("link", {
+      name: /Reward task difficulty 2/,
+    });
+    await expect(assignedProjectTask).toHaveAttribute("href", `/projects/${projectId}`);
+    await assignedProjectTask.click();
+    await expect(page).toHaveURL(new RegExp(`/projects/${projectId}$`));
     await expect(sidebar).toBeHidden();
     await page.addStyleTag({
       content: "nextjs-portal { pointer-events: none !important; }",
     });
-    await mobileNav.getByRole("link", { name: "Profile" }).click();
+    await page
+      .locator("header")
+      .first()
+      .getByRole("button", { name: "Open account menu" })
+      .click();
     const mobileAccountMenu = page.getByRole("menu", { name: "Account" });
     await expect(mobileAccountMenu).toBeVisible();
     await expect(
@@ -194,7 +263,18 @@ test("responsive navigation, task difficulty, and atomic reward lifecycle", asyn
     ).toBeVisible();
     await page.keyboard.press("Escape");
     for (const width of [320, 360, 375, 414]) {
-      await page.setViewportSize({ width, height: 760 });
+      await page.setViewportSize({ width, height: width === 320 ? 568 : 812 });
+      expect(
+        await page.locator('meta[name="viewport"]').getAttribute("content"),
+      ).toContain("viewport-fit=cover");
+      const headerMetrics = await page
+        .locator("header")
+        .first()
+        .evaluate((header) => ({
+          height: header.getBoundingClientRect().height,
+          safeTop: Number.parseFloat(getComputedStyle(header).paddingTop),
+        }));
+      expect(headerMetrics.height - headerMetrics.safeTop).toBeLessThanOrEqual(56);
       const navMetrics = await mobileNav.locator("a").evaluateAll((links) =>
         links.map((link) => {
           const rect = link.getBoundingClientRect();
@@ -206,7 +286,7 @@ test("responsive navigation, task difficulty, and atomic reward lifecycle", asyn
           };
         }),
       );
-      expect(navMetrics).toHaveLength(5);
+      expect(navMetrics).toHaveLength(3);
       expect(
         navMetrics.every(
           (item, index) =>
@@ -216,6 +296,26 @@ test("responsive navigation, task difficulty, and atomic reward lifecycle", asyn
             item.right <= width,
         ),
       ).toBe(true);
+      await mobileNotificationButton.click();
+      await expect(notificationPreview).toBeVisible();
+      const previewBounds = await notificationPreview.evaluate((panel) => {
+        const rect = panel.getBoundingClientRect();
+        return {
+          left: rect.left,
+          right: rect.right,
+          top: rect.top,
+          bottom: rect.bottom,
+        };
+      });
+      expect(previewBounds.left).toBeGreaterThanOrEqual(0);
+      expect(previewBounds.right).toBeLessThanOrEqual(width);
+      expect(previewBounds.top).toBeGreaterThanOrEqual(0);
+      expect(previewBounds.bottom).toBeLessThanOrEqual(width === 320 ? 568 : 812);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      ).toBe(true);
+      await mobileNotificationButton.click();
+      await expect(notificationPreview).toBeHidden();
     }
     await page.setViewportSize({ width: 375, height: 667 });
     await expect(

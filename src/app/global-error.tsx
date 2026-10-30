@@ -2,6 +2,7 @@
 
 import * as Sentry from "@sentry/nextjs";
 import { useEffect } from "react";
+import { AppStateLogo } from "@/components/ui/app-empty-state";
 
 /**
  * Purpose: Render a global failure surface and report App Router crashes.
@@ -24,6 +25,7 @@ export default function GlobalError({
       <body>
         <main className="flex min-h-screen items-center justify-center bg-background p-6 text-text-primary">
           <section className="max-w-sm rounded-lg border border-border bg-surface p-6 shadow-[var(--shadow-raised)]">
+            <AppStateLogo size={96} className="mx-auto mb-4" />
             <h1 className="font-display text-xl font-semibold">
               Rudo Quest hit a problem
             </h1>
